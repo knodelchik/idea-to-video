@@ -1,0 +1,23 @@
+{
+  "_doc": "Backlog for the autonomous harness (scripts/harness.sh). Order = build order. status: failing | passing | blocked. Only the harness flips status, after external verification and an independent review.",
+  "features": [
+    { "id": "F01-contracts", "spec": "specs/F01-contracts.md", "status": "failing",
+      "accept": ["npx vitest run tests/verbatim.test.ts tests/schemas.test.ts"] },
+    { "id": "F02-mocks-media", "spec": "specs/F02-mocks-media.md", "status": "failing",
+      "accept": ["npx vitest run tests/media.test.ts tests/providers.mock.test.ts"] },
+    { "id": "F03-script", "spec": "specs/F03-script.md", "status": "failing",
+      "accept": ["npx vitest run tests/script.test.ts"] },
+    { "id": "F04-voice-gate", "spec": "specs/F04-voice-gate.md", "status": "failing",
+      "accept": ["npx vitest run tests/voice.test.ts"] },
+    { "id": "F05-visuals", "spec": "specs/F05-visuals.md", "status": "failing",
+      "accept": ["npx vitest run tests/visuals.test.ts"] },
+    { "id": "F06-graph-cli", "spec": "specs/F06-graph-cli.md", "status": "failing",
+      "accept": ["npx vitest run tests/graph.test.ts", "npx tsx src/cli.ts \"A man on a rooftop calls his brother. He says: \\\"I kept the watch. I kept everything.\\\"\" --mock --json"] },
+    { "id": "F07-quality-judge", "spec": "specs/F07-quality-judge.md", "status": "failing",
+      "accept": ["npx vitest run tests/judge.test.ts"] },
+    { "id": "F08-evals", "spec": "specs/F08-evals.md", "status": "failing",
+      "accept": ["npx tsx evals/run.ts --mock --limit 3"] },
+    { "id": "F09-bench", "spec": "specs/F09-bench.md", "status": "failing",
+      "accept": ["npx tsx scripts/bench.ts --mock"] }
+  ]
+}

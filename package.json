@@ -1,0 +1,31 @@
+{
+  "name": "idea-to-video",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One command: a 1-3 sentence idea in, a vertical video with a verbatim spoken line out.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "make": "tsx --env-file-if-exists=.env src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "bash scripts/verify.sh",
+    "harness": "bash scripts/harness.sh"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.10.1",
+    "@google/genai": "^2.30.0",
+    "@langchain/core": "^1.2.17",
+    "@langchain/langgraph": "^1.5.0",
+    "@langchain/langgraph-checkpoint-sqlite": "^1.1.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

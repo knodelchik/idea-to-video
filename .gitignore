@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+runs/
+.cache/
+harness/logs/
+*.log
+.DS_Store
