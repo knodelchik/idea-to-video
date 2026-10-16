@@ -44,3 +44,6 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   `.source.json` links that MockAsr follows. Linked or silent audio threw ENOENT, and the tests only used direct
   TTS output → caught by the reviewer → resolve with `readTranscript` and write only if a transcript exists. Added
   a test with linked and bare audio.
+- [F03] Wired the live LLM as `{ llm: GeminiLlm.fromEnv(env), ...overrides }`. A test passing `{ ...mocks, llm: undefined }`
+  would have replaced the adapter with `undefined` (spread copies explicit undefined keys) and also built a client
+  needlessly → caught while writing the createProviders test → `{ ...overrides, llm: overrides.llm ?? GeminiLlm.fromEnv(env) }`.

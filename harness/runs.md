@@ -18,3 +18,8 @@
 2026-10-16 16:12:18 F02-mocks-media attempt 2: implementer
 2026-10-16 16:18:22 F02-mocks-media attempt 2: gate
 2026-10-16 16:18:31 F02-mocks-media attempt 2: reviewer
+2026-10-16 16:19:52 F02-mocks-media PASSED on attempt 2 -> da63ae0
+2026-10-16 16:19:52 ### F03-script start (specs/F03-script.md)
+2026-10-16 16:19:52 F03-script attempt 1: implementer
+2026-10-16 16:24:18 F03-script attempt 1: gate
+2026-10-16 16:24:23 F03-script attempt 1: reviewer

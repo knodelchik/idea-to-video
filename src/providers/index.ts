@@ -4,6 +4,7 @@
  */
 import { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo } from "./mock.ts";
 import type { Providers } from "./types.ts";
+import { GeminiLlm } from "./gemini.ts";
 
 export type * from "./types.ts";
 export { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo } from "./mock.ts";
@@ -56,8 +57,9 @@ export function createProviders({ mode, env, overrides = {} }: CreateProvidersOp
     if (overrides[capability]) continue;
     if (!env[envVar]) throw new NotConfiguredError(capability, envVar);
   }
+  const live: Partial<Providers> = { ...overrides, llm: overrides.llm ?? GeminiLlm.fromEnv(env) };
   // Keys are present but no live adapter exists yet; still refuse rather than silently using a mock.
-  const missing = (Object.keys(LIVE_ENV) as (keyof Providers)[]).find((c) => !overrides[c]);
+  const missing = (Object.keys(LIVE_ENV) as (keyof Providers)[]).find((c) => !live[c]);
   if (missing) throw new NotConfiguredError(missing, `a live ${missing} adapter (not implemented yet)`);
-  return overrides as Providers;
+  return live as Providers;
 }

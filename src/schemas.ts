@@ -36,18 +36,26 @@ export const Shot = z.object({
 });
 export type Shot = z.infer<typeof Shot>;
 
-export const Script = z
-  .object({
-    promptVersion: nonEmpty("promptVersion"),
-    title: nonEmpty("title"),
-    logline: nonEmpty("logline"),
-    setting: nonEmpty("setting"),
-    character: Character,
-    // Count is checked in superRefine so the message can say how many we got.
-    shots: z.array(Shot),
-    /** Lines quoted in the idea, as extracted by code (extractQuotedLines), not by the model. */
-    quotedLines: z.array(z.string()),
-  })
+const ScriptFields = z.object({
+  promptVersion: nonEmpty("promptVersion"),
+  title: nonEmpty("title"),
+  logline: nonEmpty("logline"),
+  setting: nonEmpty("setting"),
+  character: Character,
+  // Count is checked in superRefine so the message can say how many we got.
+  shots: z.array(Shot),
+  /** Lines quoted in the idea, as extracted by code (extractQuotedLines), not by the model. */
+  quotedLines: z.array(z.string()),
+});
+
+/**
+ * What the LLM is asked to return: the script minus the fields code owns (promptVersion, quotedLines).
+ * Built from the unrefined object because zod refuses .omit() on a refined schema.
+ */
+export const ScriptDraft = ScriptFields.omit({ promptVersion: true, quotedLines: true });
+export type ScriptDraft = z.infer<typeof ScriptDraft>;
+
+export const Script = ScriptFields
   .superRefine((s, ctx) => {
     const n = s.shots.length;
     if (n < 1 || n > 2) {

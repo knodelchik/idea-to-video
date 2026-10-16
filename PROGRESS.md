@@ -33,3 +33,15 @@ Append-only log, one entry per feature, written by the implementer agent and com
   `once(out, tmp => …)` returns `{ path, cached, result? }`. It writes atomically, moves sidecars along, cleans up
   after a crash, and dedupes concurrent calls.
 - Tests: `tests/media.test.ts`, `tests/providers.mock.test.ts`. Both include real ffmpeg round-trips and take about 3 s.
+
+## F03 — Script writer with deterministic validation
+- `writeScript(idea, { llm, maxAttempts = 3 })` (`src/nodes/script.ts`) → `{ script, attempts }`. It asks the LLM for a
+  `ScriptDraft`, adds `promptVersion` + code-extracted `quotedLines`, and re-prompts with the previous JSON and the
+  problem list. After the last failure it throws `ScriptError { problems, attempts }`.
+- `scriptProblems(script, idea)`: exact quoted lines, `quotedLines`, 1–2 shots with ids s1/s2, total 8–30 s,
+  `wordCount/2.6 + 0.8 ≤ seconds`, no digits in non-quoted lines, `character.look` ≥ 12 words. One fix-oriented message each.
+- Prompt: `src/prompts/script.ts` (`SCRIPT_PROMPT_VERSION`, `SCRIPT_SYSTEM`, `firstPrompt`, `retryPrompt`).
+- Live LLM: `GeminiLlm` (`src/providers/gemini.ts`), `GeminiLlm.fromEnv(env)` reads `GEMINI_API_KEY` and `SCRIPT_MODELS`
+  (comma list; 429/503 → next model, recorded in `LlmResult.notes`). `createProviders({ mode: "live" })` uses it for `llm`.
+- `wordCount(text)` in `src/verbatim.ts` counts spoken (normalised) words.
+- Tests: `tests/script.test.ts` (MockLlm + a fake Gemini client; no network).

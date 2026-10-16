@@ -15,9 +15,15 @@ export interface LlmRequest<T> {
 }
 
 /** Not thrown on a bad shape: the caller needs the cost and the error text to retry. */
-export type LlmResult<T> =
+export type LlmResult<T> = (
   | { ok: true; data: T; raw: unknown; costUsd: number }
-  | { ok: false; error: string; raw: unknown; costUsd: number };
+  | { ok: false; error: string; raw: unknown; costUsd: number }
+) & {
+  /** Model that actually answered, when the provider has a model chain. */
+  model?: string;
+  /** Fallbacks or caveats the caller must record in the manifest (no silent fallbacks). */
+  notes?: string[];
+};
 
 export interface LlmProvider {
   readonly name: string;

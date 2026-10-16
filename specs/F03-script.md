@@ -30,4 +30,33 @@ model as concrete notes. Quoted lines from the idea are copied **exactly** — t
 6. `pnpm verify` green.
 
 ## Decisions
-_(implementer fills in)_
+- **Contract: `ScriptDraft`** (in `src/schemas.ts`) is what the LLM returns: the `Script` fields minus `promptVersion` and
+  `quotedLines`, which code owns. `writeScript` fills them in (`quotedLines = extractQuotedLines(idea)`), so the model
+  can never "extract" a quote differently. `scriptProblems` still checks `quotedLines` because it accepts any `Script`.
+  `Script` is now `ScriptFields.superRefine(...)`, because zod 4 refuses `.omit()` on a refined object. Its behaviour
+  is unchanged.
+- **`wordCount`** lives in `src/verbatim.ts` and counts *normalised* tokens. "3:15" counts as two spoken words, so the
+  speakability check matches what TTS will actually say.
+- The quote check uses strict `===`, not `compareWords`. The spec says character-for-character, so a missing period
+  or a case change is also rejected.
+- A bad JSON shape (zod issues) is fed back the same way as a `scriptProblems` failure. When the checks pass,
+  `Script.safeParse` runs as a final consistency check.
+- **Attempts**: one `Attempt` per LLM call: `stage: "script"`. `provider` is `name:model` when the provider reports a
+  model. `reason` holds the problems plus any provider `notes`.
+- **`LlmResult` gained optional `model` and `notes`**, so a model-chain fallback (429/503) or an unpriced model is
+  recorded in the manifest and not hidden (rule 6).
+- **Gemini adapter** (`src/providers/gemini.ts`) uses `models.generateContent` with `responseMimeType: "application/json"`
+  and `responseJsonSchema`. The schema comes from `z.toJSONSchema` and is filtered down to the keywords the docs list
+  (`$schema`, `minLength` etc. are dropped). Zod then re-validates the full contract. The client is injected through a
+  small `GenAiClient` interface. Only 429/503 move to the next model. Any other error is rethrown. If every model is
+  busy, it throws, listing each one. Rejected alternative: the Interactions API (`client.interactions.create`). The
+  current docs show it, but `generateContent` + `responseJsonSchema` is typed in the installed SDK 2.30 and keeps the
+  fake small.
+- Default `SCRIPT_MODELS` = `gemini-3.8-flash,gemini-2.5-flash` (overridable). Cost = tokens × the price table
+  (output includes thinking tokens). An unknown model costs 0 **and** adds a note.
+- `createProviders({ mode: "live" })` now builds `GeminiLlm.fromEnv(env)` for `llm` unless it is overridden. Other
+  capabilities still refuse.
+- No new dependencies (`@google/genai`, `zod` were already present).
+- Docs checked: https://ai.google.dev/gemini-api/docs/pricing (prices, 2026-10-16),
+  https://ai.google.dev/gemini-api/docs/structured-output (supported schema keywords). SDK types:
+  `node_modules/@google/genai/dist/genai.d.ts` (`GenerateContentConfig.responseJsonSchema`, `ApiError.status`).

@@ -20,7 +20,7 @@
     {
       "id": "F03-script",
       "spec": "specs/F03-script.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/script.test.ts"
       ]

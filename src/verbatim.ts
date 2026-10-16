@@ -141,6 +141,11 @@ function tokens(text: string): string[] {
   return n === "" ? [] : n.split(" ");
 }
 
+/** Spoken word count: counted after normalisation, so "3:15" is two words and "$5" is two. */
+export function wordCount(text: string): number {
+  return tokens(text).length;
+}
+
 /**
  * Word-level Levenshtein alignment of `heard` against `expected`.
  * wer = (S + D + I) / N. With an empty expected line, any heard word is a full failure (wer = 1).
