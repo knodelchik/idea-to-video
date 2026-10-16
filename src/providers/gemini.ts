@@ -85,6 +85,23 @@ export class GeminiLlm implements LlmProvider {
     return new GeminiLlm({ client: client ?? new GoogleGenAI({ apiKey }), models });
   }
 
+  /**
+   * Pre-call bound for the budget guard: ~4 chars/token in, a generous 8k tokens out (thinking included), at the
+   * priciest model in the chain since a fallback may answer. Unknown price → the dearest listed one.
+   */
+  estimateUsd({ system, prompt }: { system: string; prompt: string }): number {
+    const dearest = Math.max(...Object.values(this.prices).map((p) => p.output));
+    const price = this.models.reduce(
+      (worst, m) => {
+        const p = this.prices[m] ?? { input: dearest, output: dearest };
+        return p.output > worst.output ? p : worst;
+      },
+      { input: 0, output: 0 },
+    );
+    const input = Math.ceil((system.length + prompt.length) / 4) + 1000; // + the JSON schema
+    return (input * price.input + 8000 * price.output) / 1_000_000;
+  }
+
   async generateJson<T>({ system, prompt, schema, temperature }: LlmRequest<T>): Promise<LlmResult<T>> {
     const notes: string[] = [];
     const responseJsonSchema = toGeminiSchema(schema);

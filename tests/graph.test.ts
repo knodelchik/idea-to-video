@@ -1,0 +1,438 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { main, parseArgs } from "../src/cli.ts";
+import { estimateRunUsd, isTransient } from "../src/graph.ts";
+import { loudnormArgs, parseLoudnorm, segmentArgs } from "../src/media/args.ts";
+import { probe } from "../src/media/ffmpeg.ts";
+import { cutSeconds, SPEECH_TAIL } from "../src/nodes/assemble.ts";
+import { expectedSpeech, probeProblems } from "../src/nodes/final-gate.ts";
+import { scriptProblems } from "../src/nodes/script.ts";
+import { ShotError } from "../src/nodes/visuals.ts";
+import { firstPrompt } from "../src/prompts/script.ts";
+import { applyAsrFault } from "../src/providers/mock.ts";
+import {
+  Budget,
+  BudgetExceededError,
+  createProviders,
+  HttpError,
+  maxCostFromEnv,
+  MOCK_DEFAULT_LINE,
+  MockAsr,
+  MockImage,
+  MockLlm,
+  MockVideo,
+  mockScriptResponder,
+  withBudget,
+  type AnimateRequest,
+  type AnimateResult,
+  type ImageRequest,
+  type LlmRequest,
+  type LlmResult,
+} from "../src/providers/index.ts";
+import { RunManifest, Script, SCRIPT_SECONDS, type ScriptDraft } from "../src/schemas.ts";
+import { linkSources, readTranscript, writeTranscript } from "../src/util/sidecar.ts";
+import { extractQuotedLines } from "../src/verbatim.ts";
+
+const LINE = "I kept the watch. I kept everything.";
+const IDEA = `A man on a rooftop calls his brother. He says: "${LINE}"`;
+const SLOW = 90_000;
+const FAST_RETRY = { initialInterval: 1, jitter: false };
+
+let dir: string;
+beforeAll(async () => {
+  dir = await mkdtemp(join(tmpdir(), "itv-graph-"));
+});
+afterAll(async () => {
+  await rm(dir, { recursive: true, force: true });
+});
+
+interface Summary {
+  ok: boolean;
+  runId: string;
+  finalPath: string | null;
+  seconds: number | null;
+  verbatim: { wer: number; expected: string; heard: string } | null;
+  costUsd: number;
+  attempts: number;
+  manifest: string;
+  error?: string;
+}
+
+/** Runs the CLI in-process; returns exit code, the parsed --json line, stderr lines and the manifest on disk. */
+async function cli(argv: string[], deps: Parameters<typeof main>[1] = {}) {
+  const out: string[] = [];
+  const err: string[] = [];
+  const code = await main([...argv, "--json"], {
+    runsDir: join(dir, "runs"),
+    env: {},
+    retry: FAST_RETRY,
+    stdout: (l) => out.push(l),
+    stderr: (l) => err.push(l),
+    ...deps,
+  });
+  const json = JSON.parse(out.at(-1)!) as Summary;
+  const manifest = json.manifest ? RunManifest.parse(JSON.parse(await readFile(json.manifest, "utf8"))) : undefined;
+  return { code, json, err, manifest };
+}
+
+// --- pure pieces ---
+
+describe("cli args", () => {
+  it("defaults to mock, takes one idea, --resume <id>, --json", () => {
+    expect(parseArgs(["an idea"])).toEqual({ idea: "an idea", json: false });
+    expect(parseArgs(["an idea", "--live", "--json"])).toEqual({ idea: "an idea", mode: "live", json: true });
+    expect(parseArgs(["--resume", "r1"])).toEqual({ resume: "r1", json: false });
+  });
+  it("rejects what it doesn't understand", () => {
+    expect(() => parseArgs([])).toThrow(/idea is required/);
+    expect(() => parseArgs(["a", "--mock", "--live"])).toThrow(/mutually exclusive/);
+    expect(() => parseArgs(["a", "--fast"])).toThrow(/unknown flag/);
+    expect(() => parseArgs(["--resume"])).toThrow(/needs a run id/);
+    expect(() => parseArgs(["a", "b"])).toThrow(/one idea/);
+    expect(() => parseArgs(["--resume", "r1", "--mock"])).toThrow(/own mode/);
+  });
+  it("usage errors exit 2 without running anything", async () => {
+    const err: string[] = [];
+    expect(await main(["--bogus"], { stderr: (l) => err.push(l), stdout: () => {} })).toBe(2);
+    expect(err.join("\n")).toMatch(/usage: pnpm make/);
+  });
+  it("MAX_COST_USD: default 3, must be a non-negative number", () => {
+    expect(maxCostFromEnv({})).toBe(3);
+    expect(maxCostFromEnv({ MAX_COST_USD: "0.5" })).toBe(0.5);
+    expect(() => maxCostFromEnv({ MAX_COST_USD: "lots" })).toThrow(/MAX_COST_USD/);
+    expect(() => maxCostFromEnv({ MAX_COST_USD: "-1" })).toThrow(/MAX_COST_USD/);
+  });
+});
+
+describe("isTransient", () => {
+  it("429/5xx/network/timeouts are transient, also when wrapped as a cause", () => {
+    expect(isTransient(new HttpError("x", 429, ""))).toBe(true);
+    expect(isTransient(new HttpError("x", 503, ""))).toBe(true);
+    expect(isTransient(new ShotError("s1", "video error", [], { cause: new HttpError("x", 502, "") }))).toBe(true);
+    expect(isTransient(new TypeError("fetch failed"))).toBe(true);
+    expect(isTransient(Object.assign(new Error("socket"), { code: "ECONNRESET" }))).toBe(true);
+    expect(isTransient(Object.assign(new Error("slow"), { name: "TimeoutError" }))).toBe(true);
+  });
+  it("4xx, bugs, budget stops and quality failures are not", () => {
+    expect(isTransient(new HttpError("x", 400, ""))).toBe(false);
+    expect(isTransient(new ShotError("s1", "bad", [], { cause: new HttpError("x", 401, "") }))).toBe(false);
+    expect(isTransient(new TypeError("cannot read properties of undefined"))).toBe(false);
+    expect(isTransient(new BudgetExceededError("v", 1, 0, 0.5))).toBe(false);
+    expect(isTransient(new Error("boom"))).toBe(false);
+  });
+});
+
+describe("assembly helpers", () => {
+  it("cutSeconds: script length, stretched to the last word + tail, never past the clip", () => {
+    expect(cutSeconds(5, 6, 3)).toBe(5);
+    expect(cutSeconds(5, 6, 4.9)).toBe(Number((4.9 + SPEECH_TAIL).toFixed(3)));
+    expect(cutSeconds(5, 5.2, 4.9)).toBe(5.2);
+    expect(cutSeconds(4, 4)).toBe(4);
+  });
+  it("segmentArgs: exact frames, fades on both edges, silence generated for a silent clip", () => {
+    const a = segmentArgs({ input: "i.mp4", out: "o.mp4", seconds: 4, audio: false, fade: 0.05 });
+    expect(a).toContain("anullsrc=r=48000:cl=stereo");
+    expect(a[a.indexOf("-frames:v") + 1]).toBe("120");
+    expect(a[a.indexOf("-map", a.indexOf("-map") + 1) + 1]).toBe("1:a:0");
+    const af = a[a.indexOf("-af") + 1]!;
+    expect(af).toContain("afade=t=in:st=0:d=0.05");
+    expect(af).toContain("afade=t=out:st=3.95:d=0.05");
+    const b = segmentArgs({ input: "i.mp4", out: "o.mp4", seconds: 4, audio: true, fade: 0.05 });
+    expect(b).not.toContain("anullsrc=r=48000:cl=stereo");
+    expect(b[b.indexOf("-map", b.indexOf("-map") + 1) + 1]).toBe("0:a:0");
+    expect(() => segmentArgs({ input: "i", out: "o", seconds: 0.05, audio: true, fade: 0.05 })).toThrow(RangeError);
+  });
+  it("loudnorm: two-pass linear with the measured values", () => {
+    const stderr = `[Parsed_loudnorm_0 @ 0x1]\n{\n "input_i" : "-36.40", "input_tp" : "-35.00", "input_lra" : "0.00",
+      "input_thresh" : "-46.40", "output_i" : "-24.0", "target_offset" : "0.10" }\n`;
+    const m = parseLoudnorm(stderr);
+    expect(m).toEqual({ input_i: "-36.40", input_tp: "-35.00", input_lra: "0.00", input_thresh: "-46.40", target_offset: "0.10" });
+    const af = loudnormArgs({ input: "i", out: "o", silent: false, measured: m })[3]!;
+    expect(af).toMatch(/^loudnorm=I=-16:TP=-1\.5:LRA=11:measured_I=-36\.40:.*offset=0\.10:linear=true/);
+    expect(() => parseLoudnorm("no audio here")).toThrow(/no measurement/);
+  });
+  it("transcript links: pieces are shifted to their offset and cut where the piece ends", async () => {
+    const a = join(dir, "a.wav");
+    const b = join(dir, "b.wav");
+    await writeFile(a, "");
+    await writeFile(b, "");
+    await writeTranscript(a, { text: "one two", words: [{ word: "one", start: 0.2, end: 0.5 }, { word: "two", start: 3.5, end: 3.9 }] });
+    await writeTranscript(b, { text: "three", words: [{ word: "three", start: 0.1, end: 0.4 }] });
+    const cut = join(dir, "cut.mp4");
+    await linkSources(cut, [{ source: a, until: 3 }]);
+    const cat = join(dir, "cat.mp4");
+    await linkSources(cat, [{ source: cut, offset: 0 }, { source: b, offset: 3 }]);
+    expect(await readTranscript(cat)).toEqual({
+      text: "one three",
+      words: [{ word: "one", start: 0.2, end: 0.5 }, { word: "three", start: 3.1, end: 3.4 }],
+    });
+  });
+});
+
+describe("final gate checks", () => {
+  it("expected speech is every line in order, delivery tags dropped, silent shots skipped", () => {
+    const draft = mockScriptResponder(firstPrompt(IDEA, extractQuotedLines(IDEA)), { system: "", call: 0 }) as ScriptDraft;
+    const script = Script.parse({ ...draft, promptVersion: "t", quotedLines: [LINE] });
+    expect(expectedSpeech(script)).toBe(LINE);
+    const two = { ...script, shots: [{ ...script.shots[0]!, line: "[whispers] Wait." }, script.shots[1]!] };
+    expect(expectedSpeech(two)).toBe(`Wait. ${LINE}`);
+  });
+  it("probe: 8–30 s, 1080×1920, audio", () => {
+    const good = { seconds: 9, width: 1080, height: 1920, hasAudio: true, hasVideo: true };
+    expect(probeProblems(good)).toEqual([]);
+    expect(probeProblems({ ...good, seconds: 7.9 })[0]).toMatch(/duration 7\.90 s is outside 8–30/);
+    expect(probeProblems({ ...good, width: 720 })[0]).toMatch(/720×1920/);
+    expect(probeProblems({ ...good, hasAudio: false })).toEqual(["no audio track"]);
+  });
+});
+
+describe("mock script writer", () => {
+  it.each([
+    [IDEA],
+    ['She whispers "Wait." and then "Don\'t go."'],
+    ["A barista closes up alone."],
+  ])("writes a script that passes every check: %s", (idea) => {
+    const quoted = extractQuotedLines(idea);
+    const draft = mockScriptResponder(firstPrompt(idea, quoted), { system: "", call: 0 }) as ScriptDraft;
+    const script = Script.parse({ ...draft, promptVersion: "t", quotedLines: quoted });
+    expect(scriptProblems(script, idea)).toEqual([]);
+    if (!quoted.length) expect(script.shots.map((s) => s.line)).toContain(MOCK_DEFAULT_LINE);
+  });
+});
+
+describe("budget", () => {
+  it("refuses a call whose estimate would cross the cap, before calling", async () => {
+    const b = new Budget(0.01);
+    let called = 0;
+    await expect(b.guard("v", 0.02, async () => (called++, { costUsd: 0.02 }))).rejects.toThrow(BudgetExceededError);
+    expect(called).toBe(0);
+    await b.guard("free", 0, async () => (called++, { costUsd: 0 }));
+    expect(called).toBe(1);
+  });
+  it("books actual cost and counts in-flight reservations", async () => {
+    const b = new Budget(1, 0.5);
+    let release!: () => void;
+    const slow = b.guard("a", 0.4, () => new Promise<{ costUsd: number }>((r) => (release = () => r({ costUsd: 0.3 }))));
+    await expect(b.guard("b", 0.2, async () => ({ costUsd: 0.2 }))).rejects.toThrow(/in flight/);
+    release();
+    await slow;
+    expect(b.spentUsd).toBeCloseTo(0.8);
+  });
+  it("withBudget keeps capabilities and limits visible", () => {
+    const p = withBudget(createProviders({ mode: "mock", env: {} }), new Budget(1));
+    expect(p.video.capabilities.nativeSpeech).toBe(true);
+    expect(p.lipsync.maxSeconds).toBe(Infinity);
+    expect(p.video.name).toBe("mock-video");
+  });
+});
+
+// --- fakes for the pipeline runs ---
+
+/** Mock video that throws `err` on the given 0-based calls (before doing anything, like a failed HTTP request). */
+class FlakyVideo extends MockVideo {
+  attemptsMade = 0;
+  constructor(private readonly failOn: Map<number, Error>) {
+    super();
+  }
+  override async animate(req: AnimateRequest): Promise<AnimateResult> {
+    const err = this.failOn.get(this.attemptsMade++);
+    if (err) throw err;
+    return super.animate(req);
+  }
+}
+
+/** Hears the final file with one word swapped; every shot-level check still passes. */
+class FinalMishearingAsr extends MockAsr {
+  override async transcribe(req: { path: string }) {
+    const r = await super.transcribe(req);
+    if (!req.path.endsWith("final.mp4")) return r;
+    return { ...applyAsrFault(r, { call: 0, replace: { watch: "clock" } }), costUsd: r.costUsd };
+  }
+}
+
+// Live-priced fakes: free mocks underneath, but they quote and bill like paid APIs.
+class PricedLlm extends MockLlm {
+  estimateUsd() {
+    return 0.02;
+  }
+  override async generateJson<T>(req: LlmRequest<T>): Promise<LlmResult<T>> {
+    return { ...(await super.generateJson(req)), costUsd: 0.015 };
+  }
+}
+class PricedImage extends MockImage {
+  estimateUsd() {
+    return 0.04;
+  }
+  override async generate(req: ImageRequest) {
+    return { ...(await super.generate(req)), costUsd: 0.04 };
+  }
+}
+class PricedVideo extends MockVideo {
+  estimateUsd(req: AnimateRequest) {
+    return 0.3 * req.seconds;
+  }
+  override async animate(req: AnimateRequest) {
+    return { ...(await super.animate(req)), costUsd: 0.3 * req.seconds };
+  }
+}
+
+// --- acceptance: whole pipeline on mocks ---
+
+describe("pipeline (mock providers, real ffmpeg)", () => {
+  it(
+    "1. the acceptance idea: exit 0, 8–30 s, wer 0, the quoted line verbatim; a valid manifest and 1080×1920 file",
+    async () => {
+      const { code, json, manifest } = await cli([IDEA, "--mock"]);
+      expect(code).toBe(0);
+      expect(json.ok).toBe(true);
+      expect(json.seconds).toBeGreaterThanOrEqual(SCRIPT_SECONDS.min);
+      expect(json.seconds).toBeLessThanOrEqual(SCRIPT_SECONDS.max);
+      expect(json.verbatim?.wer).toBe(0);
+      expect(json.verbatim?.expected).toContain(LINE);
+      expect(json.verbatim?.heard).toContain(LINE);
+      expect(json.finalPath).toMatch(new RegExp(`${json.runId}/final\\.mp4$`));
+
+      const p = await probe(json.finalPath!);
+      expect(p).toMatchObject({ width: 1080, height: 1920, hasAudio: true });
+      expect(Math.abs(p.seconds - json.seconds!)).toBeLessThan(0.01);
+
+      expect(manifest?.ok).toBe(true);
+      expect(manifest?.verbatim?.pass).toBe(true);
+      expect(Object.keys(manifest?.shots ?? {})).toEqual(["s1", "s2"]);
+      expect(manifest?.shots?.s1?.audio).toBe("silent");
+      expect(manifest?.shots?.s2?.audio).toBe("native");
+      const stages = manifest!.attempts.map((a) => a.stage);
+      for (const s of ["script", "portrait", "keyframe", "video", "assemble", "final"]) expect(stages).toContain(s);
+    },
+    SLOW,
+  );
+
+  it(
+    "2. resume after a crash past the keyframes: finished stages call no provider again",
+    async () => {
+      const first = { llm: new MockLlm({ responder: mockScriptResponder }), image: new MockImage(), video: new MockVideo() };
+      const crashed = await cli([IDEA, "--mock"], {
+        overrides: first,
+        beforeNode: (node) => {
+          if (node === "shot") throw new Error("simulated crash after keyframes");
+        },
+      });
+      expect(crashed.code).not.toBe(0);
+      expect(crashed.json.ok).toBe(false);
+      expect(crashed.manifest?.error).toMatch(/simulated crash/);
+      expect(crashed.manifest?.script).toBeDefined();
+      expect(first.llm.calls).toHaveLength(1);
+      expect(first.image.calls).toHaveLength(3); // portrait + 2 keyframes
+      expect(first.video.calls).toHaveLength(0);
+
+      const second = { llm: new MockLlm({ responder: mockScriptResponder }), image: new MockImage(), video: new MockVideo() };
+      const resumed = await cli(["--resume", crashed.json.runId], { overrides: second });
+      expect(resumed.code).toBe(0);
+      expect(resumed.json.ok).toBe(true);
+      expect(resumed.json.runId).toBe(crashed.json.runId);
+      expect(second.llm.calls).toHaveLength(0);
+      expect(second.image.calls).toHaveLength(0);
+      expect(second.video.calls).toHaveLength(2);
+      // The crash is still on record, and the script attempt isn't duplicated.
+      expect(resumed.manifest?.attempts.filter((a) => a.stage === "script")).toHaveLength(1);
+      expect(resumed.manifest?.attempts.some((a) => a.reason?.includes("simulated crash"))).toBe(true);
+      expect(resumed.manifest?.error).toBeUndefined();
+    },
+    SLOW,
+  );
+
+  it(
+    "3. the final file mis-heard by one word → ok:false, exit ≠ 0, the manifest says which word",
+    async () => {
+      const { code, json, manifest } = await cli([IDEA, "--mock"], { overrides: { asr: new FinalMishearingAsr() } });
+      expect(code).not.toBe(0);
+      expect(json.ok).toBe(false);
+      expect(json.verbatim?.wer).toBeGreaterThan(0);
+      expect(json.verbatim?.heard).toContain("clock");
+      expect(manifest?.ok).toBe(false);
+      expect(manifest?.verbatim?.pass).toBe(false);
+      expect(manifest?.error).toMatch(/final gate: not verbatim .*"watch" heard as "clock"/);
+      // The shots themselves passed: only the final gate caught it.
+      expect(manifest?.shots?.s2?.verbatim?.pass).toBe(true);
+      const final = manifest!.attempts.find((a) => a.stage === "final");
+      expect(final).toMatchObject({ ok: false });
+      expect(final?.reason).toMatch(/clock/);
+    },
+    SLOW,
+  );
+
+  it(
+    "4a. a transient error on the first video call is retried with backoff and recorded",
+    async () => {
+      const video = new FlakyVideo(new Map([[0, new HttpError("fake-video", 503, "busy")]]));
+      const { code, json, manifest } = await cli([IDEA, "--mock"], { overrides: { video } });
+      expect(code).toBe(0);
+      expect(json.ok).toBe(true);
+      expect(video.attemptsMade).toBe(3); // 1 failed + 2 shots
+      const retry = manifest!.attempts.filter((a) => a.stage === "retry");
+      expect(retry).toHaveLength(1);
+      expect(retry[0]!.reason).toMatch(/transient .*HTTP 503.*retrying with backoff/);
+      expect(manifest!.attempts.some((a) => a.stage === "video" && !a.ok && /HTTP 503/.test(a.reason ?? ""))).toBe(true);
+    },
+    SLOW,
+  );
+
+  it(
+    "4b. a permanent error fails the run cleanly: no retry, ok:false, readable error, manifest written",
+    async () => {
+      const video = new FlakyVideo(new Map([[0, new HttpError("fake-video", 400, "bad prompt")]]));
+      const { code, json, manifest } = await cli([IDEA, "--mock"], { overrides: { video } });
+      expect(code).not.toBe(0);
+      expect(json.ok).toBe(false);
+      expect(video.attemptsMade).toBeLessThanOrEqual(2); // the other shot may run in parallel; nothing is retried
+      expect(manifest?.ok).toBe(false);
+      expect(manifest?.error).toMatch(/HTTP 400/);
+      expect(manifest!.attempts.filter((a) => a.stage === "retry")).toHaveLength(0);
+      expect(manifest!.attempts.some((a) => a.stage === "video" && !a.ok && /HTTP 400/.test(a.reason ?? ""))).toBe(true);
+      expect(manifest?.final).toBeUndefined();
+    },
+    SLOW,
+  );
+
+  it(
+    "5. budget guard: MAX_COST_USD=0.01 with live-priced fakes aborts before the first paid call",
+    async () => {
+      const priced = {
+        llm: new PricedLlm({ responder: mockScriptResponder }),
+        image: new PricedImage(),
+        video: new PricedVideo(),
+        tts: createProviders({ mode: "mock", env: {} }).tts,
+        asr: new MockAsr(),
+        lipsync: createProviders({ mode: "mock", env: {} }).lipsync,
+        talking: createProviders({ mode: "mock", env: {} }).talking,
+      };
+      // Not a real live run: every capability is overridden, so no key is read and nothing leaves the machine.
+      const { code, json, err, manifest } = await cli([IDEA, "--live"], { overrides: priced, env: { MAX_COST_USD: "0.01" } });
+      expect(code).not.toBe(0);
+      expect(json.ok).toBe(false);
+      expect(priced.llm.calls).toHaveLength(0);
+      expect(priced.image.calls).toHaveLength(0);
+      expect(priced.video.calls).toHaveLength(0);
+      expect(manifest?.error).toMatch(/budget: mock-llm call would cost ~\$0\.0200 .* over MAX_COST_USD=\$0\.01/);
+      expect(manifest?.costUsd).toBe(0);
+      expect(err.join("\n")).toMatch(/estimated ~\$\d+\.\d\d for a typical run; MAX_COST_USD=\$0\.01/);
+      expect(estimateRunUsd(priced, IDEA)).toBeCloseTo(0.02 + 3 * 0.04 + 2 * 0.3 * 8);
+    },
+    SLOW,
+  );
+
+  it(
+    "5b. the same priced fakes under a sufficient cap run through, and the manifest adds up their cost",
+    async () => {
+      const priced = { llm: new PricedLlm({ responder: mockScriptResponder }), image: new PricedImage(), video: new PricedVideo() };
+      const { code, json, manifest } = await cli([IDEA, "--mock"], { overrides: priced, env: { MAX_COST_USD: "5" } });
+      expect(code).toBe(0);
+      const videoSeconds = priced.video.calls.reduce((s, c) => s + c.seconds, 0);
+      expect(json.costUsd).toBeCloseTo(0.015 + 3 * 0.04 + 0.3 * videoSeconds, 6);
+      expect(manifest?.costUsd).toBeCloseTo(json.costUsd, 6);
+    },
+    SLOW,
+  );
+});

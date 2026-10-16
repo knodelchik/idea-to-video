@@ -25,9 +25,14 @@ export type LlmResult<T> = (
   notes?: string[];
 };
 
+/**
+ * Every capability may say what a call would cost *before* making it (USD, upper-ish bound). The budget guard
+ * (`withBudget`) refuses a call whose estimate would push the run past MAX_COST_USD. Absent = free (mocks).
+ */
 export interface LlmProvider {
   readonly name: string;
   generateJson<T>(req: LlmRequest<T>): Promise<LlmResult<T>>;
+  estimateUsd?(req: { system: string; prompt: string }): number;
 }
 
 export interface TtsRequest {
@@ -54,12 +59,14 @@ export interface TtsResult {
 export interface TtsProvider {
   readonly name: string;
   speak(req: TtsRequest): Promise<TtsResult>;
+  estimateUsd?(req: TtsRequest): number;
 }
 
 export type AsrResult = Transcript & { costUsd: number };
 export interface AsrProvider {
   readonly name: string;
   transcribe(req: { path: string }): Promise<AsrResult>;
+  estimateUsd?(req: { path: string }): number;
 }
 
 export interface ImageRequest {
@@ -73,6 +80,7 @@ export interface ImageRequest {
 export interface ImageProvider {
   readonly name: string;
   generate(req: ImageRequest): Promise<{ path: string; costUsd: number }>;
+  estimateUsd?(req: ImageRequest): number;
 }
 
 export interface VideoCapabilities {
@@ -101,6 +109,7 @@ export interface VideoProvider {
   readonly name: string;
   readonly capabilities: VideoCapabilities;
   animate(req: AnimateRequest): Promise<AnimateResult>;
+  estimateUsd?(req: AnimateRequest): number;
 }
 
 export interface LipsyncProvider {
@@ -111,12 +120,14 @@ export interface LipsyncProvider {
    */
   readonly maxSeconds: number;
   sync(req: { video: string; audio: string; out: string }): Promise<{ path: string; costUsd: number }>;
+  estimateUsd?(req: { video: string; audio: string; out: string }): number;
 }
 
 /** Audio-driven avatar models: image + speech → talking clip. */
 export interface TalkingProvider {
   readonly name: string;
   talk(req: { image: string; audio: string; prompt: string; out: string }): Promise<{ path: string; costUsd: number }>;
+  estimateUsd?(req: { image: string; audio: string; prompt: string; out: string }): number;
 }
 
 export interface Providers {

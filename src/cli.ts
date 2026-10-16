@@ -1,0 +1,121 @@
+/**
+ * pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json]
+ * Default is --mock (free). Exit code 0 only when the final gate passed.
+ */
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { estimateRunUsd, runPipeline, type Mode, type RunOutcome } from "./graph.ts";
+import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
+
+export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json]`;
+
+export interface CliArgs {
+  idea?: string;
+  mode?: Mode;
+  resume?: string;
+  json: boolean;
+}
+
+/** Pure argv parser. Throws a readable message on anything it doesn't understand. */
+export function parseArgs(argv: string[]): CliArgs {
+  const out: CliArgs = { json: false };
+  const positional: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a === "--json") out.json = true;
+    else if (a === "--mock" || a === "--live") {
+      const mode = a.slice(2) as Mode;
+      if (out.mode && out.mode !== mode) throw new Error("--mock and --live are mutually exclusive");
+      out.mode = mode;
+    } else if (a === "--resume") {
+      const id = argv[++i];
+      if (!id || id.startsWith("--")) throw new Error("--resume needs a run id");
+      out.resume = id;
+    } else if (a.startsWith("--")) throw new Error(`unknown flag ${a}`);
+    else positional.push(a);
+  }
+  if (positional.length > 1) throw new Error(`one idea, in quotes; got ${positional.length} arguments`);
+  if (positional[0] !== undefined) out.idea = positional[0];
+  if (!out.resume && !out.idea?.trim()) throw new Error("an idea is required");
+  if (out.resume && out.idea) throw new Error("--resume continues a stored run; don't pass an idea with it");
+  if (out.resume && out.mode) throw new Error("--resume uses the run's own mode; drop --mock/--live");
+  return out;
+}
+
+export interface CliDeps {
+  env?: Env;
+  runsDir?: string;
+  /** Replace providers (tests: counters, fault injection, live-priced fakes). */
+  overrides?: Partial<Providers>;
+  stdout?: (line: string) => void;
+  stderr?: (line: string) => void;
+  retry?: { initialInterval?: number; maxAttempts?: number; jitter?: boolean };
+  beforeNode?: (node: string, shotId?: string) => void | Promise<void>;
+}
+
+/** The one-line summary `--json` prints (last line of stdout). */
+export function summary(o: RunOutcome) {
+  const m = o.manifest;
+  return {
+    ok: m.ok,
+    runId: m.runId,
+    finalPath: m.final?.path ?? null,
+    seconds: m.final ? Number(m.final.seconds.toFixed(3)) : null,
+    verbatim: m.verbatim ? { wer: m.verbatim.wer, expected: m.spoken?.expected ?? m.verbatim.expected, heard: m.spoken?.heard ?? m.verbatim.heard } : null,
+    costUsd: m.costUsd,
+    attempts: m.attempts.length,
+    manifest: o.manifestPath,
+    ...(m.error ? { error: m.error } : {}),
+  };
+}
+
+export async function main(argv: string[], deps: CliDeps = {}): Promise<number> {
+  const env = deps.env ?? process.env;
+  const out = deps.stdout ?? ((l: string) => process.stdout.write(`${l}\n`));
+  const err = deps.stderr ?? ((l: string) => process.stderr.write(`${l}\n`));
+
+  let args: CliArgs;
+  let maxCostUsd: number;
+  try {
+    args = parseArgs(argv);
+    maxCostUsd = maxCostFromEnv(env);
+  } catch (e) {
+    err(`${(e as Error).message}\n${USAGE}`);
+    return 2;
+  }
+
+  const makeProviders = (mode: Mode): Providers => {
+    const p = createProviders({ mode, env, overrides: deps.overrides ?? {} });
+    if (mode === "live" && args.idea) {
+      err(`live run: estimated ~$${estimateRunUsd(p, args.idea).toFixed(2)} for a typical run; MAX_COST_USD=$${maxCostUsd}`);
+    }
+    return p;
+  };
+
+  let outcome: RunOutcome;
+  try {
+    outcome = await runPipeline(args.resume ? { resume: args.resume } : { idea: args.idea!, mode: args.mode ?? "mock" }, {
+      providers: makeProviders,
+      runsDir: resolve(deps.runsDir ?? "runs"),
+      maxCostUsd,
+      ...(deps.retry ? { retry: deps.retry } : {}),
+      ...(deps.beforeNode ? { beforeNode: deps.beforeNode } : {}),
+      log: err,
+    });
+  } catch (e) {
+    // Only setup can land here (missing keys, unknown run id); node failures come back as ok:false.
+    err(`error: ${(e as Error).message}`);
+    if (args.json) out(JSON.stringify({ ok: false, error: (e as Error).message }));
+    return 1;
+  }
+
+  const s = summary(outcome);
+  if (args.json) out(JSON.stringify(s));
+  else if (s.ok) out(`ok: ${s.finalPath} (${s.seconds} s, $${s.costUsd.toFixed(4)})\nmanifest: ${s.manifest}`);
+  else out(`FAILED: ${s.error ?? "unknown"}\nmanifest: ${s.manifest}\nresume: pnpm make --resume ${s.runId}`);
+  return s.ok ? 0 : 1;
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  process.exitCode = await main(process.argv.slice(2));
+}

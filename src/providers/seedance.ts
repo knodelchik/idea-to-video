@@ -52,6 +52,8 @@ export interface SeedanceJob {
 }
 export interface SeedanceTransport {
   readonly name: string;
+  /** List price per requested second, for the pre-call budget check. Absent → the dearest known rate. */
+  readonly usdPerSecond?: number;
   run(job: SeedanceJob): Promise<{ url: string; costUsd: number }>;
 }
 
@@ -61,6 +63,9 @@ export class FalSeedance implements SeedanceTransport {
   readonly name: string;
   constructor(private readonly opts: { fal: FalLike; tier?: keyof typeof FAL_SEEDANCE_ENDPOINTS }) {
     this.name = `fal-seedance-2.0${opts.tier === "fast" ? "-fast" : ""}`;
+  }
+  get usdPerSecond(): number {
+    return FAL_SEEDANCE_USD_PER_SECOND[this.opts.tier ?? "standard"];
   }
   get endpoint(): string {
     return FAL_SEEDANCE_ENDPOINTS[this.opts.tier ?? "standard"];
@@ -98,6 +103,7 @@ export const isPolicyText = (s: string): boolean => /sensitive|real person|conte
 
 export class BytePlusSeedance implements SeedanceTransport {
   readonly name = "byteplus-seedance-2.0";
+  readonly usdPerSecond = BYTEPLUS_SEEDANCE_USD_PER_SECOND;
   constructor(
     private readonly opts: {
       apiKey: string;
@@ -182,6 +188,10 @@ export class SeedanceVideo implements VideoProvider {
   readonly capabilities: VideoCapabilities = { nativeSpeech: true, durations: SEEDANCE_DURATIONS };
   constructor(private readonly opts: { transport: SeedanceTransport; fetch?: FetchLike; probe?: Probe }) {
     this.name = opts.transport.name;
+  }
+
+  estimateUsd(req: AnimateRequest): number {
+    return req.seconds * (this.opts.transport.usdPerSecond ?? FAL_SEEDANCE_USD_PER_SECOND.standard);
   }
 
   async animate(req: AnimateRequest): Promise<AnimateResult> {

@@ -25,6 +25,10 @@ export const KLING_LIPSYNC_MAX_SECONDS = 10;
 export class FalKlingLipsync implements LipsyncProvider {
   readonly name = "fal-kling-lipsync";
   readonly maxSeconds = KLING_LIPSYNC_MAX_SECONDS;
+  /** Without probing: the longest clip it accepts, billed in 5 s steps. */
+  estimateUsd(): number {
+    return klingLipsyncCost(KLING_LIPSYNC_MAX_SECONDS);
+  }
   constructor(private readonly deps: { fal: FalLike; fetch?: FetchLike; probe?: Probe }) {}
 
   async sync({ video, audio, out }: { video: string; audio: string; out: string }) {

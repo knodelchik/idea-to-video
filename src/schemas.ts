@@ -167,16 +167,36 @@ export const FinalVideo = z.object({
 });
 export type FinalVideo = z.infer<typeof FinalVideo>;
 
+/** One finished shot as the graph keeps it (F06): the clip, where its words came from, where they sit. */
+export const ShotOutput = z.object({
+  path: nonEmpty("path"),
+  seconds: z.number().positive(),
+  hasAudio: z.boolean(),
+  /** native = the video model spoke; fallback = verified TTS + lip-sync; silent = no line in this shot. */
+  audio: z.enum(["native", "fallback", "silent"]),
+  speechStart: z.number().min(0).optional(),
+  speechEnd: z.number().min(0).optional(),
+  verbatim: VerbatimResult.optional(),
+});
+export type ShotOutput = z.infer<typeof ShotOutput>;
+
+/** What the final gate compared, as plain text (not normalised), so a human can read the miss. */
+export const SpokenText = z.object({ expected: z.string(), heard: z.string() });
+export type SpokenText = z.infer<typeof SpokenText>;
+
 export const RunManifest = z.object({
   runId: nonEmpty("runId"),
   idea: nonEmpty("idea"),
   mode: z.enum(["mock", "live"]),
   createdAt: z.iso.datetime(),
   script: Script.optional(),
+  // partialRecord: zod 4's record over an enum demands every key, and a failed run may have only s1.
+  shots: z.partialRecord(z.enum(["s1", "s2"]), ShotOutput).optional(),
   attempts: z.array(Attempt),
   costUsd: z.number().min(0),
   final: FinalVideo.optional(),
   verbatim: VerbatimResult.optional(),
+  spoken: SpokenText.optional(),
   ok: z.boolean(),
   error: z.string().optional(),
 });

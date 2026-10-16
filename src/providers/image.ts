@@ -31,6 +31,9 @@ export const FAL_NANO_BANANA_USD = 0.039;
 
 export class FalNanoBananaImage implements ImageProvider {
   readonly name = "fal-nano-banana";
+  estimateUsd(): number {
+    return FAL_NANO_BANANA_USD;
+  }
   constructor(private readonly deps: { fal: FalLike; fetch?: FetchLike }) {}
 
   async generate({ prompt, refs = [], out, variant }: ImageRequest) {
@@ -66,6 +69,9 @@ const GeminiImageResponse = z
 
 export class GeminiImage implements ImageProvider {
   readonly name = "gemini-image";
+  estimateUsd(): number {
+    return GEMINI_IMAGE_USD;
+  }
   constructor(private readonly opts: { apiKey: string; model?: string; fetch?: FetchLike }) {}
 
   async body({ prompt, refs = [] }: ImageRequest): Promise<unknown> {
@@ -111,6 +117,9 @@ const SeedreamResponse = z.object({ data: z.array(z.object({ b64_json: z.string(
 
 export class SeedreamImage implements ImageProvider {
   readonly name = "byteplus-seedream";
+  estimateUsd(): number {
+    return SEEDREAM_USD;
+  }
   constructor(private readonly opts: { apiKey: string; model?: string; size?: string; base?: string; fetch?: FetchLike }) {}
 
   async body({ prompt, refs = [], variant }: ImageRequest): Promise<Record<string, unknown>> {

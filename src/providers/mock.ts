@@ -94,6 +94,45 @@ export class MockLlm implements LlmProvider {
   }
 }
 
+/** Line the mock writer uses when the idea quotes none. Plain words, no digits (passes scriptProblems). */
+export const MOCK_DEFAULT_LINE = "I never stopped looking for you.";
+
+/**
+ * A script draft for any idea, read back out of the script prompt (`Idea:` block + `- "quoted line"` bullets), so
+ * `pnpm make --mock` runs end to end with no canned queue. Shape: a silent 4 s establishing shot, then the
+ * line(s); every shot is long enough for its words (words / 2.6 + 0.8 s, rounded up, plus 1 s of room).
+ */
+export const mockScriptResponder: Responder = (prompt) => {
+  const idea = /Idea:\n([\s\S]*?)\n\n/.exec(prompt)?.[1]?.trim() || "a quiet moment";
+  const quoted = [...prompt.matchAll(/^- (".*")$/gm)].map((m) => JSON.parse(m[1]!) as string).slice(0, 2);
+  const lines = quoted.length ? quoted : [MOCK_DEFAULT_LINE];
+  const secondsFor = (line: string) => Math.min(15, Math.max(5, Math.ceil(words(line).length / 2.6 + 0.8) + 1));
+  const shot = (id: "s1" | "s2", line: string, seconds: number) => ({
+    id,
+    camera: "close-up",
+    visual: `The character in the scene from the idea: ${idea}`,
+    motion: "slow push-in",
+    emotion: line ? "quiet resolve" : "stillness",
+    line,
+    seconds,
+  });
+  const shots =
+    lines.length === 2
+      ? lines.map((l, i) => shot(i === 0 ? "s1" : "s2", l, secondsFor(l)))
+      : [shot("s1", "", 4), shot("s2", lines[0]!, secondsFor(lines[0]!))];
+  return {
+    title: "Mock beat",
+    logline: idea,
+    setting: "a dim interior at night",
+    character: {
+      name: "Alex",
+      look: "a woman in her thirties with short dark hair, a grey wool coat, a small scar above the left eyebrow",
+      voice: { gender: "female", age: "adult", tone: "low and steady" },
+    },
+    shots,
+  };
+};
+
 // --- TTS ---
 
 export class MockTts implements TtsProvider {

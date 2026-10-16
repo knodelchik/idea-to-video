@@ -70,6 +70,11 @@ export class ElevenLabsTts implements TtsProvider {
     };
   }
 
+  /** Billed per character of the sent text, tag included: exactly what speak() will report. */
+  estimateUsd(req: TtsRequest): number {
+    return String(this.body(req).text).length * USD_PER_CHAR;
+  }
+
   async speak(req: TtsRequest): Promise<TtsResult> {
     const f = this.opts.fetch ?? (globalThis.fetch as FetchLike);
     const body = this.body(req);

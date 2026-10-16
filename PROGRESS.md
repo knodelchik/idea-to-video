@@ -113,3 +113,27 @@ Append-only log, one entry per feature, written by the implementer agent and com
   fallback attempt says "no take had an audio track".
 - Tests: `StrictAsr` in `tests/visuals.test.ts` throws on silent input like live Groq; `MockVideo` faults with
   `say: ""` produce silent clips. 40 visuals tests, 164 total in `pnpm verify`.
+
+## F06 — Graph, assembly, final gate, one command
+- `pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json]` (`src/cli.ts`, default `--mock`) writes
+  `runs/<runId>/final.mp4` and `runs/<runId>/manifest.json`. `--json` prints one last line
+  `{ ok, runId, finalPath, seconds, verbatim: { wer, expected, heard }, costUsd, attempts, manifest }`.
+  Exits 0 only when ok. In-process: `main(argv, { runsDir, env, overrides, retry, beforeNode })`.
+- `src/graph.ts`: LangGraph `writeScript → cast → drawKeyframes → shot (Send per shot) → assemble → finalGate`,
+  checkpointed in `runs/checkpoints.sqlite` (`thread_id = runId`). `runPipeline(req, deps)` returns
+  `{ manifest, manifestPath }`. `--resume` skips finished stages without calling their providers.
+  Transient errors (`isTransient`, walks `.cause`) are retried with backoff and recorded as `stage:"retry"`
+  attempts. Any other failure gives `ok:false` and a readable `error`.
+- `src/nodes/assemble.ts`: each shot is cut to `max(script s, speechEnd + 0.4)`, capped at the clip length, and
+  normalised to 1080×1920/30 fps (silent shots get generated silence). 50 ms audio fades at the joins, concat,
+  then two-pass loudnorm to −16 LUFS. `src/nodes/final-gate.ts` probes for 8–30 s, 1080×1920 and an audio track,
+  and listens to the whole file against every line joined.
+- Budget: `MAX_COST_USD` (default 3). `withBudget` (`src/providers/budget.ts`) refuses any call whose
+  `estimateUsd` would exceed it, before calling. Every live adapter now has `estimateUsd`. `--live` prints the
+  estimated cost of a typical run first.
+- Mocks: `createProviders("mock")` uses `mockScriptResponder`, so any idea runs. `linkSources(media, [{source,
+  offset, until}])` (`src/util/sidecar.ts`) lets the mock ASR hear cut and concatenated files. `RunManifest` now
+  has `shots` and `spoken`.
+- Tests: `tests/graph.test.ts` (25 tests: the acceptance idea, crash + resume with call counters, final-file
+  mishearing, transient vs permanent video errors, budget abort before the first paid call). `pnpm verify` passes
+  189 tests, and its mock e2e step is now active. `.env.example` was not updated (see the spec's Blocked note).

@@ -81,3 +81,11 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   live Groq can't handle (`-map 0:a:0` throws) → MockAsr returned an empty transcript for silence, so tests
   passed; caught by review reading groq-asr.ts → silent take is now a recorded failed attempt (no ASR call),
   tested with a test-local ASR that throws on files without an audio stream.
+- [F06] Assumed one-pass `loudnorm=I=-16` delivers −16 LUFS. The e2e run was green, but measuring final.mp4 with
+  `ebur128` showed −35 LUFS: dynamic mode barely lifts the quiet mock tone → caught by measuring the output
+  instead of trusting the filter name → two-pass linear loudnorm (−15.8 LUFS), plus `aresample,apad`, because
+  linear mode dropped ~20 ms of audio and `-shortest` shrank the film to 8.98 s (an exact-8 s script would fail).
+- [F06] Named graph nodes after the stages (`script`, `keyframes`), but LangGraph rejects node names that equal
+  state keys → the first CLI run failed at compile → renamed to `writeScript` / `drawKeyframes`. Separately,
+  parallel Send failures arrive as "Multiple errors occurred during superstep N" (the resume test caught the
+  unreadable manifest error) → `runError` joins the inner `errors[]` messages.

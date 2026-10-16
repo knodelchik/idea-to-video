@@ -47,6 +47,11 @@ export class GroqAsr implements AsrProvider {
     return this.opts.model ?? DEFAULT_GROQ_ASR_MODEL;
   }
 
+  /** Pre-call bound without probing: the longest file this pipeline sends is the 30 s final cut. */
+  estimateUsd(): number {
+    return (30 / 3600) * GROQ_USD_PER_HOUR;
+  }
+
   async transcribe({ path }: { path: string }): Promise<AsrResult> {
     if (AUDIO_EXT.has(extname(path).toLowerCase())) return this.send(path);
     const dir = await mkdtemp(join(tmpdir(), "itv-asr-"));

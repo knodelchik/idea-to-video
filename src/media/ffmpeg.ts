@@ -26,6 +26,18 @@ export async function run(args: readonly string[]): Promise<void> {
   }
 }
 
+/** Runs ffmpeg at info level and returns stderr: for filters that report on stderr (loudnorm, volumedetect). */
+export async function runCapture(args: readonly string[]): Promise<string> {
+  const full = ["-hide_banner", "-nostdin", "-nostats", "-loglevel", "info", "-y", ...args];
+  try {
+    const { stderr } = await exec("ffmpeg", full, { maxBuffer: 16 * 1024 * 1024 });
+    return stderr;
+  } catch (e) {
+    const stderr = String((e as { stderr?: unknown }).stderr ?? "");
+    throw new FfmpegError(`ffmpeg failed: ${stderr.trim().split("\n").slice(-3).join(" | ")}`, full, stderr);
+  }
+}
+
 export interface ProbeResult {
   seconds: number;
   width: number;

@@ -12,6 +12,11 @@ export class TtsChain implements TtsProvider {
     this.name = providers.length === 1 ? providers[0]!.name : `chain(${providers.map((p) => p.name).join(",")})`;
   }
 
+  /** Any engine in the chain may end up speaking, so budget for the dearest. */
+  estimateUsd(req: TtsRequest): number {
+    return Math.max(0, ...this.providers.map((p) => p.estimateUsd?.(req) ?? 0));
+  }
+
   async speak(req: TtsRequest): Promise<TtsResult> {
     const notes: string[] = [];
     for (const [i, p] of this.providers.entries()) {

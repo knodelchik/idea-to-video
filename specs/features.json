@@ -44,7 +44,7 @@
     {
       "id": "F06-graph-cli",
       "spec": "specs/F06-graph-cli.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/graph.test.ts",
         "npx tsx src/cli.ts \"A man on a rooftop calls his brother. He says: \\\"I kept the watch. I kept everything.\\\"\" --mock --json"

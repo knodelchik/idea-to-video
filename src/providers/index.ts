@@ -2,7 +2,7 @@
  * The only door from nodes to providers (CLAUDE.md rule 7). `mock` is free and deterministic; `live` adapters
  * arrive in later features and until then fail loudly, naming the env var that would configure them.
  */
-import { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo } from "./mock.ts";
+import { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo, mockScriptResponder } from "./mock.ts";
 import type { Providers } from "./types.ts";
 import { GeminiLlm } from "./gemini.ts";
 import { GeminiTts } from "./gemini-tts.ts";
@@ -18,10 +18,21 @@ import { lipsyncFromEnv } from "./lipsync.ts";
 const SELF_CONFIGURED = new Set<keyof Providers>(["tts", "image", "video", "lipsync"]);
 
 export type * from "./types.ts";
-export { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo } from "./mock.ts";
+export {
+  MockAsr,
+  MockImage,
+  MockLipsync,
+  MockLlm,
+  MockTalking,
+  MockTts,
+  MockVideo,
+  MOCK_DEFAULT_LINE,
+  mockScriptResponder,
+} from "./mock.ts";
+export { Budget, BudgetExceededError, DEFAULT_MAX_COST_USD, maxCostFromEnv, withBudget } from "./budget.ts";
 export type { AsrFault, Responder, VideoFault } from "./mock.ts";
 export { GeminiTts, ElevenLabsTts, GroqAsr, TtsChain };
-export { HttpError, type FetchLike } from "./http.ts";
+export { HttpError, isTransient as isTransientHttp, type FetchLike } from "./http.ts";
 export { NotConfiguredError, PolicyRejectedError } from "./errors.ts";
 export { BytePlusSeedance, FalSeedance, SeedanceVideo, seedanceFromEnv, SEEDANCE_DURATIONS } from "./seedance.ts";
 export { FalNanoBananaImage, GeminiImage, SeedreamImage, imageFromEnv } from "./image.ts";
@@ -76,7 +87,8 @@ export interface CreateProvidersOpts {
 export function createProviders({ mode, env, overrides = {} }: CreateProvidersOpts): Providers {
   if (mode === "mock") {
     return {
-      llm: new MockLlm(),
+      // Scripted so a bare `pnpm make --mock` works; tests that need specific scripts override `llm`.
+      llm: new MockLlm({ responder: mockScriptResponder }),
       tts: new MockTts(),
       asr: new MockAsr(),
       image: new MockImage(),

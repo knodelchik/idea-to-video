@@ -44,6 +44,40 @@ export function normalizeClipArgs({ input, out, seconds, audio }: NormalizeClipO
   return ["-i", input, "-vf", vf, "-frames:v", String(frames), ...H264, ...audioArgs, out];
 }
 
+export interface SegmentOpts {
+  input: string;
+  out: string;
+  seconds: number;
+  /** The input has an audio stream. false → a silent stereo track is generated so every segment can concat. */
+  audio: boolean;
+  /** Fade length at each end of the audio, seconds. Two adjacent segments' fades form a short crossfade at the cut. */
+  fade: number;
+}
+
+/**
+ * One shot of the final cut: normalised like normalizeClipArgs, audio always present (48 kHz stereo AAC), cut to
+ * exactly frameCount(seconds) frames, with short audio fade-in/out so the joins don't click. The fades are on the
+ * segment's own edges, so the cut keeps every segment's length and speech timing (an acrossfade would overlap
+ * and shorten the audio, desyncing lips from the following shot).
+ */
+export function segmentArgs({ input, out, seconds, audio, fade }: SegmentOpts): string[] {
+  assertSeconds(seconds);
+  if (!Number.isFinite(fade) || fade < 0 || fade * 2 > seconds) throw new RangeError(`fade must be 0–${seconds / 2} s, got ${fade}`);
+  const frames = frameCount(seconds);
+  const exact = sec(frames / FPS);
+  const vf = `${COVER},fps=${FPS},tpad=stop_mode=clone:stop=-1,format=yuv420p`;
+  const fades = fade > 0 ? `,afade=t=in:st=0:d=${sec(fade)},afade=t=out:st=${sec(frames / FPS - fade)}:d=${sec(fade)}` : "";
+  const af = `aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:${exact}${fades}`;
+  const silence = audio ? [] : ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"];
+  return [
+    "-i", input, ...silence,
+    "-map", "0:v:0", "-map", audio ? "0:a:0" : "1:a:0",
+    "-vf", vf, "-frames:v", String(frames), ...H264,
+    "-af", af, ...AAC, "-t", exact,
+    out,
+  ];
+}
+
 export interface MuxOpts {
   video: string;
   audio: string;
@@ -95,16 +129,58 @@ export function concatArgs({ inputs, out, audio }: ConcatOpts): string[] {
   ];
 }
 
+/** What loudnorm's first pass prints (print_format=json); fed back for an exact, linear second pass. */
+export interface LoudnessMeasure {
+  input_i: string;
+  input_tp: string;
+  input_lra: string;
+  input_thresh: string;
+  target_offset: string;
+}
+
 export interface LoudnormOpts {
   input: string;
   out: string;
   /** Input audio is silent: loudnorm would amplify noise / misbehave, so pass through with anull. */
   silent: boolean;
+  /** First-pass measurement. Without it loudnorm runs one-pass dynamic, which can't lift quiet audio far. */
+  measured?: LoudnessMeasure;
 }
 
-/** One-pass EBU R128 to −16 LUFS (the usual target for mobile/social). Video copied; -shortest stops audio overhang. */
-export function loudnormArgs({ input, out, silent }: LoudnormOpts): string[] {
-  const af = silent ? "anull" : "loudnorm=I=-16:TP=-1.5:LRA=11";
+const LOUDNORM = "loudnorm=I=-16:TP=-1.5:LRA=11";
+
+/** First pass: measure only (stats go to stderr as JSON, nothing is written). */
+export function loudnormMeasureArgs({ input }: { input: string }): string[] {
+  return ["-i", input, "-vn", "-af", `${LOUDNORM}:print_format=json`, "-f", "null", "-"];
+}
+
+/** The JSON block loudnorm prints last on stderr. Throws if absent (e.g. the input had no audio). */
+export function parseLoudnorm(stderr: string): LoudnessMeasure {
+  const start = stderr.lastIndexOf("{");
+  const end = stderr.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("loudnorm: no measurement in ffmpeg output");
+  const j = JSON.parse(stderr.slice(start, end + 1)) as Record<string, unknown>;
+  const keys = ["input_i", "input_tp", "input_lra", "input_thresh", "target_offset"] as const;
+  for (const k of keys) {
+    if (typeof j[k] !== "string" || !Number.isFinite(Number(j[k]))) throw new Error(`loudnorm: bad ${k} ${JSON.stringify(j[k])}`);
+  }
+  return Object.fromEntries(keys.map((k) => [k, j[k] as string])) as unknown as LoudnessMeasure;
+}
+
+/**
+ * EBU R128 to −16 LUFS (the usual target for mobile/social). With `measured`, the documented two-pass linear
+ * mode (exact gain, no pumping). Video copied; -shortest stops audio overhang.
+ */
+export function loudnormArgs({ input, out, silent, measured }: LoudnormOpts): string[] {
+  const m = measured;
+  const af = silent
+    ? "anull"
+    : m
+      ? // loudnorm resamples to 192 kHz and its output can end a few ms early; resample back and pad so -shortest
+        // cuts at the *video* end instead of shortening the film (an 8.0 s cut must not become 7.98 s).
+        `${LOUDNORM}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}` +
+        `:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true,aresample=48000,apad`
+      : LOUDNORM;
   return ["-i", input, "-af", af, "-c:v", "copy", ...AAC, "-shortest", out];
 }
 

@@ -59,3 +59,8 @@
 2026-10-16 17:11:55 F05-visuals attempt 2: implementer
 2026-10-16 17:14:00 F05-visuals attempt 2: gate
 2026-10-16 17:14:25 F05-visuals attempt 2: reviewer
+2026-10-16 17:16:02 F05-visuals PASSED on attempt 2 -> 8f2eec6
+2026-10-16 17:16:02 ### F06-graph-cli start (specs/F06-graph-cli.md)
+2026-10-16 17:16:02 F06-graph-cli attempt 1: implementer
+2026-10-16 17:31:02 F06-graph-cli attempt 1: gate
+2026-10-16 17:31:33 F06-graph-cli attempt 1: reviewer

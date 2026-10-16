@@ -74,6 +74,12 @@ export class GeminiTts implements TtsProvider {
     };
   }
 
+  /** Pre-call bound: a slow 0.6 s per word plus a second of breath, at the paid audio rate. */
+  estimateUsd({ text }: TtsRequest): number {
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    return (words * 0.6 + 1) * USD_PER_AUDIO_SECOND;
+  }
+
   async speak(req: TtsRequest): Promise<TtsResult> {
     // `variant` is not sent: the docs list no seed for TTS, so retries rely on sampling variety.
     const f = this.opts.fetch ?? (globalThis.fetch as FetchLike);
