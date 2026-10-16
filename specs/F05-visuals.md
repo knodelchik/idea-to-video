@@ -1,39 +1,53 @@
-# F05 — Visuals: identity anchor, keyframes, clips, lip-sync
+# F05 — Visuals: identity anchor, keyframes, talking shots (Seedance 2.0)
 
 ## Goal
 Produce one talking shot per script shot. Consistency comes from construction: a character portrait first, then
-keyframes generated *with* it as a reference, then image-to-video from the keyframe. The mouth is driven by our
-verified audio, so the words can't drift.
+keyframes generated *with* it as a reference, then image-to-video from the keyframe. The company asked for
+**Seedance 2.0**; it generates video with native, lip-synced speech. Its words are verified by the F04 gate; when
+they fail repeatedly, the shot falls back to verified TTS + lip-sync, so the words can't drift.
 
 ## Scope
+- `src/schemas.ts` — widen `Shot.seconds` to 4–15 (Seedance 2.0 range); keep total 8–30. Update schema tests.
 - `src/nodes/visuals.ts`:
   - `castCharacter(script, { image })` → portrait (neutral light, face large, 9:16).
   - `keyframeShot(shot, script, portrait, prev?, { image })` → keyframe with refs `[portrait, prev keyframe?]`.
-    Prompt builder `keyframePrompt(shot, script)` (pure, tested): character look + setting + camera + emotion +
-    "photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed or neutral, no text, no watermark".
-  - `clipShot(shot, keyframe, voice, { video })` → `seconds = snapDuration(voice.speechEnd + 0.4, capabilities.durations)`
-    (pure, tested), motion prompt tells the model the person is *about to speak / speaking* and to keep the face
-    toward camera.
-  - `syncShot(clip, voice, { lipsync })` → lip-synced clip. Two modes, set by `--mode` / `SYNC_MODE`:
-    - `lipsync` (default): any video model → lip-sync model with our audio.
-    - `talking`: audio-driven avatar model (`TalkingProvider`) straight from the keyframe + audio, skipping i2v.
-    - `native` is *not* implemented in this feature (needs the ASR gate on video audio — see F09 bench).
-- `src/providers/fal.ts` — generic fal adapter on `@fal-ai/client` (`subscribe`, upload refs with `storage.upload`,
-  download result to `out`). Key `FAL_KEY`.
-- `src/providers/fal-models.ts` — registry: `{ id, kind: "image"|"video"|"lipsync"|"talking", endpoint,
-  buildInput(args), pickOutputUrl(res), durations?, usdPerSecond|usdPerImage, verified: boolean, docsUrl }`.
-  Seed it from `docs/research/video-models.md` and `voice-lipsync-asr.md`. For each entry fetch the model's fal page
-  / `llms.txt` and set `verified: true` only if you confirmed the input field names there. Defaults via env:
-  `IMAGE_MODEL`, `VIDEO_MODEL`, `LIPSYNC_MODEL`, `TALKING_MODEL`.
+    `keyframePrompt(shot, script)` (pure, tested): character look + setting + camera + emotion + "photoreal, cinematic,
+    vertical 9:16, face clearly visible, mouth closed, no text, no watermark".
+  - `talkingShot(shot, keyframe, { video, asr, tts, lipsync, maxNative = 2 })`:
+    1. `video.animate({ image: keyframe, line: shot.line, seconds: snapDuration(estimate, capabilities.durations), prompt })`
+       where `talkingPrompt(shot, script)` (pure, tested) states the exact line in double quotes, the emotion, a
+       locked/slow camera, one speaking face toward camera, "no other speech, no music";
+    2. `listen` (F04) on the clip → pass: done;
+    3. fail: retry with `variant` up to `maxNative` total; then **fallback**: `verifiedVoice` (F04) →
+       `lipsync.sync(bestClip, voice)` → `listen` again. Record every step as an `Attempt` with reason.
+    Silent shots (`line === ""`) skip the gate.
+  - `snapDuration(seconds, durations)` (pure, tested): smallest allowed duration ≥ seconds; above max → throws.
+- `src/providers/seedance.ts` — `VideoProvider` for Seedance 2.0 (`nativeSpeech: true`, durations 4–15 integer,
+  9:16, `generate_audio: true`). Two transports chosen by env, because we don't yet know which key we'll get:
+  - `SEEDANCE_TRANSPORT=fal`: `@fal-ai/client`, endpoint `bytedance/seedance-2.0/image-to-video` (or `fast`), key `FAL_KEY`;
+  - `SEEDANCE_TRANSPORT=byteplus`: BytePlus ModelArk video generation task API (create task → poll → download), key
+    `ARK_API_KEY`, model id from `SEEDANCE_MODEL`.
+  Read both official docs (fal model page / `llms.txt`; BytePlus ModelArk Seedance 2.0 tutorial + API reference)
+  and record the exact field names and URLs in *Decisions*; mark anything you couldn't confirm as unverified in code.
+  Map a content-policy rejection (e.g. real-face filter) to a distinct `PolicyRejectedError` (not retried blindly).
+- `src/providers/image.ts` — keyframe/portrait `ImageProvider`: `IMAGE_PROVIDER=seedream|fal-nano-banana|gemini`
+  (Seedream via the same BytePlus/fal key when available). Same doc-checking rule.
+- `src/providers/lipsync.ts` — fallback lip-sync: `LIPSYNC_PROVIDER=fal-kling` (`fal-ai/kling-video/lipsync/audio-to-video`)
+  or `command` (an open-source model run locally, e.g. LatentSync, through `LIPSYNC_CMD` with `{video} {audio} {out}`
+  placeholders).
+- Cost per call in each adapter (from docs) so the manifest and budget guard work.
 - `tests/visuals.test.ts`.
 
 ## Acceptance
-1. `snapDuration(6.2, [5, 10]) === 10`, `snapDuration(4.1, [5, 10]) === 5`; above max → throws (script must be shorter).
+1. `snapDuration(6.2, [4..15]) === 7`; `snapDuration(16, ...)` throws.
 2. Keyframe for s2 receives the portrait and s1's keyframe as refs (asserted on the mock call log).
-3. Mock path for both modes yields a 1080×1920 clip with audio whose transcript sidecar equals the line.
-4. Every registry entry has a `buildInput` unit test against its documented field names and a cost.
-5. Nothing in this feature calls the network in tests.
-6. `pnpm verify` green.
+3. Native path: mock video says the line → shot passes after 1 video call, no TTS/lip-sync calls.
+4. Native fails twice (fault injection) → exactly `maxNative` video calls, then TTS + lip-sync, final `listen` passes;
+   attempts tell the story in order.
+5. `PolicyRejectedError` from video is not retried with the same input; the run reports it clearly.
+6. `talkingPrompt` contains the line verbatim inside double quotes (test with quotes/apostrophes in the line).
+7. Seedance adapter request shape for both transports asserted with injected fakes; no network in tests.
+8. `pnpm verify` green.
 
 ## Decisions
-_(implementer fills in — list each fal endpoint, docs URL, verified yes/no)_
+_(implementer fills in — endpoints, docs URLs, verified yes/no)_

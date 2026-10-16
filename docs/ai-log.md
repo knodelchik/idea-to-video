@@ -23,3 +23,14 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [F01] `normalize` dropped every character that wasn't a letter or digit, including symbols that are spoken (`&`, `$`, `%`), so
   `compareWords("You & me", "you me")` passed even though a spoken word was missing → caught by the reviewer
   on attempt 1 → those symbols are now spelled out as words, every other symbol is kept as its own token, and tests cover the missing-word cases.
+- [harness] Implementer agents in the first run could not execute a single command: `--allowedTools $TOOLS` was
+  unquoted, so the shell split `Bash(pnpm *)` and globbed the `*`. The agent wrote code "traced by hand" and said so
+  in the spec → caught by reading `permission_denials` in the run log → quoted, comma-separated `Bash(cmd:*)` rules,
+  verified with a probe run (0 denials).
+- [harness] `git add -A` in the harness committed local agent-tool state (`.omc/`) → caught by reading the commit
+  stat → ignored and purged from history before anything was pushed.
+- [F01] The reviewer agent rejected the first F01 attempt that the implementer and the gate had passed:
+  `normalize()` dropped `$ & %`, so "It's $20" matched "it's twenty" (a missing spoken word passed the verbatim gate)
+  → fixed on attempt 2 with tests. Proof that the separate reviewer earns its cost.
+- [spec] My own F01 spec allowed 2 shots × max 10 s but a 30 s ceiling that could never fire; the implementer flagged
+  it in Decisions → shot range widened to Seedance's 4–15 s in F05.

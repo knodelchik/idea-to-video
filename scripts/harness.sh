@@ -20,8 +20,10 @@ done
 
 LOGS=harness/logs; mkdir -p "$LOGS"
 RUNLOG=harness/runs.md
-IMPL_TOOLS='Read Edit Write Glob Grep WebFetch WebSearch Bash(pnpm *) Bash(npx *) Bash(node *) Bash(ffmpeg *) Bash(ffprobe *) Bash(ls *) Bash(mkdir *) Bash(git status*) Bash(git diff*) Bash(git log*) Bash(wc *) Bash(head *) Bash(tail *)'
-REVIEW_TOOLS='Read Glob Grep Bash(pnpm verify*) Bash(npx vitest *) Bash(npx tsc *) Bash(npx tsx *) Bash(git diff*) Bash(git status*) Bash(git log*) Bash(ls *)'
+# Comma-separated and always quoted: unquoted, the shell split "Bash(pnpm *)" and globbed the `*`, so the first run's
+# agents could not run a single test (found in the logs: permission_denials).
+IMPL_TOOLS='Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,Bash(pnpm:*),Bash(npx:*),Bash(node:*),Bash(ffmpeg:*),Bash(ffprobe:*),Bash(ls:*),Bash(mkdir:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(cat:*)'
+REVIEW_TOOLS='Read,Glob,Grep,Bash(pnpm verify:*),Bash(pnpm test:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(npx tsx:*),Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(ls:*),Bash(grep:*),Bash(cat:*)'
 VERDICT_SCHEMA='{"type":"object","properties":{"pass":{"type":"boolean"},"issues":{"type":"array","items":{"type":"string"}},"nits":{"type":"array","items":{"type":"string"}}},"required":["pass","issues"]}'
 
 feature_field() { node -e 'const f=require("./specs/features.json").features.find(x=>x.id===process.argv[1]);const v=f[process.argv[2]];console.log(Array.isArray(v)?v.join("\n"):v)' "$1" "$2"; }
@@ -56,17 +58,19 @@ The previous attempt was rejected. Fix exactly these problems (and keep everythi
 $feedback"
     log "$id attempt $attempt: implementer"
     claude -p "$prompt" --agent implementer --permission-mode acceptEdits \
-      --allowedTools $IMPL_TOOLS --output-format stream-json --verbose \
+      --allowedTools "$IMPL_TOOLS" --output-format stream-json --verbose \
       > "$LOGS/$id-impl-$attempt.jsonl" 2> "$LOGS/$id-impl-$attempt.err"
 
     log "$id attempt $attempt: gate"
-    if ! gate_out=$(gate "$id"); then
+    gate_out=$(gate "$id"); gate_rc=$?
+    printf '%s\n' "$gate_out" > "$LOGS/$id-gate-$attempt.txt"
+    if [ $gate_rc -ne 0 ]; then
       feedback="$gate_out"; log "$id attempt $attempt: GATE FAIL"; continue
     fi
 
     log "$id attempt $attempt: reviewer"
-    review=$(claude -p "Review feature $id against $spec. The implementer claims it is done and the automated gate is green." \
-      --agent reviewer --permission-mode default --allowedTools $REVIEW_TOOLS \
+    review=$(claude -p "Review feature $id against $spec. The implementer claims it is done. The automated gate (pnpm verify + acceptance commands) is green; its output is in $LOGS/$id-gate-$attempt.txt." \
+      --agent reviewer --permission-mode default --allowedTools "$REVIEW_TOOLS" \
       --output-format json --json-schema "$VERDICT_SCHEMA" 2> "$LOGS/$id-review-$attempt.err")
     echo "$review" > "$LOGS/$id-review-$attempt.json"
     verdict=$(node -e '

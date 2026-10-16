@@ -13,7 +13,8 @@ deterministic mock, and media operations are thin, tested wrappers around ffmpeg
   - `AsrProvider.transcribe({ path }) → Transcript & { costUsd }`
   - `ImageProvider.generate({ prompt, refs?, out, variant? }) → { path, costUsd }` (always 9:16)
   - `VideoProvider` with `capabilities { nativeSpeech, durations: number[] }` and
-    `animate({ image, prompt, seconds, out, variant? }) → { path, seconds, costUsd }`
+    `animate({ image, prompt, seconds, out, line?, refs?, variant? }) → { path, seconds, hasAudio, costUsd }`.
+    `line` is the exact text the character must say when the model speaks natively (Seedance 2.0 does).
   - `LipsyncProvider.sync({ video, audio, out }) → { path, costUsd }`
   - `TalkingProvider.talk({ image, audio, prompt, out }) → { path, costUsd }` (audio-driven avatar models)
 - `src/providers/mock.ts` — deterministic mocks built on ffmpeg (no network):
@@ -21,7 +22,9 @@ deterministic mock, and media operations are thin, tested wrappers around ffmpeg
   - ASR: reads the sidecar of the file (or of the source it was muxed from); supports fault injection
     `new MockAsr({ faults: [{ call: 0, drop: 1 }] })` to drop/replace words on chosen calls.
   - Image: solid 1080×1920 PNG, colour derived from a hash of the prompt.
-  - Video: still → mp4 (30 fps, yuv420p) of the requested seconds with a slow zoom.
+  - Video: still → mp4 (30 fps, yuv420p) of the requested seconds with a slow zoom. With `nativeSpeech` and a
+    `line`, it also adds an audio track and a transcript sidecar holding the line; fault injection
+    `new MockVideo({ faults: [{ call: 0, say: "a paraphrase" }] })` makes it "say" something else on chosen calls.
   - Lipsync / Talking: mux the given audio onto the video/image; copy the transcript sidecar.
   - LLM: given a `responder(prompt) => object` or a queue of canned objects (tests use this).
 - `src/providers/index.ts` — `createProviders({ mode: "mock"|"live", env })` registry (live adapters come later;
