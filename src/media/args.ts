@@ -108,6 +108,15 @@ export function loudnormArgs({ input, out, silent }: LoudnormOpts): string[] {
   return ["-i", input, "-af", af, "-c:v", "copy", ...AAC, "-shortest", out];
 }
 
+/**
+ * First `seconds` of a clip, video only. Re-encoded (not `-c copy`) so the cut is frame-exact rather than at the
+ * previous keyframe; audio dropped because this feeds lip-sync, which replaces it with the verified voice.
+ */
+export function trimArgs({ input, out, seconds }: { input: string; out: string; seconds: number }): string[] {
+  assertSeconds(seconds);
+  return ["-i", input, "-t", sec(seconds), "-map", "0:v:0", ...H264, "-an", out];
+}
+
 /** First audio stream → 16 kHz mono FLAC: what Whisper resamples to anyway, and small enough to upload. */
 export function extractAudioArgs({ input, out }: { input: string; out: string }): string[] {
   return ["-i", input, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "flac", out];

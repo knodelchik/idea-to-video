@@ -11,6 +11,7 @@ import { formatIssues, type Transcript } from "../schemas.ts";
 import { colorImageArgs, muxArgs, stillVideoArgs, toneArgs } from "../media/args.ts";
 import { probe, run } from "../media/ffmpeg.ts";
 import { readTranscript, writeTranscript } from "../util/sidecar.ts";
+import { PolicyRejectedError } from "./errors.ts";
 import type {
   AnimateRequest,
   AnimateResult,
@@ -97,7 +98,11 @@ export class MockLlm implements LlmProvider {
 
 export class MockTts implements TtsProvider {
   readonly name = "mock-tts";
-  async speak({ text, out }: TtsRequest): Promise<TtsResult> {
+  /** Every request, in order (tests assert on the call log). */
+  readonly calls: TtsRequest[] = [];
+  async speak(req: TtsRequest): Promise<TtsResult> {
+    this.calls.push(req);
+    const { text, out } = req;
     if (words(text).length === 0) throw new Error("MockTts: empty text");
     const seconds = mockSpeechSeconds(text);
     await run(toneArgs({ out, seconds }));
@@ -155,7 +160,10 @@ export function promptColor(prompt: string): string {
 
 export class MockImage implements ImageProvider {
   readonly name = "mock-image";
-  async generate({ prompt, refs, out, variant }: ImageRequest): Promise<{ path: string; costUsd: number }> {
+  readonly calls: ImageRequest[] = [];
+  async generate(req: ImageRequest): Promise<{ path: string; costUsd: number }> {
+    this.calls.push(req);
+    const { prompt, refs, out, variant } = req;
     for (const r of refs ?? []) await access(r); // catches wiring bugs a real API would also reject
     await run(colorImageArgs({ out, hex: promptColor(variant ? `${prompt}#${variant}` : prompt) }));
     return { path: out, costUsd: 0 };
@@ -167,13 +175,15 @@ export class MockImage implements ImageProvider {
 export interface VideoFault {
   call: number;
   /** Say this instead of the requested line. */
-  say: string;
+  say?: string;
+  /** Throw PolicyRejectedError with this detail (like Seedance's real-face filter). */
+  reject?: string;
 }
 
 export class MockVideo implements VideoProvider {
   readonly name = "mock-video";
   readonly capabilities: VideoCapabilities;
-  private calls = 0;
+  readonly calls: AnimateRequest[] = [];
   private readonly faults: VideoFault[];
 
   constructor(opts: { nativeSpeech?: boolean; durations?: number[]; faults?: VideoFault[] } = {}) {
@@ -184,13 +194,17 @@ export class MockVideo implements VideoProvider {
     this.faults = opts.faults ?? [];
   }
 
-  async animate({ image, seconds, out, line, refs }: AnimateRequest): Promise<AnimateResult> {
-    const call = this.calls++;
+  async animate(req: AnimateRequest): Promise<AnimateResult> {
+    const { image, seconds, out, line, refs } = req;
+    const call = this.calls.push(req) - 1;
     if (!this.capabilities.durations.includes(seconds)) {
       throw new RangeError(`MockVideo: ${seconds} s not in durations [${this.capabilities.durations.join(", ")}]`);
     }
+    await access(image);
     for (const r of refs ?? []) await access(r);
-    const said = this.faults.find((f) => f.call === call)?.say ?? line ?? "";
+    const fault = this.faults.find((f) => f.call === call);
+    if (fault?.reject !== undefined) throw new PolicyRejectedError(this.name, fault.reject);
+    const said = fault?.say ?? line ?? "";
     const speaks = this.capabilities.nativeSpeech && words(said).length > 0;
     if (!speaks) {
       await run(stillVideoArgs({ image, out, seconds }));
@@ -223,8 +237,19 @@ async function carryTranscript(audio: string, out: string): Promise<void> {
 
 export class MockLipsync implements LipsyncProvider {
   readonly name = "mock-lipsync";
-  async sync({ video, audio, out }: { video: string; audio: string; out: string }) {
+  readonly calls: { video: string; audio: string; out: string }[] = [];
+  readonly maxSeconds: number;
+  constructor(opts: { maxSeconds?: number } = {}) {
+    this.maxSeconds = opts.maxSeconds ?? Infinity;
+  }
+  async sync(req: { video: string; audio: string; out: string }) {
+    this.calls.push(req);
+    const { video, audio, out } = req;
     const { seconds } = await probe(video);
+    // Reject an over-long input like a real API would (Kling: 2–10 s); 50 ms covers frame rounding.
+    if (seconds > this.maxSeconds + 0.05) {
+      throw new Error(`MockLipsync: input video ${seconds} s exceeds max ${this.maxSeconds} s`);
+    }
     await run(muxArgs({ video, audio, out, seconds }));
     await carryTranscript(audio, out);
     return { path: out, costUsd: 0 };

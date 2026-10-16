@@ -2,6 +2,7 @@
  * Shared bits for fetch-based live adapters. `fetch` is always injected so tests assert the exact request
  * with a fake and never touch the network.
  */
+import { readFile, writeFile } from "node:fs/promises";
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -36,6 +37,32 @@ export function envJson(env: Record<string, string | undefined>, name: string): 
     // fall through
   }
   throw new Error(`${name} must be a JSON object like {"female-adult":"<voice>"}`);
+}
+
+// --- Files in and out of URL-based APIs ---
+
+/** MIME from magic bytes, not the extension: an adapter may write a JPEG to `out.png` and ffmpeg won't care. */
+export function sniffMime(b: Uint8Array): string {
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
+  if (b[0] === 0x89 && ascii(1, 4) === "PNG") return "image/png";
+  if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WAVE") return "audio/wav";
+  if (ascii(4, 8) === "ftyp") return "video/mp4";
+  if (ascii(0, 3) === "ID3" || (b[0] === 0xff && ((b[1] ?? 0) & 0xe0) === 0xe0)) return "audio/mpeg";
+  return "application/octet-stream";
+}
+
+/** `data:<mime>;base64,…` for APIs that accept inline files instead of a hosted URL. */
+export async function dataUrl(path: string): Promise<string> {
+  const b = await readFile(path);
+  return `data:${sniffMime(b)};base64,${b.toString("base64")}`;
+}
+
+/** GET `url` and write the body to `out` (result URLs from fal / BytePlus expire, so we keep our own copy). */
+export async function download(provider: string, url: string, out: string, f: FetchLike): Promise<void> {
+  const res = await ensureOk(provider, await f(url, { method: "GET" }));
+  await writeFile(out, Buffer.from(await res.arrayBuffer()));
 }
 
 // --- WAV ---

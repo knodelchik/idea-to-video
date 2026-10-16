@@ -36,7 +36,7 @@
     {
       "id": "F05-visuals",
       "spec": "specs/F05-visuals.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/visuals.test.ts"
       ]

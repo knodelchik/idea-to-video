@@ -10,26 +10,30 @@ import { ElevenLabsTts } from "./elevenlabs.ts";
 import { GroqAsr } from "./groq-asr.ts";
 import { TtsChain } from "./tts-chain.ts";
 import type { FetchLike } from "./http.ts";
+import { NotConfiguredError } from "./errors.ts";
+import { seedanceFromEnv } from "./seedance.ts";
+import { imageFromEnv } from "./image.ts";
+import { lipsyncFromEnv } from "./lipsync.ts";
+
+const SELF_CONFIGURED = new Set<keyof Providers>(["tts", "image", "video", "lipsync"]);
 
 export type * from "./types.ts";
 export { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo } from "./mock.ts";
 export type { AsrFault, Responder, VideoFault } from "./mock.ts";
 export { GeminiTts, ElevenLabsTts, GroqAsr, TtsChain };
 export { HttpError, type FetchLike } from "./http.ts";
-
-export class NotConfiguredError extends Error {
-  constructor(
-    readonly capability: keyof Providers,
-    readonly envVar: string,
-  ) {
-    super(`live ${capability} provider is not configured: set ${envVar}`);
-    this.name = "NotConfiguredError";
-  }
-}
+export { NotConfiguredError, PolicyRejectedError } from "./errors.ts";
+export { BytePlusSeedance, FalSeedance, SeedanceVideo, seedanceFromEnv, SEEDANCE_DURATIONS } from "./seedance.ts";
+export { FalNanoBananaImage, GeminiImage, SeedreamImage, imageFromEnv } from "./image.ts";
+export { CommandLipsync, FalKlingLipsync, lipsyncFromEnv } from "./lipsync.ts";
+export type { FalLike } from "./fal.ts";
 
 export type Env = Record<string, string | undefined>;
 
-/** Env var each live capability will need (per specs F03–F05). Checked in this order. */
+/**
+ * Default env var each live capability needs (per specs F03–F05). Checked in this order. image / video / lipsync
+ * pick their key from IMAGE_PROVIDER / SEEDANCE_TRANSPORT / LIPSYNC_PROVIDER, so their *FromEnv names it.
+ */
 export const LIVE_ENV: Record<keyof Providers, string> = {
   llm: "GEMINI_API_KEY",
   tts: "GEMINI_API_KEY",
@@ -83,8 +87,8 @@ export function createProviders({ mode, env, overrides = {} }: CreateProvidersOp
     };
   }
   for (const [capability, envVar] of Object.entries(LIVE_ENV) as [keyof Providers, string][]) {
-    // TTS accepts several keys; ttsFromEnv below names them all when none is set.
-    if (overrides[capability] || capability === "tts") continue;
+    // These choose their key from env (TTS_PROVIDERS, IMAGE_PROVIDER, …); their *FromEnv names the missing one.
+    if (overrides[capability] || SELF_CONFIGURED.has(capability)) continue;
     if (!env[envVar]) throw new NotConfiguredError(capability, envVar);
   }
   const live: Partial<Providers> = {
@@ -92,6 +96,9 @@ export function createProviders({ mode, env, overrides = {} }: CreateProvidersOp
     llm: overrides.llm ?? GeminiLlm.fromEnv(env),
     tts: overrides.tts ?? ttsFromEnv(env),
     asr: overrides.asr ?? GroqAsr.fromEnv(env),
+    image: overrides.image ?? imageFromEnv(env),
+    video: overrides.video ?? seedanceFromEnv(env),
+    lipsync: overrides.lipsync ?? lipsyncFromEnv(env),
   };
   // Keys are present but no live adapter exists yet; still refuse rather than silently using a mock.
   const missing = (Object.keys(LIVE_ENV) as (keyof Providers)[]).find((c) => !live[c]);

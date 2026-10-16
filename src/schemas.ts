@@ -18,7 +18,8 @@ export const Character = z.object({
 });
 export type Character = z.infer<typeof Character>;
 
-export const SHOT_SECONDS = { min: 3, max: 10 } as const;
+/** Seedance 2.0 accepts 4–15 s clips (docs/research/video-models.md, specs/F05); one shot is one clip. */
+export const SHOT_SECONDS = { min: 4, max: 15 } as const;
 export const SCRIPT_SECONDS = { min: 8, max: 30 } as const;
 
 export const Shot = z.object({

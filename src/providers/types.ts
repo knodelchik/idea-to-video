@@ -105,6 +105,11 @@ export interface VideoProvider {
 
 export interface LipsyncProvider {
   readonly name: string;
+  /**
+   * Longest input clip the model accepts, seconds (Infinity = no documented limit). The caller trims a longer
+   * clip after the speech ends, or fails with a reason; it must never silently cut speech.
+   */
+  readonly maxSeconds: number;
   sync(req: { video: string; audio: string; out: string }): Promise<{ path: string; costUsd: number }>;
 }
 

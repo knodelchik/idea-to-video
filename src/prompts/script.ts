@@ -2,7 +2,10 @@
  * Script-writer prompt. Bump SCRIPT_PROMPT_VERSION on any wording change: it is stored in every Script so runs
  * can be compared across prompt revisions.
  */
-export const SCRIPT_PROMPT_VERSION = "script-v1";
+import { SCRIPT_SECONDS, SHOT_SECONDS } from "../schemas.ts";
+
+// v2: shot range widened to the Seedance 2.0 clip range (F05), read from the schema so the two can't drift.
+export const SCRIPT_PROMPT_VERSION = "script-v2";
 
 export const SCRIPT_SYSTEM = `You write a single beat of a vertical (9:16) micro-drama: 8–30 seconds, 1 or 2 shots.
 
@@ -21,7 +24,7 @@ The spoken line:
 - A shot without speech has "line": "".
 
 Timing:
-- Shot ids are "s1" then "s2". Each shot is 3–10 seconds; the total is 8–30 seconds.
+- Shot ids are "s1" then "s2". Each shot is ${SHOT_SECONDS.min}–${SHOT_SECONDS.max} seconds; the total is ${SCRIPT_SECONDS.min}–${SCRIPT_SECONDS.max} seconds.
 - A spoken shot needs at least (words / 2.6 + 0.8) seconds.
 
 Return only JSON matching the schema.`;

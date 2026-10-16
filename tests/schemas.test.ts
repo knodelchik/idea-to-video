@@ -61,19 +61,27 @@ describe("Script", () => {
     expect(msg).toMatch(/total duration 7 s is outside 8–30 s/);
   });
 
-  it("accepts the 8 s lower boundary and 2×10 s", () => {
+  it("accepts the 8 s lower boundary, 2×15 s at the 30 s upper boundary", () => {
     expect(errorsOf(Script, script({ shots: [shot({ seconds: 4 }), shot({ id: "s2", seconds: 4 })] }))).toBe("");
-    expect(errorsOf(Script, script({ shots: [shot({ seconds: 10 }), shot({ id: "s2", seconds: 10 })] }))).toBe("");
+    expect(errorsOf(Script, script({ shots: [shot({ seconds: 15 }), shot({ id: "s2", seconds: 15 })] }))).toBe("");
+    expect(errorsOf(Script, script({ shots: [shot({ seconds: 15 })] }))).toBe("");
   });
 
-  it("a shot longer than 10 s is rejected at the shot path", () => {
+  it("keeps the total at 8–30 s even though each shot may be up to 15 s", () => {
+    expect(errorsOf(Script, script({ shots: [shot({ seconds: 15 }), shot({ id: "s2", seconds: 15.5 })] }))).toMatch(
+      /shots\.1\.seconds/,
+    );
+    expect(errorsOf(Script, script({ shots: [shot({ seconds: 15 }), shot({ id: "s2", seconds: 14.5 })] }))).toBe("");
+  });
+
+  it("a shot longer than 15 s is rejected at the shot path", () => {
     expect(errorsOf(Script, script({ shots: [shot({ seconds: 25 })] }))).toMatch(/shots\.0\.seconds/);
   });
 
   it("rejects 3 shots with a readable message", () => {
     const msg = errorsOf(
       Script,
-      script({ shots: [shot({ seconds: 3 }), shot({ id: "s2", seconds: 3 }), shot({ id: "s2", seconds: 3 })] }),
+      script({ shots: [shot({ seconds: 4 }), shot({ id: "s2", seconds: 4 }), shot({ id: "s2", seconds: 4 })] }),
     );
     expect(msg).toMatch(/shots: a script has 1–2 shots, got 3/);
   });
@@ -96,10 +104,12 @@ describe("Script", () => {
     );
   });
 
-  it("rejects bad enums and shot seconds out of 3–10", () => {
+  it("rejects bad enums and shot seconds out of 4–15 (Seedance 2.0 range)", () => {
     expect(errorsOf(Shot, shot({ camera: "wide" as never }))).toMatch(/camera/);
-    expect(errorsOf(Shot, shot({ seconds: 2 }))).toMatch(/seconds/);
-    expect(errorsOf(Shot, shot({ seconds: 11 }))).toMatch(/seconds/);
+    expect(errorsOf(Shot, shot({ seconds: 4 }))).toBe("");
+    expect(errorsOf(Shot, shot({ seconds: 15 }))).toBe("");
+    expect(errorsOf(Shot, shot({ seconds: 3 }))).toMatch(/shot seconds must be 4–15/);
+    expect(errorsOf(Shot, shot({ seconds: 16 }))).toMatch(/shot seconds must be 4–15/);
     expect(errorsOf(Character, { ...character, voice: { ...character.voice, age: "teen" } })).toMatch(
       /voice\.age/,
     );

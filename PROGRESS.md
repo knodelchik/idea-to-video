@@ -62,3 +62,54 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - `createProviders({ mode: "live" })` now wires `tts` and `asr`. Helpers: `pcmToWav`/`wavSeconds`
   (`src/providers/http.ts`) and `extractAudioArgs` (`src/media/args.ts`).
 - Tests: `tests/voice.test.ts` (26 tests: mock ffmpeg round-trips and adapter requests; no network).
+
+## F05 — Visuals: identity anchor, keyframes, talking shots (Seedance 2.0)
+- `Shot.seconds` is 4–15 (total still 8–30). The script prompt reads the range from the schema (`script-v2`).
+- `src/nodes/visuals.ts`:
+  - `castCharacter(script, { image, dir })` and `keyframeShot(shot, script, portrait, prev?, { image, dir })` return
+    `{ path, attempts }`. A keyframe's refs are `[portrait, prev?]`.
+  - `talkingShot(shot, keyframe, { script, video, asr, tts, lipsync, dir, maxNative = 2 })` returns
+    `{ path, seconds, via: silent|native|lipsync, verbatim, speechStart/End, attempts }`. It tries native speech
+    (gated) up to `maxNative` times, then falls back to `verifiedVoice` + lip-sync + gate.
+  - All artifacts are content-addressed.
+- Pure helpers:
+  - `snapDuration(seconds, durations)`;
+  - `portraitPrompt`, `keyframePrompt`, `talkingPrompt` in `src/prompts/visuals.ts` (the line is quoted verbatim;
+    delivery tags go into the emotion).
+- Errors:
+  - `PolicyRejectedError` (`src/providers/errors.ts`) is never retried. The node throws
+    `ShotError { shotId, attempts, cause }`.
+  - A lip-synced clip that still fails the gate throws `VerbatimError`.
+- Live adapters (fake-tested, no network):
+  - `SeedanceVideo` with `SEEDANCE_TRANSPORT=fal` (`FAL_KEY`, `SEEDANCE_TIER=fast`) or `byteplus` (`ARK_API_KEY`,
+    `SEEDANCE_MODEL`, `ARK_BASE_URL`; field names UNVERIFIED);
+  - `imageFromEnv`: `IMAGE_PROVIDER=fal-nano-banana|gemini|seedream`;
+  - `lipsyncFromEnv`: `LIPSYNC_PROVIDER=fal-kling|command`, with `LIPSYNC_CMD` containing `{video} {audio} {out}`.
+  - `createProviders("live")` wires all three. `talking` still needs an override.
+- Mocks: `calls[]` logs on `MockImage`, `MockVideo`, `MockTts` and `MockLipsync`; `VideoFault.reject` throws
+  `PolicyRejectedError`. Tests: `tests/visuals.test.ts` (32 tests).
+- A shot's `seconds`/`hasAudio` are always ffprobe-measured on the delivered file: the Seedance download, every
+  node clip and the lip-synced output. Adapters supply only `costUsd`.
+- The test fake for fal storage returns content-hashed URLs (`upUrl(path)` in `tests/visuals.test.ts`), so tests with
+  parallel uploads are deterministic. Use byte-different files when a test checks upload order.
+
+## F05 — Visuals: post-BLOCKED fixes (lip-sync limits, failure attempts)
+- Every failure path of `talkingShot` now throws `ShotError` (or `VerbatimError` for a non-verbatim lip-synced
+  clip) carrying the full attempt list. ASR errors, lip-sync errors and unexpected errors are recorded as failed
+  attempts, with their cost, before the throw.
+- `LipsyncProvider.maxSeconds` is now required:
+  - Kling: 10;
+  - `command`: `Infinity`, or set it with `LIPSYNC_MAX_SECONDS`;
+  - `new MockLipsync({ maxSeconds })` rejects longer inputs, like the real API.
+- A base clip longer than `maxSeconds` is trimmed to `voice.speechEnd + 0.4` s with `trimArgs` (`src/media/args.ts`)
+  and recorded as a `trim` attempt. If even that doesn't fit, a failed `trim` attempt is recorded and a readable
+  `ShotError` is thrown; speech is never silently cut.
+- `tests/visuals.test.ts` now has 38 tests; `pnpm verify` passes 162 tests.
+
+## F05 — Visuals: silent native takes
+- A native clip with no audio stream (ffprobe `hasAudio: false`) is recorded as a failed `video` attempt with
+  reason `no audio track`. It is never sent to ASR, and the next take is tried.
+- If every native take is silent, the shot falls back to verified TTS + lip-sync on the first silent clip. The
+  fallback attempt says "no take had an audio track".
+- Tests: `StrictAsr` in `tests/visuals.test.ts` throws on silent input like live Groq; `MockVideo` faults with
+  `say: ""` produce silent clips. 40 visuals tests, 164 total in `pnpm verify`.

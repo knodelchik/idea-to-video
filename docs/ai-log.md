@@ -54,3 +54,30 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [F04] My first acceptance-1 test expected `"it all"` vs `"everything"` to produce `sub + ins`. Levenshtein has two
   equally cheap alignments (`ins + sub` came out) → caught when the test failed → switched to a paraphrase with one
   unambiguous op (`watch` → `clock`), so the test checks the gate rather than the tie-break.
+- [F05] I planned to send `seed: variant` and an integer `duration` to Seedance on fal, as the BytePlus examples do.
+  fal's llms.txt has no `seed` input, and `duration` is a string enum (`"4".."15"`) → caught by reading the docs
+  before writing the adapter → the fal input sends `String(seconds)` and no seed. A test asserts the exact input, and
+  a mutation (integer duration) makes that test fail.
+- [F05] I wrote `toMatchObject({ verbatim: undefined })` to assert that a silent shot has no gate result. That
+  matcher requires the key to be present → caught when the test failed on correct code → switched to
+  `not.toHaveProperty("verbatim")`.
+- [F05] My Seedance adapter returned the *requested* `seconds` and a hard-coded `hasAudio: true`. The node believed
+  the adapter's report, and for a lip-synced shot it reported the base clip's length, not the synced file's. That
+  breaks hard rule 4, and the tests passed only because the mocks happen to tell the truth → caught by the reviewer
+  on attempt 1 → the adapter runs ffprobe on the downloaded file (`probe` is injectable). The node measures every
+  clip it returns, including the synced one. New tests use a lying `MockVideo` subclass and a lip-sync that trims
+  to 5 s, so an echoed value would fail.
+- [F05] My fake fal `storage.upload` numbered URLs by call order (`up/1`, `up/2`). The nano-banana adapter uploads refs
+  in parallel, and `falUpload` reads the file first, so the numbering followed whichever read finished first. The test
+  also passed `[kf, kf]`, which could never catch a reorder → caught by the reviewer as a flaky `pnpm verify` (1 failure
+  in 2 runs) → the fake URL is now a hash of the uploaded bytes, the tests use two different files, and a mutation
+  (reversed refs) fails the test.
+- [harness] F05 was BLOCKED after 3 attempts. Not a loop: each review found a *new* real defect (durations taken
+  from the request instead of the file; a flaky ref-order test the reviewer caught by running verify twice; attempts
+  lost when the lip-sync fallback throws). Root causes on my side: the reviewer revealed issues one per round, and
+  the gate log was empty on success so the reviewer had no evidence → reviewer now must report all blocking issues
+  in one pass and run verify twice; gate logs its green output; human notes appended to the spec; re-run.
+- [F05] Measured `hasAudio` on native clips but never branched on it; a silent Seedance take went to ASR, which
+  live Groq can't handle (`-map 0:a:0` throws) → MockAsr returned an empty transcript for silence, so tests
+  passed; caught by review reading groq-asr.ts → silent take is now a recorded failed attempt (no ASR call),
+  tested with a test-local ASR that throws on files without an audio stream.
