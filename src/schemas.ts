@@ -155,10 +155,22 @@ export const Attempt = z.object({
   reason: z.string().optional(),
   costUsd: z.number().min(0),
   ms: z.number().min(0),
+  /** Quality judge score (1–10) on stage "judge" attempts (F07). */
+  score: z.number().int().min(1).max(10).optional(),
 });
 export type Attempt = z.infer<typeof Attempt>;
 
-export const FinalVideo = z.object({
+/**
+ * What a VLM judge returns (F07). Only what a model can judge; code computes durations, words and formats.
+ * A reply that fails this schema is a judge failure, never a pass.
+ */
+export const JudgeVerdict = z.object({
+  score: z.number().int().min(1).max(10),
+  issues: z.array(z.string()),
+});
+export type JudgeVerdict = z.infer<typeof JudgeVerdict>;
+
+export const FinalVideo =z.object({
   path: nonEmpty("path"),
   seconds: z.number().positive(),
   width: z.number().int().positive(),
@@ -177,6 +189,11 @@ export const ShotOutput = z.object({
   speechStart: z.number().min(0).optional(),
   speechEnd: z.number().min(0).optional(),
   verbatim: VerbatimResult.optional(),
+  /** Judge scores (1–10) of the keyframe and clip that were kept (F07). Absent = not judged, or the judge failed. */
+  keyframeScore: z.number().int().min(1).max(10).optional(),
+  clipScore: z.number().int().min(1).max(10).optional(),
+  /** No attempt passed the quality bar and the best one was kept: a human should look before publishing. */
+  needsReview: z.boolean().optional(),
 });
 export type ShotOutput = z.infer<typeof ShotOutput>;
 

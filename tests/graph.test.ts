@@ -407,6 +407,7 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
         asr: new MockAsr(),
         lipsync: createProviders({ mode: "mock", env: {} }).lipsync,
         talking: createProviders({ mode: "mock", env: {} }).talking,
+        judge: createProviders({ mode: "mock", env: {} }).judge,
       };
       // Not a real live run: every capability is overridden, so no key is read and nothing leaves the machine.
       const { code, json, err, manifest } = await cli([IDEA, "--live"], { overrides: priced, env: { MAX_COST_USD: "0.01" } });

@@ -2,7 +2,7 @@
  * The only door from nodes to providers (CLAUDE.md rule 7). `mock` is free and deterministic; `live` adapters
  * arrive in later features and until then fail loudly, naming the env var that would configure them.
  */
-import { MockAsr, MockImage, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo, mockScriptResponder } from "./mock.ts";
+import { MockAsr, MockImage, MockJudge, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo, mockScriptResponder } from "./mock.ts";
 import type { Providers } from "./types.ts";
 import { GeminiLlm } from "./gemini.ts";
 import { GeminiTts } from "./gemini-tts.ts";
@@ -14,6 +14,7 @@ import { NotConfiguredError } from "./errors.ts";
 import { seedanceFromEnv } from "./seedance.ts";
 import { imageFromEnv } from "./image.ts";
 import { lipsyncFromEnv } from "./lipsync.ts";
+import { GeminiJudge } from "./gemini-judge.ts";
 
 const SELF_CONFIGURED = new Set<keyof Providers>(["tts", "image", "video", "lipsync"]);
 
@@ -27,13 +28,17 @@ export {
   MockTts,
   MockVideo,
   MOCK_DEFAULT_LINE,
+  MOCK_JUDGE_SCORE,
+  MockJudge,
   mockScriptResponder,
 } from "./mock.ts";
+export type { JudgeScript } from "./mock.ts";
+export { DEFAULT_JUDGE_MODELS, GeminiJudge, JUDGE_SYSTEM } from "./gemini-judge.ts";
 export { Budget, BudgetExceededError, DEFAULT_MAX_COST_USD, maxCostFromEnv, withBudget } from "./budget.ts";
 export type { AsrFault, Responder, VideoFault } from "./mock.ts";
 export { GeminiTts, ElevenLabsTts, GroqAsr, TtsChain };
 export { HttpError, isTransient as isTransientHttp, type FetchLike } from "./http.ts";
-export { NotConfiguredError, PolicyRejectedError } from "./errors.ts";
+export { JudgeOutputError, NotConfiguredError, PolicyRejectedError } from "./errors.ts";
 export { BytePlusSeedance, FalSeedance, SeedanceVideo, seedanceFromEnv, SEEDANCE_DURATIONS } from "./seedance.ts";
 export { FalNanoBananaImage, GeminiImage, SeedreamImage, imageFromEnv } from "./image.ts";
 export { CommandLipsync, FalKlingLipsync, lipsyncFromEnv } from "./lipsync.ts";
@@ -53,6 +58,7 @@ export const LIVE_ENV: Record<keyof Providers, string> = {
   video: "FAL_KEY",
   lipsync: "FAL_KEY",
   talking: "FAL_KEY",
+  judge: "GEMINI_API_KEY",
 };
 
 /** TTS engines by name → the env var holding their key. */
@@ -95,6 +101,7 @@ export function createProviders({ mode, env, overrides = {} }: CreateProvidersOp
       video: new MockVideo(),
       lipsync: new MockLipsync(),
       talking: new MockTalking(),
+      judge: new MockJudge(),
       ...overrides,
     };
   }
@@ -111,6 +118,7 @@ export function createProviders({ mode, env, overrides = {} }: CreateProvidersOp
     image: overrides.image ?? imageFromEnv(env),
     video: overrides.video ?? seedanceFromEnv(env),
     lipsync: overrides.lipsync ?? lipsyncFromEnv(env),
+    judge: overrides.judge ?? GeminiJudge.fromEnv(env),
   };
   // Keys are present but no live adapter exists yet; still refuse rather than silently using a mock.
   const missing = (Object.keys(LIVE_ENV) as (keyof Providers)[]).find((c) => !live[c]);

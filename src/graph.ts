@@ -14,7 +14,15 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { assemble } from "./nodes/assemble.ts";
 import { finalGate } from "./nodes/final-gate.ts";
 import { writeScript } from "./nodes/script.ts";
-import { castCharacter, keyframeShot, talkingShot, type TalkingShot } from "./nodes/visuals.ts";
+import {
+  DEFAULT_CLIP_MIN,
+  DEFAULT_KEYFRAME_MIN,
+  judgedKeyframe,
+  judgedTalkingShot,
+  type JudgedShot,
+  type QualitySettings,
+} from "./nodes/quality.ts";
+import { castCharacter } from "./nodes/visuals.ts";
 import { firstPrompt, SCRIPT_SYSTEM } from "./prompts/script.ts";
 import {
   Budget,
@@ -37,6 +45,10 @@ import { extractQuotedLines } from "./verbatim.ts";
 
 export type Mode = "mock" | "live";
 type ShotId = Shot["id"];
+interface KeyframeQuality {
+  score?: number;
+  needsReview: boolean;
+}
 
 const merge = <T>(a: Partial<Record<ShotId, T>>, b: Partial<Record<ShotId, T>>) => ({ ...a, ...b });
 const last = <T>() => Annotation<T>({ reducer: (_a: T, b: T) => b, default: () => undefined as T });
@@ -49,6 +61,8 @@ export const RunState = Annotation.Root({
   script: last<Script | undefined>(),
   portrait: last<string | undefined>(),
   keyframes: Annotation<Partial<Record<ShotId, string>>>({ reducer: merge, default: () => ({}) }),
+  /** Judge outcome of each kept keyframe (F07), carried into the shot output. */
+  keyframeQuality: Annotation<Partial<Record<ShotId, KeyframeQuality>>>({ reducer: merge, default: () => ({}) }),
   /** Merged by shot id: parallel shot tasks each write their own key. */
   shots: Annotation<Partial<Record<ShotId, ShotOutput>>>({ reducer: merge, default: () => ({}) }),
   /** Concatenated: every node appends what it tried. */
@@ -72,6 +86,8 @@ interface ShotTask {
   script: Script;
   shot: Shot;
   keyframe: string;
+  portrait: string;
+  keyframeQuality?: KeyframeQuality;
 }
 
 // --- errors ---
@@ -136,16 +152,21 @@ export interface PipelineDeps {
   log?: (line: string) => void;
   /** Called before every node runs; tests throw here to simulate a crash between stages. */
   beforeNode?: (node: string, shotId?: ShotId) => void | Promise<void>;
+  /** Judge pass marks (KEYFRAME_MIN / CLIP_MIN, F07). Defaults 7 / 5. */
+  quality?: Partial<QualitySettings>;
 }
 
 interface Ctx {
   providers?: Providers;
+  /** Asked before an optional clip regeneration (F07). */
+  budget?: Budget;
   /** Attempts of failed node runs, by task key: kept for the retry that follows, or for the manifest if none does. */
   failed: Map<string, Attempt[]>;
 }
 
 function buildGraph(deps: PipelineDeps, ctx: Ctx) {
   const retry = { ...DEFAULT_RETRY, ...deps.retry };
+  const quality: QualitySettings = { keyframeMin: DEFAULT_KEYFRAME_MIN, clipMin: DEFAULT_CLIP_MIN, ...deps.quality };
   const p = (): Providers => {
     if (!ctx.providers) throw new Error("pipeline: providers not set");
     return ctx.providers;
@@ -229,16 +250,23 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
         const script = need(s.script, "script");
         const portrait = need(s.portrait, "portrait");
         const keyframes: Partial<Record<ShotId, string>> = {};
+        const keyframeQuality: Partial<Record<ShotId, KeyframeQuality>> = {};
         const attempts: Attempt[] = [];
         let prev: string | undefined;
         // Sequential on purpose: each keyframe is a reference for the next (continuity of light, wardrobe, place).
         for (const shot of script.shots) {
-          const r = await keyframeShot(shot, script, portrait, prev, { image: p().image, dir: runDir(s.runId) });
+          const r = await judgedKeyframe(shot, script, portrait, prev, {
+            image: p().image,
+            judge: p().judge,
+            dir: runDir(s.runId),
+            min: quality.keyframeMin,
+          });
           keyframes[shot.id] = r.path;
+          keyframeQuality[shot.id] = { needsReview: r.needsReview, ...(r.score !== undefined ? { score: r.score } : {}) };
           attempts.push(...r.attempts);
           prev = r.path;
         }
-        return { keyframes, attempts };
+        return { keyframes, keyframeQuality, attempts };
       }),
       { retryPolicy },
     )
@@ -248,15 +276,19 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
         "shot",
         async (t: ShotTask) => {
           const pr = p();
-          const r = await talkingShot(t.shot, t.keyframe, {
+          const r = await judgedTalkingShot(t.shot, t.keyframe, {
             script: t.script,
             video: pr.video,
             asr: pr.asr,
             tts: pr.tts,
             lipsync: pr.lipsync,
+            judge: pr.judge,
+            portrait: t.portrait,
             dir: runDir(t.runId),
+            min: quality.clipMin,
+            ...(ctx.budget ? { budget: ctx.budget } : {}),
           });
-          return { shots: { [t.shot.id]: shotOutput(r) }, attempts: r.attempts };
+          return { shots: { [t.shot.id]: shotOutput(r, t.keyframeQuality) }, attempts: r.attempts };
         },
         (t) => t.shot.id,
       ),
@@ -296,7 +328,14 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
         const script = need(s.script, "script");
         return script.shots.map(
           (shot) =>
-            new Send("shot", { runId: s.runId, script, shot, keyframe: need(s.keyframes[shot.id], `keyframe ${shot.id}`) } satisfies ShotTask),
+            new Send("shot", {
+              runId: s.runId,
+              script,
+              shot,
+              keyframe: need(s.keyframes[shot.id], `keyframe ${shot.id}`),
+              portrait: need(s.portrait, "portrait"),
+              ...(s.keyframeQuality?.[shot.id] ? { keyframeQuality: s.keyframeQuality[shot.id] } : {}),
+            } satisfies ShotTask),
         );
       },
       ["shot"],
@@ -306,7 +345,7 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
     .addEdge("finalGate", END);
 }
 
-function shotOutput(r: TalkingShot): ShotOutput {
+function shotOutput(r: JudgedShot, kf?: KeyframeQuality): ShotOutput {
   return {
     path: r.path,
     seconds: r.seconds,
@@ -315,6 +354,10 @@ function shotOutput(r: TalkingShot): ShotOutput {
     ...(r.speechStart !== undefined ? { speechStart: r.speechStart } : {}),
     ...(r.speechEnd !== undefined ? { speechEnd: r.speechEnd } : {}),
     ...(r.verbatim ? { verbatim: r.verbatim } : {}),
+    ...(kf?.score !== undefined ? { keyframeScore: kf.score } : {}),
+    ...(r.clipScore !== undefined ? { clipScore: r.clipScore } : {}),
+    // The shot needs a human if either its keyframe or its clip was kept without passing.
+    needsReview: r.needsReview || (kf?.needsReview ?? false),
   };
 }
 
@@ -349,13 +392,15 @@ export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; err
   });
 }
 
-/** Rough cost of a typical run (2 shots of 8 s, one native take each, no fallback), printed before a live run. */
+/** Rough cost of a typical run (2 shots of 8 s, one native take each, no fallback, no regeneration), printed before a live run. */
 export function estimateRunUsd(p: Providers, idea: string): number {
   const llm = p.llm.estimateUsd?.({ system: SCRIPT_SYSTEM, prompt: firstPrompt(idea, extractQuotedLines(idea)) }) ?? 0;
   const image = p.image.estimateUsd?.({ prompt: "", out: "" }) ?? 0;
   const video = p.video.estimateUsd?.({ image: "", prompt: "", seconds: 8, out: "" }) ?? 0;
   const asr = p.asr.estimateUsd?.({ path: "" }) ?? 0;
-  return llm + 3 * image + 2 * video + 3 * asr;
+  // Judge (F07): 2 keyframes (image + portrait ref) and 2 clips (3 frames + portrait), all passing first time.
+  const judge = 2 * (p.judge.estimateUsd?.({ images: 2, rubric: "" }) ?? 0) + 2 * (p.judge.estimateUsd?.({ images: 4, rubric: "" }) ?? 0);
+  return llm + 3 * image + 2 * video + 3 * asr + judge;
 }
 
 /** A manifest lists checkpointed attempts first, then the failed ones; the tail past the checkpoint is the latter. */
@@ -408,6 +453,7 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
     // Finished stages of a resumed run already spent their share of the cap.
     const budget = new Budget(deps.maxCostUsd, (state.costUsd ?? 0) + sumCost(carried));
     ctx.providers = withBudget(deps.providers(state.mode), budget);
+    ctx.budget = budget;
 
     await mkdir(join(deps.runsDir, runId), { recursive: true });
     const write = (m: RunManifest) => writeFile(path, `${JSON.stringify(m, null, 2)}\n`);

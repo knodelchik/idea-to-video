@@ -5,6 +5,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { estimateRunUsd, runPipeline, type Mode, type RunOutcome } from "./graph.ts";
+import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
 
 export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json]`;
@@ -76,9 +77,11 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
 
   let args: CliArgs;
   let maxCostUsd: number;
+  let quality: QualitySettings;
   try {
     args = parseArgs(argv);
     maxCostUsd = maxCostFromEnv(env);
+    quality = qualityFromEnv(env);
   } catch (e) {
     err(`${(e as Error).message}\n${USAGE}`);
     return 2;
@@ -98,6 +101,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
       providers: makeProviders,
       runsDir: resolve(deps.runsDir ?? "runs"),
       maxCostUsd,
+      quality,
       ...(deps.retry ? { retry: deps.retry } : {}),
       ...(deps.beforeNode ? { beforeNode: deps.beforeNode } : {}),
       log: err,

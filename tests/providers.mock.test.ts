@@ -186,7 +186,7 @@ describe("createProviders", () => {
   it("mock mode returns every capability, overridable", () => {
     const asr = new MockAsr({ faults: [{ call: 0, drop: 1 }] });
     const p = createProviders({ mode: "mock", env: {}, overrides: { asr } });
-    expect(Object.keys(p).sort()).toEqual(["asr", "image", "lipsync", "llm", "talking", "tts", "video"]);
+    expect(Object.keys(p).sort()).toEqual(["asr", "image", "judge", "lipsync", "llm", "talking", "tts", "video"]);
     expect(p.asr).toBe(asr);
     expect(p.tts).toBeInstanceOf(MockTts);
   });

@@ -39,6 +39,14 @@ export class Budget {
     public spentUsd = 0,
   ) {}
 
+  /**
+   * Would a call (or a group of calls) estimated at `estimateUsd` fit right now? Lets a node skip an *optional*
+   * step (a quality regeneration) and record why, instead of starting it and failing the run with BudgetExceededError.
+   */
+  allows(estimateUsd: number): boolean {
+    return estimateUsd <= 0 || this.spentUsd + this.reserved + estimateUsd <= this.maxUsd + 1e-9;
+  }
+
   /** Runs `call` only if its estimate fits; books the actual cost afterwards (even a failed call releases). */
   async guard<R extends { costUsd: number }>(provider: string, estimateUsd: number, call: () => Promise<R>): Promise<R> {
     const committed = this.spentUsd + this.reserved;
@@ -51,15 +59,23 @@ export class Budget {
       const r = await call();
       this.spentUsd += r.costUsd;
       return r;
+    } catch (e) {
+      // Some errors were paid for (JudgeOutputError: the model answered, badly); book what they say they cost.
+      const paid = (e as { costUsd?: unknown } | null)?.costUsd;
+      if (typeof paid === "number" && paid > 0) this.spentUsd += paid;
+      throw e;
     } finally {
       this.reserved -= estimateUsd;
     }
   }
 }
 
-/** Same providers, every paid method behind `budget.guard`. Read-only fields (capabilities, maxSeconds) delegate. */
+/**
+ * Same providers, every paid method behind `budget.guard`. Read-only fields (capabilities, maxSeconds) delegate, and
+ * so do the estimates of video / lipsync / judge, which nodes use to ask `budget.allows` before an optional regeneration.
+ */
 export function withBudget(p: Providers, budget: Budget): Providers {
-  const { llm, tts, asr, image, video, lipsync, talking } = p;
+  const { llm, tts, asr, image, video, lipsync, talking, judge } = p;
   return {
     llm: {
       name: llm.name,
@@ -80,6 +96,7 @@ export function withBudget(p: Providers, budget: Budget): Providers {
         return video.capabilities;
       },
       animate: (req) => budget.guard(video.name, video.estimateUsd?.(req) ?? 0, () => video.animate(req)),
+      estimateUsd: (req) => video.estimateUsd?.(req) ?? 0,
     },
     lipsync: {
       name: lipsync.name,
@@ -87,10 +104,25 @@ export function withBudget(p: Providers, budget: Budget): Providers {
         return lipsync.maxSeconds;
       },
       sync: (req) => budget.guard(lipsync.name, lipsync.estimateUsd?.(req) ?? 0, () => lipsync.sync(req)),
+      estimateUsd: (req) => lipsync.estimateUsd?.(req) ?? 0,
     },
     talking: {
       name: talking.name,
       talk: (req) => budget.guard(talking.name, talking.estimateUsd?.(req) ?? 0, () => talking.talk(req)),
+    },
+    judge: {
+      name: judge.name,
+      judgeImage: (req) =>
+        budget.guard(judge.name, judge.estimateUsd?.({ images: 1 + (req.refs?.length ?? 0), rubric: req.rubric }) ?? 0, () =>
+          judge.judgeImage(req),
+        ),
+      judgeVideo: (req) =>
+        budget.guard(
+          judge.name,
+          judge.estimateUsd?.({ images: req.frames.length + (req.refs?.length ?? 0), rubric: req.rubric }) ?? 0,
+          () => judge.judgeVideo(req),
+        ),
+      estimateUsd: (req) => judge.estimateUsd?.(req) ?? 0,
     },
   };
 }

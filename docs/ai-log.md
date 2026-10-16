@@ -89,3 +89,10 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   state keys → the first CLI run failed at compile → renamed to `writeScript` / `drawKeyframes`. Separately,
   parallel Send failures arrive as "Multiple errors occurred during superstep N" (the resume test caught the
   unreadable manifest error) → `runError` joins the inner `errors[]` messages.
+- [harness] My deny rule `Read(./.env.*)` also matched `.env.example`, so the F06 agent couldn't update it. It said
+  so honestly under "Blocked" instead of working around the rule → human wrote `.env.example`, narrowed the rule.
+- [F07] I keyed cached judge verdicts only by the judged files' bytes. Mock regeneration takes are byte-identical
+  stills, so take 2's frames hit take 1's cached verdict and the scripted second score never reached the node. The
+  test "4 → 7: the better take wins" failed with scores [2, 2] → the content-addressed clip name now joins the
+  verdict key. Also, my GeminiJudge test fixture used an unpriced model, so the invalid-reply case "cost" $0 and
+  hid whether the cost was carried → the fixture now uses priced models.

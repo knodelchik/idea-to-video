@@ -137,3 +137,22 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - Tests: `tests/graph.test.ts` (25 tests: the acceptance idea, crash + resume with call counters, final-file
   mishearing, transient vs permanent video errors, budget abort before the first paid call). `pnpm verify` passes
   189 tests, and its mock e2e step is now active. `.env.example` was not updated (see the spec's Blocked note).
+
+## F07 — Quality judge and regeneration
+- `JudgeProvider` (`judgeImage` / `judgeVideo` → `{ score 1–10, issues[], costUsd }`, checked against `JudgeVerdict`).
+  Live: `GeminiJudge` (`JUDGE_MODELS`, Gemini vision, structured output). Mock: `new MockJudge({ image: [4, 8],
+  video: [...], fallback })`. A script entry is a score, `{score, issues}` or `{ raw }`, and `raw` is schema-checked
+  like a live reply. A bad reply throws `JudgeOutputError` (it carries its cost) and is recorded as an unscored
+  judge failure, never a pass.
+- `src/nodes/quality.ts`:
+  - `judgedKeyframe` redraws while the score is below `KEYFRAME_MIN` (7), at most 2 extra times, with the issues
+    appended to the prompt (`withIssues`, `src/prompts/judge.ts`).
+  - `judgedTalkingShot` judges 3 frames against the portrait. Below `CLIP_MIN` (5) it runs one more `talkingShot`
+    take, only if `Budget.allows(regenEstimateUsd(...))`. Otherwise it records a `regen` attempt with
+    `provider: "budget"`.
+  - When nothing passes, the best take is kept and the shot gets `needsReview: true`.
+- The manifest has `stage: "judge"` attempts with `score`, plus `shots.sN.{keyframeScore, clipScore, needsReview}`.
+  Verdicts are cached as `runs/<id>/judge-*.json`, so a resume doesn't pay to judge again.
+- `src/media/frames.ts`: `frameTimes`, `frameArgs` (pure) and `extractFrames(clip, n, dir)`.
+- Settings: `KEYFRAME_MIN`, `CLIP_MIN` and `JUDGE_MODELS` (`.env.example`). Tests: `tests/judge.test.ts`
+  (21 tests). `pnpm verify` passes 210 tests.

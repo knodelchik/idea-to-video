@@ -53,7 +53,7 @@
     {
       "id": "F07-quality-judge",
       "spec": "specs/F07-quality-judge.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/judge.test.ts"
       ]

@@ -130,6 +130,35 @@ export interface TalkingProvider {
   estimateUsd?(req: { image: string; audio: string; prompt: string; out: string }): number;
 }
 
+export interface JudgeImageRequest {
+  path: string;
+  rubric: string;
+  /** Reference images (the character portrait) the judged image must match. */
+  refs?: string[];
+}
+export interface JudgeVideoRequest {
+  /** Frames sampled evenly from the clip, in order. */
+  frames: string[];
+  rubric: string;
+  refs?: string[];
+}
+/** Parsed through `JudgeVerdict`. A reply that fails it makes the provider throw `JudgeOutputError` (with its cost). */
+export interface JudgeResult {
+  score: number;
+  issues: string[];
+  costUsd: number;
+  /** Model that answered, and fallbacks the caller must record. */
+  model?: string;
+  notes?: string[];
+}
+/** A VLM that scores images and clips (F07). It judges only what code can't check. */
+export interface JudgeProvider {
+  readonly name: string;
+  judgeImage(req: JudgeImageRequest): Promise<JudgeResult>;
+  judgeVideo(req: JudgeVideoRequest): Promise<JudgeResult>;
+  estimateUsd?(req: { images: number; rubric: string }): number;
+}
+
 export interface Providers {
   llm: LlmProvider;
   tts: TtsProvider;
@@ -138,4 +167,5 @@ export interface Providers {
   video: VideoProvider;
   lipsync: LipsyncProvider;
   talking: TalkingProvider;
+  judge: JudgeProvider;
 }

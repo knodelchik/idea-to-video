@@ -17,6 +17,7 @@ import {
   type VideoProvider,
 } from "../providers/index.ts";
 import { keyframePrompt, portraitPrompt, talkingPrompt, VISUALS_PROMPT_VERSION } from "../prompts/visuals.ts";
+import { withIssues } from "../prompts/judge.ts";
 import type { Attempt, Script, Shot, VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { splitDelivery } from "../verbatim.ts";
@@ -61,20 +62,24 @@ async function still(
   stage: "portrait" | "keyframe",
   prompt: string,
   refs: string[],
-  opts: { image: ImageProvider; dir: string; shotId?: Shot["id"] },
+  opts: { image: ImageProvider; dir: string; shotId?: Shot["id"]; variant?: number },
 ): Promise<Still> {
-  const { image, dir, shotId } = opts;
+  const { image, dir, shotId, variant } = opts;
   const t0 = performance.now();
-  const key = await contentKey(stage, image.name, VISUALS_PROMPT_VERSION, prompt, ...refs.map((file) => ({ file })));
+  // The variant joins the key only when set, so first attempts keep the paths (and caches) they had before F07.
+  const v = variant ? [`variant:${variant}`] : [];
+  const key = await contentKey(stage, image.name, VISUALS_PROMPT_VERSION, prompt, ...refs.map((file) => ({ file })), ...v);
   const name = shotId ? `${stage}-${shotId}-${key}.png` : `${stage}-${key}.png`;
-  const made = await once(join(dir, name), (tmp) => image.generate({ prompt, ...(refs.length ? { refs } : {}), out: tmp }));
+  const made = await once(join(dir, name), (tmp) =>
+    image.generate({ prompt, ...(refs.length ? { refs } : {}), out: tmp, ...(variant ? { variant } : {}) }),
+  );
   return {
     path: made.path,
     attempts: [
       {
         stage,
         ...(shotId ? { shotId } : {}),
-        n: 1,
+        n: (variant ?? 0) + 1,
         provider: image.name,
         ok: true,
         ...(made.cached ? { reason: "reused cached image" } : {}),
@@ -90,15 +95,20 @@ export function castCharacter(script: Script, opts: { image: ImageProvider; dir:
   return still("portrait", portraitPrompt(script), [], opts);
 }
 
-/** A shot's first frame, generated with the portrait (and the previous keyframe, for continuity) as refs. */
+/**
+ * A shot's first frame, generated with the portrait (and the previous keyframe, for continuity) as refs.
+ * `issues` (from the quality judge, F07) are appended to the prompt; `variant` > 0 makes a new take.
+ */
 export function keyframeShot(
   shot: Shot,
   script: Script,
   portrait: string,
   prev: string | undefined,
-  opts: { image: ImageProvider; dir: string },
+  opts: { image: ImageProvider; dir: string; variant?: number; issues?: string[] },
 ): Promise<Still> {
-  return still("keyframe", keyframePrompt(shot, script), prev ? [portrait, prev] : [portrait], { ...opts, shotId: shot.id });
+  const { issues = [], ...rest } = opts;
+  const prompt = withIssues(keyframePrompt(shot, script), issues);
+  return still("keyframe", prompt, prev ? [portrait, prev] : [portrait], { ...rest, shotId: shot.id });
 }
 
 export interface TalkingShotOpts {
@@ -112,6 +122,13 @@ export interface TalkingShotOpts {
   maxNative?: number;
   /** Attempts for the fallback voice (F04). */
   maxVoice?: number;
+  /**
+   * 1-based take of the whole shot (F07: a regeneration after a low judge score is take 2). Later takes use new
+   * video variants, so they make new files instead of hitting the cache of take 1.
+   */
+  take?: number;
+  /** Judge issues from the previous take, appended to the video prompt. */
+  issues?: string[];
   /** Measures every clip this node returns. ffprobe by default; injectable so tests can watch what gets measured. */
   probe?: (path: string) => Promise<{ seconds: number; hasAudio: boolean }>;
 }
@@ -164,7 +181,9 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   const shotId = shot.id;
   const spoken = splitDelivery(shot.line).spoken;
   const seconds = snapDuration(shot.seconds, video.capabilities.durations);
-  const prompt = talkingPrompt(shot, script);
+  const prompt = withIssues(talkingPrompt(shot, script), opts.issues ?? []);
+  const take = opts.take ?? 1;
+  if (!Number.isInteger(take) || take < 1) throw new RangeError(`take must be an integer >= 1, got ${take}`);
   const record = (a: Omit<Attempt, "shotId">) => attempts.push({ ...a, shotId });
   /** Records the failed step, then throws with the full story. */
   const fail = (a: Omit<Attempt, "shotId" | "ok" | "reason">, reason: string, message: string, cause?: unknown): never => {
@@ -267,7 +286,9 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   let best: { clip: Clip; wer: number } | undefined;
   const native = video.capabilities.nativeSpeech;
   const tries = native ? maxNative : 1;
-  for (let n = 1; n <= tries; n++) {
+  // Take k numbers its video calls after take k−1's, so variants (and attempt numbers) never collide.
+  const first = (take - 1) * tries + 1;
+  for (let n = first; n < first + tries; n++) {
     const t0 = performance.now();
     const clip = await animate(n, native ? shot.line : undefined);
     if (!native) {

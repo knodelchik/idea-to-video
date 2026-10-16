@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "deny": ["Read(./.env)", "Read(./.env.*)", "Edit(./.env)", "Write(./.env)", "Edit(./.claude/hooks/**)", "Edit(./scripts/verify.sh)", "Edit(./scripts/harness.sh)"]
+    "deny": ["Read(./.env)", "Read(./.env.local)", "Read(./.env.production)", "Edit(./.env)", "Write(./.env)", "Edit(./.claude/hooks/**)", "Edit(./scripts/verify.sh)", "Edit(./scripts/harness.sh)"]
   },
   "hooks": {
     "PreToolUse": [

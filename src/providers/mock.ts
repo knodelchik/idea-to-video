@@ -11,7 +11,7 @@ import { formatIssues, type Transcript } from "../schemas.ts";
 import { colorImageArgs, muxArgs, stillVideoArgs, toneArgs } from "../media/args.ts";
 import { probe, run } from "../media/ffmpeg.ts";
 import { readTranscript, writeTranscript } from "../util/sidecar.ts";
-import { PolicyRejectedError } from "./errors.ts";
+import { parseVerdict, PolicyRejectedError } from "./errors.ts";
 import type {
   AnimateRequest,
   AnimateResult,
@@ -19,6 +19,10 @@ import type {
   AsrResult,
   ImageProvider,
   ImageRequest,
+  JudgeImageRequest,
+  JudgeProvider,
+  JudgeResult,
+  JudgeVideoRequest,
   LipsyncProvider,
   LlmProvider,
   LlmRequest,
@@ -259,6 +263,54 @@ export class MockVideo implements VideoProvider {
     // Words that would start after the clip ends are cut off, as a real model's would be.
     await writeTranscript(out, mockTranscript(said, MOCK_SPEECH_OFFSET, seconds));
     return { path: out, seconds, hasAudio: true, costUsd: 0 };
+  }
+}
+
+// --- Judge ---
+
+/**
+ * One scripted judge reply: a score (issues are made up from it), a full verdict, or `{ raw }`, which goes
+ * through the same schema check as a live reply, so a bad shape becomes a JudgeOutputError.
+ */
+export type JudgeScript = number | { score: number; issues: string[] } | { raw: unknown };
+
+/** Score the mock gives once its script runs out: passes both default bars (keyframe 7, clip 5). */
+export const MOCK_JUDGE_SCORE = 8;
+
+export class MockJudge implements JudgeProvider {
+  readonly name = "mock-judge";
+  readonly calls: ({ kind: "image" } & JudgeImageRequest | { kind: "video" } & JudgeVideoRequest)[] = [];
+  private readonly scripts: { image: JudgeScript[]; video: JudgeScript[] };
+  private readonly fallback: number;
+
+  constructor(opts: { image?: JudgeScript[]; video?: JudgeScript[]; fallback?: number } = {}) {
+    this.scripts = { image: [...(opts.image ?? [])], video: [...(opts.video ?? [])] };
+    this.fallback = opts.fallback ?? MOCK_JUDGE_SCORE;
+  }
+
+  async judgeImage(req: JudgeImageRequest): Promise<JudgeResult> {
+    this.calls.push({ kind: "image", ...req });
+    for (const p of [req.path, ...(req.refs ?? [])]) await access(p);
+    return this.reply(this.scripts.image.shift());
+  }
+
+  async judgeVideo(req: JudgeVideoRequest): Promise<JudgeResult> {
+    this.calls.push({ kind: "video", ...req });
+    for (const p of [...req.frames, ...(req.refs ?? [])]) await access(p);
+    return this.reply(this.scripts.video.shift());
+  }
+
+  private reply(s: JudgeScript | undefined): JudgeResult {
+    const script = s ?? this.fallback;
+    const raw =
+      typeof script === "number"
+        ? { score: script, issues: script >= 7 ? [] : [`mock issue at score ${script}: hands malformed, face too small`] }
+        : "raw" in script
+          ? script.raw
+          : script;
+    // JSON round-trip like a model's text reply.
+    const verdict = parseVerdict(this.name, JSON.parse(JSON.stringify(raw ?? null)) as unknown, 0);
+    return { ...verdict, costUsd: 0 };
   }
 }
 
