@@ -108,6 +108,11 @@ export function loudnormArgs({ input, out, silent }: LoudnormOpts): string[] {
   return ["-i", input, "-af", af, "-c:v", "copy", ...AAC, "-shortest", out];
 }
 
+/** First audio stream → 16 kHz mono FLAC: what Whisper resamples to anyway, and small enough to upload. */
+export function extractAudioArgs({ input, out }: { input: string; out: string }): string[] {
+  return ["-i", input, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "flac", out];
+}
+
 // --- Builders used by the mock providers (no drawtext/libass: the dev ffmpeg doesn't have them) ---
 
 /** Solid-colour 1080×1920 PNG. `hex` is "rrggbb". */

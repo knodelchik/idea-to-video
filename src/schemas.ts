@@ -122,6 +122,28 @@ export const VerbatimResult = z
   });
 export type VerbatimResult = z.infer<typeof VerbatimResult>;
 
+/** Where speech sits inside a file, from ASR word timestamps (seconds). */
+export const SpeechWindow = z
+  .object({ speechStart: z.number().min(0), speechEnd: z.number().min(0) })
+  .refine((w) => w.speechEnd >= w.speechStart, { message: "speechEnd must be >= speechStart", path: ["speechEnd"] });
+export type SpeechWindow = z.infer<typeof SpeechWindow>;
+
+/** A voice track that has passed the verbatim gate (F04 fallback voice; F05 lip-syncs it onto the video). */
+export const VoiceTrack = z
+  .object({
+    path: nonEmpty("path"),
+    seconds: z.number().positive(),
+    speechStart: z.number().min(0),
+    speechEnd: z.number().min(0),
+    verbatim: VerbatimResult,
+  })
+  .refine((v) => v.speechStart < v.speechEnd && v.speechEnd <= v.seconds + 0.5, {
+    message: "speech window must be non-empty and inside the track",
+    path: ["speechEnd"],
+  })
+  .refine((v) => v.verbatim.pass, { message: "a voice track must have passed the verbatim gate", path: ["verbatim"] });
+export type VoiceTrack = z.infer<typeof VoiceTrack>;
+
 export const Attempt = z.object({
   stage: nonEmpty("stage"),
   shotId: z.enum(["s1", "s2"]).optional(),

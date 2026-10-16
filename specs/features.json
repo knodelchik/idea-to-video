@@ -28,7 +28,7 @@
     {
       "id": "F04-voice-gate",
       "spec": "specs/F04-voice-gate.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/voice.test.ts"
       ]

@@ -47,3 +47,10 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [F03] Wired the live LLM as `{ llm: GeminiLlm.fromEnv(env), ...overrides }`. A test passing `{ ...mocks, llm: undefined }`
   would have replaced the adapter with `undefined` (spread copies explicit undefined keys) and also built a client
   needlessly → caught while writing the createProviders test → `{ ...overrides, llm: overrides.llm ?? GeminiLlm.fromEnv(env) }`.
+- [F04] I assumed Gemini TTS used `generateContent` with `responseModalities: ["AUDIO"]` and
+  `speechConfig.voiceConfig.prebuiltVoiceConfig`. The current speech-generation docs show only the Interactions API
+  (`/v1beta/interactions`, `speech_config: [{voice}]`, audio in `steps[].content[]`) → caught by reading the docs before
+  writing the adapter → built the request from the documented body and asserted it with a fake fetch.
+- [F04] My first acceptance-1 test expected `"it all"` vs `"everything"` to produce `sub + ins`. Levenshtein has two
+  equally cheap alignments (`ins + sub` came out) → caught when the test failed → switched to a paraphrase with one
+  unambiguous op (`watch` → `clock`), so the test checks the gate rather than the tie-break.

@@ -23,3 +23,8 @@
 2026-10-16 16:19:52 F03-script attempt 1: implementer
 2026-10-16 16:24:18 F03-script attempt 1: gate
 2026-10-16 16:24:23 F03-script attempt 1: reviewer
+2026-10-16 16:25:44 F03-script PASSED on attempt 1 -> 42cad73
+2026-10-16 16:25:44 ### F04-voice-gate start (specs/F04-voice-gate.md)
+2026-10-16 16:25:44 F04-voice-gate attempt 1: implementer
+2026-10-16 16:32:35 F04-voice-gate attempt 1: gate
+2026-10-16 16:32:42 F04-voice-gate attempt 1: reviewer

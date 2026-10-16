@@ -197,6 +197,24 @@ export function compareWords(expected: string, heard: string): VerbatimResult {
 }
 
 /**
+ * Separate delivery tags from the words: "[whispers] I kept it. <sigh>" → spoken "I kept it.", tags ["whispers",
+ * "sigh"]. Tags (ElevenLabs `[…]`, Gemini `<…>`) are performance directions, never words the listener hears,
+ * so they must never reach compareWords as expected text.
+ */
+export function splitDelivery(line: string): { spoken: string; tags: string[] } {
+  const tags: string[] = [];
+  const spoken = line
+    .replace(/\[([^\][]*)\]|<([^<>]*)>/g, (_m, sq?: string, ang?: string) => {
+      const tag = (sq ?? ang ?? "").trim();
+      if (tag) tags.push(tag);
+      return " ";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+  return { spoken, tags };
+}
+
+/**
  * Lines the idea quotes: text inside "…", “…”, «…» or „…“ (also „…”), exactly as written.
  * Single quotes are never delimiters — they are apostrophes far more often than quotes.
  */

@@ -36,11 +36,20 @@ export interface TtsRequest {
   out: string;
   /** Retry number; lets a provider change seed/settings between attempts. */
   variant?: number;
+  /**
+   * Delivery ("whispers", "hopeful disbelief"). Goes to the provider as a setting or an audio tag, never into
+   * `text`: `text` is exactly what the verbatim gate expects to hear.
+   */
+  emotion?: string;
 }
 export interface TtsResult {
   path: string;
   seconds: number;
   costUsd: number;
+  /** Which concrete engine spoke, when the provider is a chain. */
+  provider?: string;
+  /** Fallbacks or caveats the caller must record in the manifest (no silent fallbacks). */
+  notes?: string[];
 }
 export interface TtsProvider {
   readonly name: string;

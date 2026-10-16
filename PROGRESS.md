@@ -45,3 +45,20 @@ Append-only log, one entry per feature, written by the implementer agent and com
   (comma list; 429/503 → next model, recorded in `LlmResult.notes`). `createProviders({ mode: "live" })` uses it for `llm`.
 - `wordCount(text)` in `src/verbatim.ts` counts spoken (normalised) words.
 - Tests: `tests/script.test.ts` (MockLlm + a fake Gemini client; no network).
+
+## F04 — Verbatim gate on speech, with a fallback voice
+- `listen(path, expected, { asr })` (`src/nodes/gate.ts`) → `VerbatimResult` + `speechStart`/`speechEnd` (from ASR word
+  timestamps) + `transcript` + `costUsd`. Works on audio or video. Delivery tags in `expected` are stripped first.
+  `describeOps(ops)` makes the retry reason; `VerbatimError { result, attempts }` is thrown when retries run out.
+- `verifiedVoice(line, character, { tts, asr, dir, maxAttempts = 3, emotion?, shotId? })` (`src/nodes/voice.ts`) → a
+  `VoiceTrack` (`path, seconds, speechStart, speechEnd, verbatim`) + `attempts` (`stage: "voice"`; a failed attempt
+  lists its diff ops). Takes are content-addressed (`dir/voice-<key>.wav`) and reused on resume.
+- Emotion goes in `TtsRequest.emotion` and never into the words: `splitDelivery(line)` (`src/verbatim.ts`) separates
+  `[tags]`/`<tags>` from the spoken text.
+- Live adapters (fake-fetch tested): `GroqAsr` (Whisper verbose_json, word timestamps, `GROQ_API_KEY`, `GROQ_ASR_MODEL`),
+  `GeminiTts` (Interactions API, `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICES`) and `ElevenLabsTts` (`eleven_v3`, `[tag]`
+  prefix, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICES`). `ttsFromEnv` builds a `TtsChain` in `TTS_PROVIDERS` order
+  (default `gemini,elevenlabs`; providers without a key are skipped; 429/5xx fall back and are recorded in `notes`).
+- `createProviders({ mode: "live" })` now wires `tts` and `asr`. Helpers: `pcmToWav`/`wavSeconds`
+  (`src/providers/http.ts`) and `extractAudioArgs` (`src/media/args.ts`).
+- Tests: `tests/voice.test.ts` (26 tests: mock ffmpeg round-trips and adapter requests; no network).
