@@ -38,11 +38,13 @@ log() { printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$RUNLOG"; }
 
 gate() { # external verification, independent of what the agent claims
   local id=$1 out
-  if ! out=$(bash scripts/verify.sh 2>&1); then printf 'pnpm verify failed:\n%s\n' "$(echo "$out" | tail -40)"; return 1; fi
+  local vout
+  if ! vout=$(bash scripts/verify.sh 2>&1); then printf 'pnpm verify failed:\n%s\n' "$(echo "$vout" | tail -40)"; return 1; fi
   while IFS= read -r cmd; do
     [ -z "$cmd" ] && continue
     if ! out=$(bash -c "$cmd" 2>&1); then printf 'acceptance command failed: %s\n%s\n' "$cmd" "$(echo "$out" | tail -40)"; return 1; fi
   done < <(feature_field "$id" accept)
+  printf 'pnpm verify: OK\n%s\nacceptance commands: OK\n' "$(echo "$vout" | tail -25)"
   return 0
 }
 

@@ -16,6 +16,9 @@ Check, in order:
    wrong units (seconds vs frames), off-by-one in timing.
 4. The spec's Decisions section is filled in and honest.
 
+Report **every** blocking issue you can find in this one pass — the implementer gets one retry per review, and
+issues revealed one per round burn attempts. Run `pnpm verify` twice: a gate that is green only sometimes is a FAIL.
+
 You may run read-only commands and tests (`pnpm verify`, `npx vitest run ...`, `git diff`, `git status`).
 Do not edit files.
 
