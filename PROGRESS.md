@@ -13,3 +13,23 @@ Append-only log, one entry per feature, written by the implementer agent and com
   `extractQuotedLines(idea)` handles `"…"`, `“…”`, `«…»` and `„…“`.
 - Usage: `compareWords(shot.line, transcript.text).pass` is the gate; `ops` says exactly which words differ.
 - Tests: `tests/verbatim.test.ts`, `tests/schemas.test.ts`.
+
+## F02 — Provider interfaces, mocks, media toolkit, cache
+- `src/providers/types.ts`: `LlmProvider`, `TtsProvider`, `AsrProvider`, `ImageProvider`, `VideoProvider`
+  (`capabilities { nativeSpeech, durations }`), `LipsyncProvider`, `TalkingProvider`, and the `Providers` bundle.
+  Every result has a `costUsd`. `generateJson` returns `{ ok, data | error, raw, costUsd }` and does not throw on a
+  bad shape.
+- `createProviders({ mode: "mock", env, overrides })` from `src/providers/index.ts` (the only import door for nodes)
+  gives zero-cost ffmpeg mocks. `mode: "live"` throws `NotConfiguredError` naming the missing env var.
+- Mocks (`src/providers/mock.ts`): TTS writes a tone wav (0.38 s/word + 0.3 s) and a `.transcript.json` sidecar;
+  ASR reads it back. Faults: `new MockAsr({ faults: [{ call, drop | replace | text }] })` and
+  `new MockVideo({ faults: [{ call, say }] })`. `MockLlm({ queue })` or `MockLlm({ responder })` records `calls`.
+  After muxing speech yourself, call `linkSource(out, source)` (`src/util/sidecar.ts`) so the mock ASR can hear it.
+  Lipsync/talking accept such linked audio too. Audio without a sidecar yields a silent output and does not throw.
+- Media: `run(args)` and `probe(path)` in `src/media/ffmpeg.ts`. Pure builders in `src/media/args.ts`:
+  `normalizeClipArgs`, `muxArgs`, `concatArgs`, `loudnormArgs`, plus `colorImageArgs`, `stillVideoArgs` and
+  `toneArgs` for the mocks. Everything comes out 1080×1920 / 30 fps / yuv420p with an exact frame count.
+- Cache: `contentKey(...parts)` (strings or `{ file }` hashed by contents) → 16 hex chars.
+  `once(out, tmp => …)` returns `{ path, cached, result? }`. It writes atomically, moves sidecars along, cleans up
+  after a crash, and dedupes concurrent calls.
+- Tests: `tests/media.test.ts`, `tests/providers.mock.test.ts`. Both include real ffmpeg round-trips and take about 3 s.

@@ -34,3 +34,13 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   → fixed on attempt 2 with tests. Proof that the separate reviewer earns its cost.
 - [spec] My own F01 spec allowed 2 shots × max 10 s but a 30 s ceiling that could never fire; the implementer flagged
   it in Decisions → shot range widened to Seedance's 4–15 s in F05.
+- [F02] I assumed that re-encoding to AAC keeps audio exactly as long as the video. The real ffmpeg round-trip test
+  showed concat + loudnorm leaving the audio 0.1 s longer than a 3.0 s video (AAC frame padding plus loudnorm's
+  resample), so the file was 3.1 s long → found by probing each stage → `-shortest` in `concatArgs`/`loudnormArgs`,
+  asserted by the tests. A test that checked only the arg arrays would have passed.
+- [F02] My mock ASR `replace` fault matched whole tokens, so `{watch: …}` never matched `"watch."` and the fault
+  silently did nothing → caught because the fault test asserts the altered text → punctuation-insensitive match.
+- [F02] MockLipsync/MockTalking copied `<audio>.transcript.json` with `copyFile`, which ignored the
+  `.source.json` links that MockAsr follows. Linked or silent audio threw ENOENT, and the tests only used direct
+  TTS output → caught by the reviewer → resolve with `readTranscript` and write only if a transcript exists. Added
+  a test with linked and bare audio.

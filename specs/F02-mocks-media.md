@@ -51,4 +51,41 @@ deterministic mock, and media operations are thin, tested wrappers around ffmpeg
 - Mocks must be deterministic (same input → byte-identical output is not required, same *probe* result is).
 
 ## Decisions
-_(implementer fills in)_
+- **No new dependencies.** ffmpeg/ffprobe via `node:child_process.execFile` (no shell, so no quoting bugs).
+  Local ffmpeg 8.1.1 has `zoompan`, `loudnorm`, `apad`, `sine`, `color`; nothing uses drawtext/libass.
+- **LLM result is a union, not a throw:** `generateJson` returns `{ ok: true, data, raw, costUsd } | { ok: false,
+  error, raw, costUsd }`. `error` is `formatIssues()` output, so F03 can re-prompt with it, and the cost of a bad
+  answer still gets recorded in `attempts[]`. Rejected: throwing on a bad shape (the cost would be lost and every
+  caller would need try/catch). MockLlm round-trips responses through JSON, as a real model's text would.
+- **Speech travels in sidecars.** `<media>.transcript.json` (word timings included). For audio muxed by
+  pipeline code (not a mock), `linkSource(out, source)` in `src/util/sidecar.ts` writes `<out>.source.json`, and
+  `MockAsr` follows it. Lipsync and talking carry speech over by resolving the audio's transcript through
+  `readTranscript` (links followed) and writing it onto the output. If the audio has no transcript, they write none,
+  so the output stays silent. A file with no sidecar transcribes as `""` (silence). A missing file throws.
+  Rejected (attempt 1): a plain `copyFile` of `<audio>.transcript.json`. It threw ENOENT for linked or silent audio,
+  so the `copyTranscript` helper was removed.
+- **Fault shapes.** `AsrFault { call, drop?: n trailing words, replace?: {word: new}, text?: whole text }`, where
+  `call` is the 0-based transcribe() index on that instance. `VideoFault { call, say }`. Mock speech starts 0.3 s into
+  a clip, and words that would start after the clip ends are cut from the transcript (a real model gets cut off
+  too, and later gates need to see that).
+- **MockVideo** defaults to `nativeSpeech: true` and `durations: 4..15`, matching Seedance 2.0 per F05. It **throws** on
+  a duration that isn't in `durations`, so snapping bugs can't hide behind a forgiving mock. MockImage and MockVideo
+  check that `refs` exist.
+- **`once(out, fn)`** returns `{ path, cached, result? }`. tmp = `<name>.tmp-<pid>-<rand><ext>` so ffmpeg still sees
+  the extension. Companion files `fn` writes next to tmp (`<tmp>.transcript.json`) are renamed to `<out>.*`
+  **before** the main file, so if `out` exists its sidecars do too. Concurrent calls in the same process share
+  one `fn`. On a throw, tmp and its companions are deleted.
+- **`contentKey`** takes strings/numbers/booleans and `{ file }` (hashed by contents). Each part is tagged and
+  length-prefixed (so `"ab","c"` ≠ `"a","bc"`). It returns 16 hex chars.
+- **Media flags:** `normalizeClipArgs` uses scale-to-cover + crop (no letterbox), `tpad` clone and `-frames:v N`
+  (an exact frame count even when the source is slightly short), and `audio: boolean` (the caller probes first,
+  because mapping audio that doesn't exist makes ffmpeg error). `muxArgs` needs the video `seconds` (`adelay`,
+  `apad`, `atrim`, `-t`). Negative offsets are rejected. `concatArgs` uses the concat *filter* (re-encode).
+  `concatArgs` and `loudnormArgs` add `-shortest`, because AAC frame padding pushed the audio 30–100 ms past the
+  video end (measured: 3.029 s → 3.1 s after loudnorm on a 3.0 s video). One-pass loudnorm `I=-16:TP=-1.5:LRA=11`.
+- **Live mode** checks the env vars named in F03–F05 (`GEMINI_API_KEY`, `GROQ_API_KEY`, `FAL_KEY`) and throws
+  `NotConfiguredError(capability, envVar)` for the first one missing. With all keys set it still throws, because
+  no live adapter exists yet (no silent fallback to mocks). `overrides` lets tests and later features inject
+  providers.
+- Docs checked: ffmpeg filters documentation (https://ffmpeg.org/ffmpeg-filters.html: zoompan, tpad, adelay
+  `all=1`, apad, atrim, concat, loudnorm), plus `ffmpeg -filters` on the dev machine.

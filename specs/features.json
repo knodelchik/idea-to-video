@@ -12,7 +12,7 @@
     {
       "id": "F02-mocks-media",
       "spec": "specs/F02-mocks-media.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/media.test.ts tests/providers.mock.test.ts"
       ]
