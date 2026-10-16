@@ -11,10 +11,12 @@
     "make": "tsx --env-file-if-exists=.env src/cli.ts",
     "eval": "tsx --env-file-if-exists=.env evals/run.ts",
     "eval:compare": "tsx evals/compare.ts",
-    "typecheck":"tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "bash scripts/verify.sh",
-    "harness": "bash scripts/harness.sh"
+    "harness": "bash scripts/harness.sh",
+    "preflight": "tsx --env-file-if-exists=.env scripts/preflight.ts",
+    "smoke:free": "tsx --env-file-if-exists=.env scripts/smoke-free.ts"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

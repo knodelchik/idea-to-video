@@ -704,9 +704,33 @@ describe("live adapters (acceptance 7, no network)", () => {
       expect((body.content[1]!.image_url as { url: string }).url).toMatch(/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/);
       expect(calls[1]!.init.headers).toMatchObject({ Authorization: "Bearer ark-key" });
       expect(await readFile(out)).toEqual(VIDEO_BYTES);
-      expect(r.costUsd).toBeCloseTo(7 * 0.15, 6);
+      // No usage in the reply → list price: $7 / 1M tokens × (720·1280·24/1024 = 21 600 tokens/s).
+      expect(r.costUsd).toBeCloseTo(7 * 0.1512, 6);
       expect(p.probed).toEqual([out]);
       expect(r).toMatchObject({ path: out, seconds: 6.96, hasAudio: true });
+    });
+
+    it("bills usage.completion_tokens when the task reports it; fast tier uses the fast model and price", async () => {
+      const done = (usage?: unknown) =>
+        fakeFetch({
+          [`POST ${TASKS}`]: () => json({ id: "t9" }),
+          [`GET ${TASKS}/t9`]: () =>
+            json({ id: "t9", status: "succeeded", content: { video_url: "https://ark-cdn.example/u.mp4" }, ...(usage ? { usage } : {}) }),
+          "GET https://ark-cdn.example/u.mp4": () => new Response(VIDEO_BYTES),
+        });
+      const f1 = done({ completion_tokens: 108000 });
+      const v1 = new SeedanceVideo({ transport: new BytePlusSeedance({ apiKey: "k", fetch: f1.fetch }), fetch: f1.fetch, probe: fakeProbe().probe });
+      const r1 = await v1.animate({ image: kf, prompt: "P", seconds: 5, out: join(root, "u1.mp4") });
+      expect(r1.costUsd).toBeCloseTo((108000 * 7) / 1e6, 9);
+
+      const f2 = done({ completion_tokens: 108000 });
+      const fast = new BytePlusSeedance({ apiKey: "k", tier: "fast", fetch: f2.fetch });
+      expect(fast.name).toBe("byteplus-seedance-2.0-fast");
+      expect(fast.usdPerSecond).toBeCloseTo(0.12096, 9);
+      const v2 = new SeedanceVideo({ transport: fast, fetch: f2.fetch, probe: fakeProbe().probe });
+      const r2 = await v2.animate({ image: kf, prompt: "P", seconds: 5, out: join(root, "u2.mp4") });
+      expect(JSON.parse(String(f2.calls[0]!.init.body))).toMatchObject({ model: "dreamina-seedance-2-0-fast-260128" });
+      expect(r2.costUsd).toBeCloseTo((108000 * 5.6) / 1e6, 9);
     });
 
     it("real-face rejection (HTTP 400 or a failed task) → PolicyRejectedError; other failures stay plain errors", async () => {
@@ -743,6 +767,7 @@ describe("live adapters (acceptance 7, no network)", () => {
     expect(seedanceFromEnv({ FAL_KEY: "x" }, { fal: f }).name).toBe("fal-seedance-2.0");
     expect(seedanceFromEnv({ SEEDANCE_TRANSPORT: "fal", SEEDANCE_TIER: "fast" }, { fal: f }).name).toBe("fal-seedance-2.0-fast");
     expect(seedanceFromEnv({ SEEDANCE_TRANSPORT: "byteplus", ARK_API_KEY: "k" }).name).toBe("byteplus-seedance-2.0");
+    expect(seedanceFromEnv({ SEEDANCE_TRANSPORT: "byteplus", SEEDANCE_TIER: "fast", ARK_API_KEY: "k" }).name).toBe("byteplus-seedance-2.0-fast");
     expect(() => seedanceFromEnv({ SEEDANCE_TRANSPORT: "byteplus", FAL_KEY: "x" })).toThrow(NotConfiguredError);
     expect(() => seedanceFromEnv({ SEEDANCE_TRANSPORT: "byteplus" })).toThrow(/ARK_API_KEY/);
     expect(() => seedanceFromEnv({})).toThrow(/FAL_KEY/);
@@ -801,7 +826,7 @@ describe("live adapters (acceptance 7, no network)", () => {
       const image = new SeedreamImage({ apiKey: "ark", fetch });
       const r = await image.generate({ prompt: "K", refs: [kf], out: join(root, "sd.png") });
       const body = JSON.parse(String(calls[0]!.init.body)) as Record<string, unknown>;
-      expect(body).toMatchObject({ model: "seedream-5-0-260128", prompt: "K", size: "1440x2560", response_format: "b64_json", watermark: false });
+      expect(body).toMatchObject({ model: "seedream-5-0-lite-260128", prompt: "K", size: "1440x2560", response_format: "b64_json", watermark: false });
       expect((body.image as string[])[0]).toMatch(/^data:image\/png;base64,/);
       expect(calls[0]!.init.headers).toMatchObject({ Authorization: "Bearer ark" });
       expect(await readFile(r.path, "utf8")).toBe("SD");

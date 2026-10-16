@@ -108,3 +108,9 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [F03/F07] Two agents independently defaulted the Gemini model chain to `gemini-2.5-flash`, which new AI Studio
   projects can't use (learned the hard way in the previous project) → caught by the human reading the Decisions
   sections → defaults replaced by a chain verified on a fresh key; HTTP 404 now moves to the next model with a note.
+- [preflight] Pre-flight audit of live adapters. Two adapter values came from agents' guesses and had never made a
+  real call: the default Seedream model `seedream-5-0-260128` is not a BytePlus model id (the real one is
+  `seedream-5-0-lite-260128`), and BytePlus Seedance was costed at a rounded $0.15/s with no fast tier → caught by
+  reading the official BytePlus Python SDK source and pricing page before the first paid run → fixed test-first
+  (model id, $0.1512/s standard, $0.12096/s fast, cost from `usage.completion_tokens`). `pnpm preflight` now prints
+  every live request without sending it.

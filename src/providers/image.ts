@@ -9,9 +9,10 @@
  *   POST /v1beta/interactions { model, input: [{ type: "user_input", content: [text, image…] }],
  *   response_format: { type: "image", aspect_ratio: "9:16", image_size: "1K" } }; base64 image in the output.
  *   The exact output wrapper is parsed leniently (UNVERIFIED). $0.0336 / 1K image for gemini-nano-banana-2.1.
- * - `seedream` (UNVERIFIED: BytePlus docs did not render; reseller listings): POST {ark}/images/generations
- *   { model, prompt, image[] (data URLs), size, response_format "b64_json", watermark false } → data[0].b64_json.
- *   Key ARK_API_KEY (the same as Seedance on BytePlus). ~$0.035 / image (fal's Seedream Lite price, estimate).
+ * - `seedream` (request fields VERIFIED against the official BytePlus Python SDK 3.0.62 `images.generate`; model id
+ *   and price against https://ai.byteplus.com/ark/region:ap-southeast-1/docs/ModelArk/1544106, 2026-10-16):
+ *   POST {ark}/images/generations { model, prompt, image[] (data URLs, UNVERIFIED), size, response_format "b64_json",
+ *   watermark false } → data[0].b64_json. Key ARK_API_KEY (the same as Seedance on BytePlus). $0.035 / image.
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
@@ -108,7 +109,8 @@ export class GeminiImage implements ImageProvider {
 
 // --- Seedream (BytePlus) ---
 
-export const DEFAULT_SEEDREAM_MODEL = "seedream-5-0-260128";
+/** "seedream-5-0-260128" (the old default) is not a model id; the pricing page lists "seedream-5-0-lite-260128". */
+export const DEFAULT_SEEDREAM_MODEL = "seedream-5-0-lite-260128";
 export const SEEDREAM_USD = 0.035;
 /** 9:16 at about 3.7 MP (UNVERIFIED that Seedream accepts this exact size; override with SEEDREAM_SIZE). */
 export const SEEDREAM_SIZE = "1440x2560";

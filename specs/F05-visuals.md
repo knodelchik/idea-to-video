@@ -239,6 +239,18 @@ the video model, with the clip's cost). ASR is not called, and the loop moves on
 - Tests: "a native clip without an audio track is a failed take" and "every native take silent → TTS + lip-sync
   fallback". Both failed with `ShotError: asr error on native clip` before the fix.
 
+**Pre-flight audit of live adapters (2026-10-16, before the first paid run):**
+- BytePlus Seedance request/poll shape checked against the official `byteplus-python-sdk-v2` 3.0.62
+  (`content_generation/tasks.py`, `content_generation_task.py`): matches. Prices and model ids checked against
+  https://ai.byteplus.com/ark/region:ap-southeast-1/docs/ModelArk/1544106. Fixed: 720p price $0.15 → $0.1512/s
+  ($7/M tokens × 720·1280·24/1024 tokens/s); added `SEEDANCE_TIER=fast` on BytePlus (`dreamina-seedance-2-0-fast-260128`,
+  $5.6/M → $0.12096/s); reported cost now uses the task's `usage.completion_tokens` when present.
+- Seedream default model `seedream-5-0-260128` does not exist on the pricing page → `seedream-5-0-lite-260128` ($0.035).
+- fal Seedance (standard + fast), nano-banana, Kling lip-sync and Kling avatar inputs re-checked against their
+  `llms.txt` pages: no change needed.
+- Added `scripts/preflight.ts` (`pnpm preflight`, no network) and `scripts/smoke-free.ts` (`pnpm smoke:free --yes`,
+  free-tier hosts only, guarded fetch). No new dependencies.
+
 ## Human notes after BLOCKED (2026-10-16)
 The harness stopped after 3 rejected attempts; each review found a new real issue. Carry these over:
 - Last open review issue: errors thrown by `lipsync.sync` and by the final `listen` in the fallback escape without

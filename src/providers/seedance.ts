@@ -7,12 +7,15 @@
  *   `duration` (a STRING "4".."15"), `aspect_ratio` "9:16", `resolution` "720p", `generate_audio` true; output
  *   `video.url`. There is no `seed` input, so a retry relies on sampling variety. Policy blocks are 422s with
  *   `detail[].type === "content_policy_violation"` (https://fal.ai/docs/model-apis/errors).
- * - `byteplus` (UNVERIFIED: docs.byteplus.com renders client-side and could not be read; shape taken from
- *   https://www.datacamp.com/tutorial/seedance-2-0-api-guide): POST `{base}/contents/generations/tasks` with
- *   `model`, `content[]` (text + `image_url` with `role: "first_frame"`), top-level `ratio`, `duration` (int),
- *   `resolution`, `generate_audio`, `watermark`; then GET `{base}/contents/generations/tasks/{id}` until
- *   `status` is `succeeded` (→ `content.video_url`) or `failed`. Inline base64 data URLs for the image are an
- *   assumption. The only real-face rejection text seen is "the input image may contain a real person".
+ * - `byteplus` (VERIFIED request/response shape against the official BytePlus Python SDK
+ *   byteplus-python-sdk-v2 3.0.62, `byteplussdkarkruntime/resources/content_generation/tasks.py`, and prices/model ids
+ *   against https://ai.byteplus.com/ark/region:ap-southeast-1/docs/ModelArk/1544106, 2026-10-16): POST
+ *   `{base}/contents/generations/tasks` with `model`, `content[]` (text + `image_url: { url }` with
+ *   `role: "first_frame"`), top-level `ratio`, `duration` (int), `resolution`, `generate_audio`, `watermark`; then
+ *   GET `{base}/contents/generations/tasks/{id}` until `status` is `succeeded` (→ `content.video_url`,
+ *   `usage.completion_tokens`) or `failed`/`cancelled`/`expired`. Inline base64 data URLs for the image are documented
+ *   only by third-party gateways (UNVERIFIED on BytePlus itself). The real-face rejection text seen in the wild is
+ *   "the input image may contain a real person".
  */
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
@@ -39,10 +42,21 @@ export const FAL_SEEDANCE_ENDPOINTS = {
 export const FAL_SEEDANCE_USD_PER_SECOND = { standard: 0.3034, fast: 0.2419 } as const;
 
 export const BYTEPLUS_ARK_BASE = "https://ark.ap-southeast.bytepluses.com/api/v3";
-/** UNVERIFIED model id (third-party tutorial); override with SEEDANCE_MODEL. */
-export const DEFAULT_BYTEPLUS_SEEDANCE_MODEL = "dreamina-seedance-2-0-260128";
-/** BytePlus 720p per second (docs/research/video-models.md; token-billed, so this is an estimate). */
-export const BYTEPLUS_SEEDANCE_USD_PER_SECOND = 0.15;
+/** Model ids from the BytePlus pricing page (2026-10-16); override with SEEDANCE_MODEL. */
+export const BYTEPLUS_SEEDANCE_MODELS = {
+  standard: "dreamina-seedance-2-0-260128",
+  fast: "dreamina-seedance-2-0-fast-260128",
+} as const;
+export const DEFAULT_BYTEPLUS_SEEDANCE_MODEL = BYTEPLUS_SEEDANCE_MODELS.standard;
+/** USD per 1M output tokens, 480p/720p, no video input (BytePlus pricing page, 2026-10-16). */
+export const BYTEPLUS_SEEDANCE_USD_PER_MTOK = { standard: 7.0, fast: 5.6 } as const;
+/** Billing tokens per second: width × height × 24 fps / 1024 (pricing page formula), 720p 9:16 = 720×1280. */
+export const BYTEPLUS_TOKENS_PER_SECOND_720P = (720 * 1280 * 24) / 1024;
+/** List price per second at 720p: standard $0.1512, fast $0.12096. */
+export const BYTEPLUS_SEEDANCE_USD_PER_SECOND = {
+  standard: (BYTEPLUS_TOKENS_PER_SECOND_720P * BYTEPLUS_SEEDANCE_USD_PER_MTOK.standard) / 1e6,
+  fast: (BYTEPLUS_TOKENS_PER_SECOND_720P * BYTEPLUS_SEEDANCE_USD_PER_MTOK.fast) / 1e6,
+} as const;
 
 /** One generation: image + prompt → a hosted video URL. */
 export interface SeedanceJob {
@@ -96,17 +110,18 @@ const TaskStatus = z.object({
   status: z.string(),
   content: z.object({ video_url: z.string() }).partial().optional(),
   error: z.object({ code: z.string().optional(), message: z.string().optional() }).nullish(),
+  usage: z.object({ completion_tokens: z.number() }).partial().nullish(),
 });
 
 /** Real-face filter / moderation wording (UNVERIFIED codes; the "real person" text is the one seen in the wild). */
 export const isPolicyText = (s: string): boolean => /sensitive|real person|content policy|risk control/i.test(s);
 
 export class BytePlusSeedance implements SeedanceTransport {
-  readonly name = "byteplus-seedance-2.0";
-  readonly usdPerSecond = BYTEPLUS_SEEDANCE_USD_PER_SECOND;
+  readonly name: string;
   constructor(
     private readonly opts: {
       apiKey: string;
+      tier?: keyof typeof BYTEPLUS_SEEDANCE_MODELS;
       model?: string;
       base?: string;
       fetch?: FetchLike;
@@ -114,8 +129,16 @@ export class BytePlusSeedance implements SeedanceTransport {
       pollMs?: number;
       timeoutMs?: number;
     },
-  ) {}
+  ) {
+    this.name = `byteplus-seedance-2.0${opts.tier === "fast" ? "-fast" : ""}`;
+  }
 
+  private get tier(): keyof typeof BYTEPLUS_SEEDANCE_MODELS {
+    return this.opts.tier ?? "standard";
+  }
+  get usdPerSecond(): number {
+    return BYTEPLUS_SEEDANCE_USD_PER_SECOND[this.tier];
+  }
   get base(): string {
     return this.opts.base ?? BYTEPLUS_ARK_BASE;
   }
@@ -128,7 +151,7 @@ export class BytePlusSeedance implements SeedanceTransport {
 
   body(job: SeedanceJob, image: string): Record<string, unknown> {
     return {
-      model: this.opts.model ?? DEFAULT_BYTEPLUS_SEEDANCE_MODEL,
+      model: this.opts.model ?? BYTEPLUS_SEEDANCE_MODELS[this.tier],
       content: [
         { type: "text", text: job.prompt },
         { type: "image_url", image_url: { url: image }, role: "first_frame" },
@@ -168,7 +191,10 @@ export class BytePlusSeedance implements SeedanceTransport {
       const t = TaskStatus.parse(await res.json());
       if (t.status === "succeeded") {
         if (!t.content?.video_url) throw new Error(`${this.name}: task ${id} succeeded without content.video_url`);
-        return { url: t.content.video_url, costUsd: job.seconds * BYTEPLUS_SEEDANCE_USD_PER_SECOND };
+        // Billed on tokens; the reply's own count beats our size estimate when present.
+        const tokens = t.usage?.completion_tokens;
+        const costUsd = tokens ? (tokens * BYTEPLUS_SEEDANCE_USD_PER_MTOK[this.tier]) / 1e6 : job.seconds * this.usdPerSecond;
+        return { url: t.content.video_url, costUsd };
       }
       if (t.status === "failed" || t.status === "cancelled" || t.status === "expired") {
         const why = [t.error?.code, t.error?.message].filter(Boolean).join(": ") || t.status;
@@ -211,16 +237,17 @@ export class SeedanceVideo implements VideoProvider {
 export function seedanceFromEnv(env: Env, deps: { fal?: FalLike; fetch?: FetchLike; probe?: Probe } = {}): SeedanceVideo {
   const transport = (env.SEEDANCE_TRANSPORT || "fal").toLowerCase();
   const fetchDep = { ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(deps.probe ? { probe: deps.probe } : {}) };
+  const tier = env.SEEDANCE_TIER === "fast" ? "fast" : "standard";
   if (transport === "fal") {
     if (!env.FAL_KEY && !deps.fal) throw new NotConfiguredError("video", "FAL_KEY");
-    const tier = env.SEEDANCE_TIER === "fast" ? "fast" : "standard";
     return new SeedanceVideo({ transport: new FalSeedance({ fal: deps.fal ?? falClient(env.FAL_KEY!), tier }), ...fetchDep });
   }
   if (transport === "byteplus") {
     if (!env.ARK_API_KEY) throw new NotConfiguredError("video", "ARK_API_KEY");
     const t = new BytePlusSeedance({
       apiKey: env.ARK_API_KEY,
-      model: env.SEEDANCE_MODEL || DEFAULT_BYTEPLUS_SEEDANCE_MODEL,
+      tier,
+      ...(env.SEEDANCE_MODEL ? { model: env.SEEDANCE_MODEL } : {}),
       ...(env.ARK_BASE_URL ? { base: env.ARK_BASE_URL } : {}),
       ...fetchDep,
     });
