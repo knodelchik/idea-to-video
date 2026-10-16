@@ -61,7 +61,7 @@
     {
       "id": "F08-evals",
       "spec": "specs/F08-evals.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx tsx evals/run.ts --mock --limit 3"
       ]

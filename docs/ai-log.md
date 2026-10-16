@@ -96,3 +96,7 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   test "4 → 7: the better take wins" failed with scores [2, 2] → the content-addressed clip name now joins the
   verdict key. Also, my GeminiJudge test fixture used an unpriced model, so the invalid-reply case "cost" $0 and
   hid whether the cost was carried → the fixture now uses priced models.
+- [F08] I wrote an aggregate test that expected the mean judge attempts to be 4/3. The fixture row overrode
+  `judgeScores` but not `attemptsByStage`, so the right answer was 2/3 → the red test caught it → I fixed the
+  expectation (the code was right). Also, I imported a nonexistent `words` from `src/verbatim.ts` → typecheck
+  caught it → I added a local whitespace split.

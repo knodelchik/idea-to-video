@@ -156,3 +156,18 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - `src/media/frames.ts`: `frameTimes`, `frameArgs` (pure) and `extractFrames(clip, n, dir)`.
 - Settings: `KEYFRAME_MIN`, `CLIP_MIN` and `JUDGE_MODELS` (`.env.example`). Tests: `tests/judge.test.ts`
   (21 tests). `pnpm verify` passes 210 tests.
+
+## F08 — Eval set and regression runs
+- `evals/ideas.jsonl` has 10 ideas. Seven quote a line: contractions, "3 a.m.", a name, a question, an
+  exclamation, curly quotes with an em dash, and a 15-word line. Three quote nothing.
+- `npx tsx evals/run.ts --mock [--limit N] [--ids a,b] [--label x]` runs the ideas one at a time and writes
+  `evals/results/<date>-<label>-<mode>.json`. The file has a row per idea plus aggregates: success rate, verbatim
+  first-try/final pass rates, mean attempts per stage, judge mean/min, duration, cost per video/success, stage and
+  wall-time p50/p90, needs-review rate, and the human rating mean. It also prints a table. A human runs the live
+  mode with `pnpm eval` (it loads `.env`).
+- `npx tsx evals/compare.ts a.json b.json` prints a per-metric delta table and exits 1 on a regression: verbatim
+  or success rate down, cost per video up more than 20%, or judge mean down more than 0.5.
+- People rate videos by filling `human` (1–5, "would you keep watching") per idea in the results file. `compare`
+  recomputes the aggregates, so those ratings count.
+- The pure logic is in `evals/metrics.ts`, and the metric definitions are in `evals/README.md`. Tests:
+  `tests/evals.test.ts` (20). `pnpm verify` passes 230 tests.

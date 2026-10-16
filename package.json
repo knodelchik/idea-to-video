@@ -9,7 +9,9 @@
   },
   "scripts": {
     "make": "tsx --env-file-if-exists=.env src/cli.ts",
-    "typecheck": "tsc --noEmit",
+    "eval": "tsx --env-file-if-exists=.env evals/run.ts",
+    "eval:compare": "tsx evals/compare.ts",
+    "typecheck":"tsc --noEmit",
     "test": "vitest run",
     "verify": "bash scripts/verify.sh",
     "harness": "bash scripts/harness.sh"

@@ -1,0 +1,499 @@
+{
+  "version": 1,
+  "label": "baseline",
+  "mode": "mock",
+  "createdAt": "2026-10-16T14:52:20.008Z",
+  "ideas": [
+    {
+      "id": "nurse-contractions",
+      "tags": [
+        "quoted",
+        "contractions"
+      ],
+      "idea": "A night-shift nurse catches her reflection in the elevator doors and whispers: \"I'm fine. I'm fine. I'm not fine.\"",
+      "runId": "20261016-145200-ae0881",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145200-ae0881/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 1,
+        "portrait": 46,
+        "keyframe": 78,
+        "judge": 4,
+        "video": 967,
+        "assemble": 1053,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1929,
+      "human": null
+    },
+    {
+      "id": "baker-3am",
+      "tags": [
+        "quoted",
+        "number",
+        "contractions"
+      ],
+      "idea": "A man in a flour-dusted apron waits outside a dark bakery and says: \"I said I'd be here at 3 a.m., and I am.\"",
+      "runId": "20261016-145202-700b72",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145202-700b72/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 11,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 74,
+        "judge": 4,
+        "video": 880,
+        "assemble": 1202,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2061,
+      "human": null
+    },
+    {
+      "id": "fisherman-name",
+      "tags": [
+        "quoted",
+        "name"
+      ],
+      "idea": "An old fisherman talks to the empty seat beside him on the pier: \"Margaret, the tide came in early today.\"",
+      "runId": "20261016-145204-151116",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145204-151116/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 73,
+        "judge": 4,
+        "video": 819,
+        "assemble": 1019,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1813,
+      "human": null
+    },
+    {
+      "id": "sister-question",
+      "tags": [
+        "quoted",
+        "question",
+        "contractions"
+      ],
+      "idea": "A teenager holds up her brother's cracked phone and asks: \"Did you really think I wouldn't find out?\"",
+      "runId": "20261016-145206-94a820",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145206-94a820/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 74,
+        "judge": 4,
+        "video": 784,
+        "assemble": 1017,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1770,
+      "human": null
+    },
+    {
+      "id": "busker-exclaim",
+      "tags": [
+        "quoted",
+        "exclamation",
+        "contractions"
+      ],
+      "idea": "A street musician's guitar string snaps mid-song; he laughs and shouts: \"That's the best thing that's happened all week!\"",
+      "runId": "20261016-145208-50a3c6",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145208-50a3c6/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 36,
+        "keyframe": 74,
+        "judge": 4,
+        "video": 826,
+        "assemble": 1031,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1808,
+      "human": null
+    },
+    {
+      "id": "widow-curly-emdash",
+      "tags": [
+        "quoted",
+        "curly-quotes",
+        "em-dash"
+      ],
+      "idea": "A widow finds a letter she never sent and reads it aloud: “I should have stayed — I know that now.”",
+      "runId": "20261016-145210-36e7f1",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145210-36e7f1/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 10,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 73,
+        "judge": 4,
+        "video": 828,
+        "assemble": 1174,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1981,
+      "human": null
+    },
+    {
+      "id": "keeper-long-line",
+      "tags": [
+        "quoted",
+        "long-line"
+      ],
+      "idea": "A lighthouse keeper records a message on an old cassette: \"If anyone finds this, the light kept burning every night, even when nobody came home.\"",
+      "runId": "20261016-145212-a550e8",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145212-a550e8/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 12,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 74,
+        "judge": 4,
+        "video": 1068,
+        "assemble": 1389,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2382,
+      "human": null
+    },
+    {
+      "id": "astronaut-no-quote",
+      "tags": [
+        "no-quote"
+      ],
+      "idea": "A retired astronaut watches a child launch a paper rocket in the park and quietly gives it a countdown.",
+      "runId": "20261016-145214-be3629",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145214-be3629/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 74,
+        "judge": 4,
+        "video": 866,
+        "assemble": 1060,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1865,
+      "human": null
+    },
+    {
+      "id": "chef-no-quote",
+      "tags": [
+        "no-quote"
+      ],
+      "idea": "A chef tastes her late mother's soup recipe for the first time in twenty years.",
+      "runId": "20261016-145216-dd0831",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145216-dd0831/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 74,
+        "judge": 4,
+        "video": 795,
+        "assemble": 1026,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1790,
+      "human": null
+    },
+    {
+      "id": "umbrella-no-quote",
+      "tags": [
+        "no-quote"
+      ],
+      "idea": "Two strangers share an umbrella at a bus stop, and one of them slowly realises they went to school together.",
+      "runId": "20261016-145218-61df27",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145218-61df27/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 37,
+        "keyframe": 73,
+        "judge": 4,
+        "video": 797,
+        "assemble": 1001,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1767,
+      "human": null
+    }
+  ],
+  "aggregates": {
+    "n": 10,
+    "successRate": 1,
+    "verbatimFirstTryRate": 1,
+    "verbatimFinalRate": 1,
+    "meanAttemptsPerStage": {
+      "assemble": 1,
+      "final": 1,
+      "judge": 4,
+      "keyframe": 2,
+      "portrait": 1,
+      "script": 1,
+      "video": 2
+    },
+    "judge": {
+      "mean": 8,
+      "min": 8,
+      "n": 40
+    },
+    "meanSeconds": 9.6,
+    "costPerVideoUsd": 0,
+    "costPerSuccessUsd": 0,
+    "stageMs": {
+      "assemble": {
+        "p50": 1031,
+        "p90": 1202
+      },
+      "final": {
+        "p50": 22,
+        "p90": 23
+      },
+      "judge": {
+        "p50": 4,
+        "p90": 4
+      },
+      "keyframe": {
+        "p50": 74,
+        "p90": 74
+      },
+      "portrait": {
+        "p50": 37,
+        "p90": 37
+      },
+      "script": {
+        "p50": 0,
+        "p90": 0
+      },
+      "video": {
+        "p50": 826,
+        "p90": 967
+      }
+    },
+    "wallMs": {
+      "p50": 1813,
+      "p90": 2061,
+      "total": 19166
+    },
+    "needsReviewRate": 0,
+    "human": null
+  }
+}

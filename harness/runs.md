@@ -69,3 +69,8 @@
 2026-10-16 17:34:44 F07-quality-judge attempt 1: implementer
 2026-10-16 17:44:58 F07-quality-judge attempt 1: gate
 2026-10-16 17:45:34 F07-quality-judge attempt 1: reviewer
+2026-10-16 17:48:16 F07-quality-judge PASSED on attempt 1 -> 263cfb3
+2026-10-16 17:48:16 ### F08-evals start (specs/F08-evals.md)
+2026-10-16 17:48:16 F08-evals attempt 1: implementer
+2026-10-16 17:54:40 F08-evals attempt 1: gate
+2026-10-16 17:55:15 F08-evals attempt 1: reviewer

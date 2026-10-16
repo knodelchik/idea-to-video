@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "label": "run",
+  "mode": "mock",
+  "createdAt": "2026-10-16T14:51:56.741Z",
+  "ideas": [
+    {
+      "id": "nurse-contractions",
+      "tags": [
+        "quoted",
+        "contractions"
+      ],
+      "idea": "A night-shift nurse catches her reflection in the elevator doors and whispers: \"I'm fine. I'm fine. I'm not fine.\"",
+      "runId": "20261016-145150-7e932a",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145150-7e932a/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 1,
+        "portrait": 53,
+        "keyframe": 88,
+        "judge": 4,
+        "video": 1157,
+        "assemble": 1198,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2228,
+      "human": null
+    },
+    {
+      "id": "baker-3am",
+      "tags": [
+        "quoted",
+        "number",
+        "contractions"
+      ],
+      "idea": "A man in a flour-dusted apron waits outside a dark bakery and says: \"I said I'd be here at 3 a.m., and I am.\"",
+      "runId": "20261016-145152-ce99ff",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145152-ce99ff/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 11,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 38,
+        "keyframe": 75,
+        "judge": 4,
+        "video": 1009,
+        "assemble": 1241,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2180,
+      "human": null
+    },
+    {
+      "id": "fisherman-name",
+      "tags": [
+        "quoted",
+        "name"
+      ],
+      "idea": "An old fisherman talks to the empty seat beside him on the pier: \"Margaret, the tide came in early today.\"",
+      "runId": "20261016-145154-92b0da",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261016-145154-92b0da/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 39,
+        "keyframe": 75,
+        "judge": 4,
+        "video": 914,
+        "assemble": 1080,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1898,
+      "human": null
+    }
+  ],
+  "aggregates": {
+    "n": 3,
+    "successRate": 1,
+    "verbatimFirstTryRate": 1,
+    "verbatimFinalRate": 1,
+    "meanAttemptsPerStage": {
+      "assemble": 1,
+      "final": 1,
+      "judge": 4,
+      "keyframe": 2,
+      "portrait": 1,
+      "script": 1,
+      "video": 2
+    },
+    "judge": {
+      "mean": 8,
+      "min": 8,
+      "n": 12
+    },
+    "meanSeconds": 9.667,
+    "costPerVideoUsd": 0,
+    "costPerSuccessUsd": 0,
+    "stageMs": {
+      "assemble": {
+        "p50": 1198,
+        "p90": 1241
+      },
+      "final": {
+        "p50": 22,
+        "p90": 23
+      },
+      "judge": {
+        "p50": 4,
+        "p90": 4
+      },
+      "keyframe": {
+        "p50": 75,
+        "p90": 88
+      },
+      "portrait": {
+        "p50": 39,
+        "p90": 53
+      },
+      "script": {
+        "p50": 0,
+        "p90": 1
+      },
+      "video": {
+        "p50": 1009,
+        "p90": 1157
+      }
+    },
+    "wallMs": {
+      "p50": 2180,
+      "p90": 2228,
+      "total": 6306
+    },
+    "needsReviewRate": 0,
+    "human": null
+  }
+}
