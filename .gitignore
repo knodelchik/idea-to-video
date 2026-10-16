@@ -7,3 +7,5 @@ runs/
 harness/logs/
 *.log
 .DS_Store
+.omc/
+.claude/settings.local.json
