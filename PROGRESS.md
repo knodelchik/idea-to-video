@@ -171,3 +171,30 @@ Append-only log, one entry per feature, written by the implementer agent and com
   recomputes the aggregates, so those ratings count.
 - The pure logic is in `evals/metrics.ts`, and the metric definitions are in `evals/README.md`. Tests:
   `tests/evals.test.ts` (20). `pnpm verify` passes 230 tests.
+
+## F09 — Model benchmark
+- `npx tsx scripts/bench.ts --mock|--live [--models id,id] [--line "..."] [--yes]` runs every model in the
+  registry, in the order given, on the same inputs:
+  - a portrait close-up keyframe;
+  - an ASR-verified TTS line.
+
+  Both are cached in `runs/bench/`, and so are the clips: a re-run doesn't pay again.
+- Paths:
+  - native: i2v with the line in the prompt, no lip-sync;
+  - lipsync: silent i2v, then `LIPSYNC_PROVIDER`;
+  - talking: keyframe + voice.
+
+  Each row has its registry cost, reported cost, wall time, the clip audio's WER, the F07 clip judge score, and the
+  output path. A model that fails is a `FAILED:` row, not a crash.
+- Outputs:
+  - Live: `docs/bench/<date>.md` (`-2`, `-3`… instead of overwriting). Mock: `<date>-mock.md` (gitignored).
+  - The table has an empty `notes` column for the human.
+  - `<same>-grid.mp4` is a silent `xstack` grid in table order. Cell k has k white squares top-left.
+- Live always prints the plan and the estimated total first. Without `--yes`, it exits 1 before building any provider.
+  It also refuses an estimate over `MAX_COST_USD`. Paid calls go through one `Budget`.
+- The registry is in `src/bench/registry.ts`: seedance-2.0, seedance-2.0-fast, seedance-2.0+lipsync,
+  kling-avatar-v2 and kling-avatar-v2-pro. The new live adapter `FalKlingAvatar` / `klingAvatarFromEnv` is in
+  `src/providers/talking.ts`. To add a model, add an adapter and a registry entry.
+- Tests: `tests/bench.test.ts` (20) covers args, the cost plan, the grid args, the report, the live gate, mock end to
+  end with a failing model and a mishearing ASR, and the avatar adapter with a fake fal. `pnpm verify` passes 250
+  tests.

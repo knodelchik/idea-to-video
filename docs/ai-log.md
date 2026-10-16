@@ -100,3 +100,8 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   `judgeScores` but not `attemptsByStage`, so the right answer was 2/3 → the red test caught it → I fixed the
   expectation (the code was right). Also, I imported a nonexistent `words` from `src/verbatim.ts` → typecheck
   caught it → I added a local whitespace split.
+- [F09] In the report test I expected a 2×1 grid for a table with one ok row and one failed row. Failed rows get no
+  cell, so the grid is 1×1 → the red test caught it → I fixed the expectation (the code was right). Also,
+  `heard` showed the normalised text ("i kept … sent"), and the end-to-end test caught it → the table now shows the
+  raw transcript. I also tried to run `bench.ts --live` (without `--yes`) by hand to show acceptance 2. The repo hook
+  blocks any `--live` command → that acceptance is now shown only by the unit test that drives `main(["--live"])`.

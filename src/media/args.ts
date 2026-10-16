@@ -224,3 +224,46 @@ export function toneArgs({ out, seconds, hz = 220 }: { out: string; seconds: num
     "-af", "volume=0.2", "-ac", "1", "-c:a", "pcm_s16le", out,
   ];
 }
+
+// --- Benchmark grid (F09) ---
+
+/** Columns × rows for `n` tiles: as square as possible, filled row by row (reading order). */
+export function gridLayout(n: number): { cols: number; rows: number } {
+  if (!Number.isInteger(n) || n < 1) throw new RangeError(`grid needs at least one tile, got ${n}`);
+  const cols = Math.ceil(Math.sqrt(n));
+  return { cols, rows: Math.ceil(n / cols) };
+}
+
+export interface GridOpts {
+  inputs: string[];
+  out: string;
+  /** Grid length; shorter clips hold their last frame. */
+  seconds: number;
+  tileWidth?: number;
+  tileHeight?: number;
+}
+
+/**
+ * Clips side by side with `xstack`, in reading order (left→right, top→bottom), silent (several voices at once
+ * are noise; each clip keeps its own audio). Tile k (1-based) is labelled with k small white squares in its
+ * top-left corner: the dev ffmpeg has no drawtext, and a count of boxes reads at a glance. Empty cells are black.
+ */
+export function gridArgs({ inputs, out, seconds, tileWidth = 360, tileHeight = 640 }: GridOpts): string[] {
+  assertSeconds(seconds);
+  const n = inputs.length;
+  const { cols } = gridLayout(n);
+  const cover = `scale=${tileWidth}:${tileHeight}:force_original_aspect_ratio=increase,crop=${tileWidth}:${tileHeight},setsar=1`;
+  const tiles = inputs.map((_, i) => {
+    const boxes = Array.from({ length: i + 1 }, (_, b) => `drawbox=x=${12 + b * 26}:y=12:w=18:h=18:color=white@0.95:t=fill`);
+    return `[${i}:v:0]${cover},fps=${FPS},tpad=stop_mode=clone:stop=-1,${boxes.join(",")}[v${i}]`;
+  });
+  const layout = inputs.map((_, i) => `${(i % cols) * tileWidth}_${Math.floor(i / cols) * tileHeight}`).join("|");
+  const stack =
+    n === 1 ? "[v0]null[v]" : `${inputs.map((_, i) => `[v${i}]`).join("")}xstack=inputs=${n}:layout=${layout}:fill=black[v]`;
+  return [
+    ...inputs.flatMap((p) => ["-i", p]),
+    "-filter_complex", [...tiles, stack].join(";"),
+    "-map", "[v]", "-t", sec(seconds), ...H264, "-an",
+    out,
+  ];
+}

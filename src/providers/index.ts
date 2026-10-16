@@ -43,6 +43,10 @@ export { BytePlusSeedance, FalSeedance, SeedanceVideo, seedanceFromEnv, SEEDANCE
 export { FalNanoBananaImage, GeminiImage, SeedreamImage, imageFromEnv } from "./image.ts";
 export { CommandLipsync, FalKlingLipsync, lipsyncFromEnv } from "./lipsync.ts";
 export type { FalLike } from "./fal.ts";
+export { FalKlingAvatar, KLING_AVATAR_ENDPOINTS, KLING_AVATAR_USD_PER_SECOND, klingAvatarFromEnv, type KlingAvatarTier } from "./talking.ts";
+export { KLING_LIPSYNC_MAX_SECONDS, klingLipsyncCost } from "./lipsync.ts";
+export { FAL_SEEDANCE_USD_PER_SECOND } from "./seedance.ts";
+export { FAL_NANO_BANANA_USD } from "./image.ts";
 
 export type Env = Record<string, string | undefined>;
 

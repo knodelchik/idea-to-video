@@ -9,3 +9,5 @@ harness/logs/
 .DS_Store
 .omc/
 .claude/settings.local.json
+# Mock bench outputs are reproducible noise; live results (docs/bench/<date>.md) are kept.
+docs/bench/*-mock*
