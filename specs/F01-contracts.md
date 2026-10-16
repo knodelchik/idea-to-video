@@ -42,7 +42,52 @@ is checked by code, not trusted to any model. This feature builds the vocabulary
 - Do not weaken the gate: a word-level difference must never pass.
 
 ## Decisions
-_(implementer fills in)_
+- **No new dependencies.** Zod 4.6.7 was already in `package.json`; `verbatim.ts` imports nothing at runtime
+  (only `import type` from `schemas.ts`).
+- **Readable errors:** `formatIssues(err)` in `schemas.ts` gives one `path: message` line per issue, short enough
+  to send back to the LLM as a retry reason. I didn't use `z.prettifyError` because its multi-line `✖ … → at` format
+  is harder to grep and harder to feed back to a model.
+- **Script refinements** sit in one `superRefine`: shot count 1–2 (message says how many arrived), shot ids
+  must be `s1`,`s2` in order, total 8–30 s, at least one non-blank line. The count check is there rather than in
+  `z.array().min/max` so the message can include the actual count. Note: shots are capped at 2 × 10 s, so the
+  real ceiling is 20 s and the 30 s bound can never fire; I kept it to match the product rule.
+- **I did not add a quotedLines ⊂ lines check to the schema.** It needs `normalize` and belongs to the script stage (F03),
+  where a failure turns into a retry. Putting it in the schema would make `schemas.ts` depend on `verbatim.ts`.
+- **VerbatimResult** also has a schema refine: `pass === (wer === 0) === (ops.length === 0)`, so a hand-built result
+  can't forge a pass. `expected`/`heard` hold the **normalised** text, because that's what the ops refer to.
+- **WER with empty expected:** silence vs silence gives wer 0 (pass). Any heard word gives wer 1 (fail), which avoids dividing by 0.
+- **Normalisation choices:** no "and" in numbers ("one hundred five"), because ASR output rarely has it.
+  Times: `3:15`→"three fifteen", `10:05`→"ten oh five", `7:00`→"seven o'clock". Ordinals 1st…999 999th. Decimals
+  are spoken digit by digit ("three point five"). Thousands separators are handled (`1,234`). Numbers outside the
+  range stay as digits. Contractions are **not** expanded ("don't" ≠ "do not"): the gate stays strict, as the
+  constraints require. Punctuation is replaced by a space (not deleted), so `a,b` never merges into one token.
+- **Symbols are never dropped (attempt 2 fix).** Attempt 1 removed every non-letter, so `"You & me"` passed against
+  `"you me"`, which broke "a word-level difference must never pass". Now:
+  - Spelled out (before numbers, so amounts still get spelled): `&`→and, `%`→percent, `+`→plus, `=`→equals,
+    `@`→at, `°`→degrees; `$N`/`€N`/`£N` → "N dollars/euros/pounds" (singular for 1), with an optional 2-digit
+    sub-unit (`$3.50`→"three dollars fifty cents", `$0.99`→"ninety nine cents", `£` uses penny/pence); a `-`/`−`
+    directly before a digit, and not inside a word or range, → "minus" (`-5`→"minus five", but `3-5` stays two numbers).
+  - Every other symbol (`\p{S}`: `~ ♥ ^ | < >`, emoji, plus the spoken punctuation `# § ‰`) is **kept as its own
+    token**, with any combining marks or variation selectors attached. So `"#1 fan"`→`"# one fan"`, which fails against
+    `"one fan"` and also against `"number one fan"`. That is deliberately strict: when a reading is ambiguous
+    (`#` = number/hash/hashtag) the gate fails and does not guess. The script stage (F03) should keep these out of lines.
+  - Rejected: (a) a big table of readings for every symbol: the ambiguous ones would guess, and a wrong guess can
+    turn a real difference into a pass. (b) Dropping symbols only when the other side lacks them: then the
+    comparison is no longer the same normalisation on both sides.
+  - Known strict failures (they fail, never pass falsely): suffix currency (`20€`), scale words (`$5 million` →
+    "five dollars million"), `$3.505`, and readings like "three fifty" for `$3.50`.
+  - `` ` `` is also treated as an apostrophe, because it is a symbol now and would otherwise become a token inside `don`t`.
+- **Quotes:** `"…"`, `“…”`, `«…»`, `„…“` (also `„…”`) are matched by one regex in order of appearance. Empty quotes are skipped.
+  Inner text is returned untouched, spaces included.
+- **Docs checked:** I confirmed the installed version (4.6.7) from `node_modules/zod/package.json` and found
+  `prettifyError` in `zod/v4/core/errors.d.ts`. I didn't fetch any web docs. The Zod 4 APIs used (`superRefine` +
+  `ctx.addIssue({code:"custom"})`, `refine(fn,{message,path})`, `z.iso.datetime()`) come from memory of the v4 API.
+  The reference is https://zod.dev/api; reviewer, please check these first if typecheck fails.
+- **Verification caveat:** in this session every command that runs code (`pnpm verify`, `npx vitest`, `npx tsc`)
+  and the LSP diagnostics tool needed an approval that the non-interactive session couldn't grant. The tests
+  were written first, and the implementation was traced by hand against each assertion. The Stop hook and the
+  harness run `pnpm verify` independently. Attempt 2 had the same restriction (`pnpm verify`, `pnpm test`,
+  `npx vitest` all needed approval), so the new symbol tests were traced by hand against the code too.
 
 ## Blocked
 _(only if needed)_
