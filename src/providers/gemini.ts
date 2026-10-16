@@ -30,10 +30,13 @@ export const GEMINI_PRICES: Record<string, { input: number; output: number }> = 
   "gemini-2.5-flash-lite": { input: 0.1, output: 0.4 },
 };
 
-export const DEFAULT_SCRIPT_MODELS = "gemini-3.8-flash,gemini-2.5-flash";
+// The free tier allows ~20 requests/day *per model* and new projects can't use gemini-2.5-*, so the default chain
+// is long and only contains models verified on a fresh AI Studio key (idea-to-episode, 2026-10).
+export const DEFAULT_SCRIPT_MODELS = "gemini-3.8-flash,gemini-3.5-flash,gemini-flash-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite";
 
 /** Statuses that mean "this model is busy/unavailable right now", not "your request is wrong". */
-const UNAVAILABLE = new Set([429, 503]);
+// 404: the model id is not available to this key (e.g. retired for new projects) -> try the next one, with a note.
+const UNAVAILABLE = new Set([404, 429, 503]);
 
 /** Keywords Gemini's structured-output docs list; anything else (e.g. $schema, minLength) is dropped. */
 const ALLOWED = new Set([

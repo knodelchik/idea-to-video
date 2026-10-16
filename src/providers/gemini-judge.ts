@@ -15,11 +15,12 @@ import { GEMINI_PRICES, toGeminiSchema, type GenAiClient } from "./gemini.ts";
 import { sniffMime } from "./http.ts";
 import type { JudgeImageRequest, JudgeProvider, JudgeResult, JudgeVideoRequest } from "./types.ts";
 
-export const DEFAULT_JUDGE_MODELS = "gemini-3.8-flash,gemini-2.5-flash";
+// Same free-tier reasoning as DEFAULT_SCRIPT_MODELS; starts on a different model so script and judge quotas don't collide.
+export const DEFAULT_JUDGE_MODELS = "gemini-3.5-flash,gemini-3.5-flash-lite,gemini-flash-latest,gemini-3.1-flash-lite,gemini-flash-lite-latest,gemini-3.8-flash";
 export const JUDGE_TOKENS_PER_IMAGE = 1600;
 /** Verdict JSON is short; leave room for thinking tokens, billed as output. */
 const OUTPUT_TOKENS = 4000;
-const UNAVAILABLE = new Set([429, 503]);
+const UNAVAILABLE = new Set([404, 429, 503]); // 404 = model id not available to this key
 
 export const JUDGE_SYSTEM =
   "You are a strict visual quality judge for short vertical videos. Score only what you can see. " +

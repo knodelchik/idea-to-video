@@ -105,3 +105,6 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   `heard` showed the normalised text ("i kept … sent"), and the end-to-end test caught it → the table now shows the
   raw transcript. I also tried to run `bench.ts --live` (without `--yes`) by hand to show acceptance 2. The repo hook
   blocks any `--live` command → that acceptance is now shown only by the unit test that drives `main(["--live"])`.
+- [F03/F07] Two agents independently defaulted the Gemini model chain to `gemini-2.5-flash`, which new AI Studio
+  projects can't use (learned the hard way in the previous project) → caught by the human reading the Decisions
+  sections → defaults replaced by a chain verified on a fresh key; HTTP 404 now moves to the next model with a note.
