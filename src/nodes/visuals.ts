@@ -129,6 +129,12 @@ export interface TalkingShotOpts {
   take?: number;
   /** Judge issues from the previous take, appended to the video prompt. */
   issues?: string[];
+  /**
+   * The character portrait. Used only when the provider refuses the keyframe as a first frame (real-face filter):
+   * the shot is then generated from references (portrait for identity, keyframe for the scene), which the filter
+   * was seen to accept on 2026-10-18.
+   */
+  portrait?: string;
   /** Measures every clip this node returns. ffprobe by default; injectable so tests can watch what gets measured. */
   probe?: (path: string) => Promise<{ seconds: number; hasAudio: boolean }>;
 }
@@ -182,9 +188,18 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   const spoken = splitDelivery(shot.line).spoken;
   const seconds = snapDuration(shot.seconds, video.capabilities.durations);
   const prompt = withIssues(talkingPrompt(shot, script), opts.issues ?? []);
-  const textPrompt = withIssues(textToVideoPrompt(shot, script), opts.issues ?? []);
-  /** Set once the provider refused the keyframe as a real person; every later take of this shot skips the image. */
-  let textOnly = false;
+  /**
+   * How the keyframe reaches the video model. `frame`: as the first frame (best). After a real-person refusal,
+   * `refs`: no first frame, portrait + keyframe as references. After another refusal, `text`: words only.
+   * The mode only ever steps down, and later takes of this shot keep it.
+   */
+  const ladder = ["frame", "refs", "text"] as const;
+  let mode: (typeof ladder)[number] = "frame";
+  const refsFor = (): string[] => (opts.portrait ? [opts.portrait, keyframe] : [keyframe]);
+  const promptFor = (m: typeof mode): string =>
+    m === "frame"
+      ? prompt
+      : withIssues(textToVideoPrompt(shot, script, m === "refs" ? { refs: refsFor().length } : {}), opts.issues ?? []);
   const take = opts.take ?? 1;
   if (!Number.isInteger(take) || take < 1) throw new RangeError(`take must be an integer >= 1, got ${take}`);
   const record = (a: Omit<Attempt, "shotId">) => attempts.push({ ...a, shotId });
@@ -226,13 +241,23 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   /** One video call (content-addressed). A provider error is recorded, then surfaces as a ShotError. */
   const animate = async (n: number, line: string | undefined): Promise<Clip> => {
     const variant = n - 1;
-    const p = textOnly ? textPrompt : prompt;
-    const input = textOnly ? "text-to-video" : { file: keyframe };
-    const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, input, p, line, seconds, variant);
+    const p = promptFor(mode);
+    const refs = mode === "refs" ? refsFor() : [];
+    const input = mode === "frame" ? { file: keyframe } : mode;
+    const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, input, ...refs.map((file) => ({ file })), p, line, seconds, variant);
     const t0 = performance.now();
     try {
       const made = await once(join(dir, `clip-${shotId}-${key}.mp4`), (tmp) =>
-        video.animate({ image: keyframe, prompt: p, seconds, out: tmp, variant, ...(line ? { line } : {}), ...(textOnly ? { textOnly } : {}) }),
+        video.animate({
+          image: keyframe,
+          prompt: p,
+          seconds,
+          out: tmp,
+          variant,
+          ...(line ? { line } : {}),
+          ...(mode === "frame" ? {} : { textOnly: true }),
+          ...(refs.length ? { refs } : {}),
+        }),
       );
       // Length and audio come from the file, never from the adapter's report (hard rule 4). Only the cost is the
       // adapter's, since that is what the provider bills; a cached clip cost nothing this run.
@@ -240,19 +265,20 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       return { path: made.path, seconds: measured, hasAudio, costUsd: made.result?.costUsd ?? 0, cached: made.cached };
     } catch (e) {
       const policy = e instanceof PolicyRejectedError;
-      if (policy && e.realPerson && !textOnly) {
-        // The keyframe, not the scene, was refused: the same shot can still be generated from text alone. Identity
-        // then rests on the written look instead of the portrait; the judge still compares the clip to it.
+      const next = ladder[ladder.indexOf(mode) + 1];
+      if (policy && e.realPerson && next) {
+        // An input image, not the scene, was refused: step down to fewer images and try the same take again.
+        // Identity then rests on the references, or only on the written look; the judge still compares to the portrait.
         record({
           stage: "video",
           n,
           provider: video.name,
           ok: false,
-          reason: `keyframe refused as a possible real person (${e.detail.slice(0, 160)}); retrying as text-to-video`,
+          reason: `${mode === "frame" ? "keyframe" : "reference images"} refused as a possible real person (${e.detail.slice(0, 160)}); retrying as ${next === "refs" ? "reference-to-video" : "text-to-video"}`,
           costUsd: 0,
           ms: ms(t0),
         });
-        textOnly = true;
+        mode = next;
         return animate(n, line);
       }
       // Not retried: the same input would be rejected again. A human has to change it.

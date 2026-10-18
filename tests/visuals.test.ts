@@ -278,35 +278,49 @@ describe("talkingShot", () => {
     ]);
   }, 60_000);
 
-  it("keyframe refused as a real person → the same shot as text-to-video; later takes stay text-only", async () => {
+  it("keyframe refused as a real person → reference-to-video (portrait + keyframe); later takes keep it", async () => {
     const dir = fresh();
     const kf = await keyframeFor(dir);
+    const portrait = (await castCharacter(SCRIPT, { image: new MockImage(), dir })).path;
     const realFace = "InputImageSensitiveContentDetected.PrivacyInformation: the input image may contain real person";
-    // Call 0 is refused; call 1 (text-to-video) mishears, so a second native take (call 2) is needed.
+    // Call 0 is refused; call 1 (references) mishears, so a second native take (call 2) is needed.
     const r = rig(new MockVideo({ faults: [{ call: 0, reject: realFace }, { call: 1, say: "I kept the wash. I kept everything." }] }));
-    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, ...r });
+    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait, ...r });
 
     expect(shot.via).toBe("native");
     expect(shot.verbatim?.pass).toBe(true);
     expect(r.video.calls).toHaveLength(3);
-    expect(r.video.calls[0]!.textOnly).toBeUndefined();
-    expect(r.video.calls[1]!.textOnly).toBe(true);
-    expect(r.video.calls[2]!.textOnly).toBe(true);
-    // Without a first frame, the prompt itself carries the look and the setting.
-    expect(r.video.calls[1]!.prompt).toContain(SCRIPT.character.look);
-    expect(r.video.calls[1]!.prompt).toContain(SCRIPT.setting);
+    expect(r.video.calls[0]).not.toHaveProperty("textOnly");
+    expect(r.video.calls[0]).not.toHaveProperty("refs");
+    for (const c of r.video.calls.slice(1)) {
+      expect(c.textOnly).toBe(true);
+      expect(c.refs).toEqual([portrait, kf]);
+      // Without a first frame, the prompt itself carries the look and the setting, and names the references.
+      expect(c.prompt).toContain(SCRIPT.character.look);
+      expect(c.prompt).toContain(SCRIPT.setting);
+      expect(c.prompt).toMatch(/Reference image 1 is .*Reference image 2 shows the scene/);
+    }
     expect(r.video.calls[0]!.prompt).not.toContain(SCRIPT.setting);
-    expect(shot.attempts[0]).toMatchObject({ stage: "video", n: 1, ok: false, reason: expect.stringMatching(/real person.*retrying as text-to-video/) });
+    expect(shot.attempts[0]).toMatchObject({ stage: "video", n: 1, ok: false, reason: expect.stringMatching(/keyframe refused.*real person.*reference-to-video/) });
   }, 60_000);
 
-  it("a second real-person refusal while already text-only is not retried again", async () => {
+  it("references refused too → text-to-video; a third refusal is not retried", async () => {
     const dir = fresh();
     const kf = await keyframeFor(dir);
-    const r = rig(new MockVideo({ faults: [{ call: 0, reject: "may contain real person" }, { call: 1, reject: "may contain real person" }] }));
-    const err = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, ...r }).catch((e: unknown) => e);
+    const rp = "may contain real person";
+    const ok = rig(new MockVideo({ faults: [{ call: 0, reject: rp }, { call: 1, reject: rp }] }));
+    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait: kf, ...ok });
+    expect(shot.verbatim?.pass).toBe(true);
+    expect(ok.video.calls.map((c) => [c.textOnly ?? false, c.refs?.length ?? 0])).toEqual([[false, 0], [true, 2], [true, 0]]);
+    expect(ok.video.calls[2]!.prompt).not.toMatch(/Reference image/);
+
+    const dir2 = fresh();
+    const kf2 = await keyframeFor(dir2);
+    const bad = rig(new MockVideo({ faults: [0, 1, 2].map((call) => ({ call, reject: rp })) }));
+    const err = await talkingShot(S1, kf2, { script: SCRIPT, dir: dir2, maxNative: 2, ...bad }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ShotError);
-    expect(r.video.calls).toHaveLength(2);
-    expect((err as ShotError).attempts.map((a) => a.ok)).toEqual([false, false]);
+    expect(bad.video.calls).toHaveLength(3);
+    expect((err as ShotError).attempts.map((a) => a.ok)).toEqual([false, false, false]);
   }, 60_000);
 
   it("silent shot skips the gate: one video call, no ASR, no TTS", async () => {

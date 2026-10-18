@@ -127,3 +127,8 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   the talking-shot node now retries a real-person refusal once as text-to-video (`textOnly`; the prompt carries the
   look and setting), keeps later takes text-only, and records the switch. Any other policy rejection is still not
   retried. Also: Nano Banana via OpenRouter hit Google's upstream quota (429), so images moved to Seedream 5.0 Flash.
+- [live] Text-to-video kept the voice exact but changed the face between shots. Probed the filter for $0.37:
+  Seedance refused its *own* last frame as a first frame ($0, refused), but accepted the portrait as an
+  `input_references` image, and the face matched the portrait. → the fallback is now a ladder: first frame →
+  references (portrait + keyframe) → text only. Also: notes in frame came out as gibberish handwriting, so every image
+  and video prompt now asks for no legible writing (prompt version visuals-v2).
