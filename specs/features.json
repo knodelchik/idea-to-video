@@ -73,6 +73,25 @@
       "accept": [
         "npx tsx scripts/bench.ts --mock"
       ]
+    },
+    {
+      "id": "F10-hard-lines",
+      "spec": "specs/F10-hard-lines.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/verbatim.test.ts tests/script.test.ts",
+        "npx tsx evals/run.ts --mock --set hard --label f10",
+        "npx tsx src/cli.ts 'An old man fixes a clock. He says: \"It stopped in 1987, at 3:15 a.m., and so did I.\"' --mock --json"
+      ]
+    },
+    {
+      "id": "F11-dialogue-seedance",
+      "spec": "specs/F11-dialogue-seedance-playbook.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/schemas.test.ts tests/visuals.test.ts tests/script.test.ts",
+        "npx tsx src/cli.ts 'At the kitchen table, a mother slides an envelope to her son. She says: \"Open it after I leave.\" He looks up and asks: \"Mom, are you sick?\"' --mock --json"
+      ]
     }
   ]
 }
