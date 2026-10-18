@@ -6,13 +6,17 @@ import { ApiError, ValidationError } from "@fal-ai/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   castCharacter,
+  castCharacters,
   keyframePrompt,
   keyframeShot,
+  portraitPrompt,
   ShotError,
   snapDuration,
   talkingPrompt,
   talkingShot,
+  textToVideoPrompt,
 } from "../src/nodes/visuals.ts";
+import { VISUALS_PROMPT_VERSION } from "../src/prompts/visuals.ts";
 import { VerbatimError } from "../src/nodes/gate.ts";
 import { muxArgs, trimArgs } from "../src/media/args.ts";
 import { probe, run } from "../src/media/ffmpeg.ts";
@@ -85,6 +89,34 @@ const SCRIPT: Script = Script.parse({
 const S1 = SCRIPT.shots[0]!;
 const S2 = SCRIPT.shots[1]!;
 
+/** F11: a dialogue, shot-reverse-shot. */
+const MARA = {
+  name: "Mara",
+  look: "a woman in her fifties, silver-streaked curly hair, burgundy cardigan, thin gold reading glasses",
+  voice: { gender: "female" as const, age: "older" as const, tone: "warm, tired" },
+  voiceDescription: "warm low female voice, mid-50s, neutral American accent, unhurried",
+};
+const LEO = {
+  name: "Leo",
+  look: "a man in his early twenties, curly brown hair, thin silver glasses, a navy hoodie with frayed cuffs",
+  voice: { gender: "male" as const, age: "young" as const, tone: "anxious" },
+  voiceDescription: "soft, anxious young male voice, early twenties, light American accent, quick",
+};
+const DUO: Script = Script.parse({
+  promptVersion: "test",
+  title: "The envelope",
+  logline: "A mother gives her son an envelope.",
+  setting: "kitchen table at night, one warm pendant lamp",
+  characters: [MARA, LEO],
+  shots: [
+    { id: "s1", camera: "close-up", visual: "Mara slides an envelope across the table", motion: "she lets go of it slowly", emotion: "calm, sad", line: "Open it after I leave.", seconds: 5, speaker: "Mara", onScreen: ["Mara"] },
+    { id: "s2", camera: "close-up", visual: "Leo looks up from the envelope", motion: "he raises his eyes", emotion: "scared", line: "Mom, are you sick?", seconds: 5, speaker: "Leo", onScreen: ["Leo"] },
+  ],
+  quotedLines: ["Open it after I leave.", "Mom, are you sick?"],
+});
+const D1 = DUO.shots[0]!;
+const D2 = DUO.shots[1]!;
+
 let root: string;
 let n = 0;
 /** A fresh run dir per test: artifacts are content-addressed, so a shared dir would hide calls behind the cache. */
@@ -140,36 +172,174 @@ describe("trimArgs", () => {
 describe("prompts (acceptance 6)", () => {
   it("keyframePrompt has look, setting, camera, emotion and the fixed style clause", () => {
     const p = keyframePrompt(S1, SCRIPT);
-    expect(p).toContain(SCRIPT.character.look);
+    expect(p).toContain(SCRIPT.characters[0]!.look);
     expect(p).toContain(SCRIPT.setting);
     expect(p).toContain("medium close-up");
     expect(p).toContain("quiet, hurt");
     expect(p.toLowerCase()).toContain("photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed, no text, no watermark");
   });
 
-  it("talkingPrompt quotes the line verbatim, with quotes and apostrophes intact", () => {
+  it("talkingPrompt puts the line verbatim in braces, with quotes and apostrophes intact", () => {
     const line = `He said "don't" twice, and I didn't listen — Dan's fault.`;
     const shot: Shot = { ...S1, line };
     const p = talkingPrompt(shot, SCRIPT);
-    expect(p).toContain(`"${line}"`);
-    expect(p).toContain("quiet, hurt");
+    expect(p).toContain(`Dan looks toward the camera and, quiet, hurt, says in English: {${line}}`);
     expect(p).toMatch(/locked-off camera/i);
-    expect(p).toMatch(/one speaking face toward the camera/i);
-    expect(p).toMatch(/no other speech, no music/i);
+    // The old wording repeated and annotated the line, which the guide says can trigger burned-in subtitles.
+    expect(p).not.toMatch(/exactly these words/i);
+    expect(p.split(line)).toHaveLength(2); // the line appears once
   });
 
-  it("talkingPrompt keeps delivery tags out of the quote and in the emotion", () => {
+  it("talkingPrompt keeps delivery tags out of the braces and in the delivery, before the line", () => {
     const p = talkingPrompt({ ...S1, line: "[whispers] I kept the watch." }, SCRIPT);
-    expect(p).toContain(`"I kept the watch."`);
+    expect(p).toContain("and, quiet, hurt, whispers, says in English: {I kept the watch.}");
     expect(p).not.toContain("[whispers]");
-    expect(p).toContain("quiet, hurt, whispers");
   });
 
-  it("silent shot prompt asks for no speech", () => {
+  it("silent shot prompt asks for no speech and no music", () => {
     const p = talkingPrompt(S2, SCRIPT);
-    expect(p).not.toContain('"');
-    expect(p).toMatch(/no speech, no music/i);
+    expect(p).not.toContain("{");
+    expect(p).toMatch(/^Audio policy: no speech, only quiet natural room tone; no music/);
+    expect(p).toMatch(/No speech and no music of any kind\./);
+    expect(p).toMatch(/Avoid generating subtitles, captions, a logo or a watermark\.$/);
   });
+
+  it("portraitPrompt follows the official headshot spec, one view", () => {
+    const p = portraitPrompt(SCRIPT);
+    expect(p).toContain(
+      "Front-facing close-up framed above the shoulders, the face filling about two-thirds of the frame, neutral expression, mouth closed, plain light-grey background, even soft light. Vertical portrait.",
+    );
+    expect(p).toContain(SCRIPT.characters[0]!.look);
+    expect(p).toMatch(/not a multi-view sheet/);
+    expect(portraitPrompt(DUO, "Leo")).toContain(LEO.look);
+    expect(portraitPrompt(DUO, "Leo")).not.toContain(MARA.look);
+    expect(() => portraitPrompt(DUO, "Nobody")).toThrow(/no character named "Nobody"/);
+  });
+});
+
+describe("Seedance prompt wording (F11 acceptance 3)", () => {
+  const POLICY = (name: string) =>
+    `Audio policy: only ${name}'s spoken line plus quiet natural room tone; no music, background music, BGM, score, instrumental, melody, soundtrack, synth, ambient pad or stinger at any moment.`;
+  const TAIL = (name: string) =>
+    "Generate audio strictly according to the dialogue; do not add or remove any words; one speaker only; clean, clear, standard pronunciation. No music of any kind. " +
+    "The character's face remains stable and consistent throughout, without deformation; hands anatomically correct; natural, smooth movement. " +
+    `Only one ${name} in frame; no duplicate or twin. Avoid generating subtitles, captions, a logo or a watermark.`;
+
+  it("audio policy first, constraint tail last, braces dialogue with nothing after the closing brace", () => {
+    const p = talkingPrompt(D2, DUO);
+    expect(p.startsWith(POLICY("Leo"))).toBe(true);
+    expect(p.endsWith(TAIL("Leo"))).toBe(true);
+    expect(p).toContain("Leo looks toward the camera and, scared, says in English: {Mom, are you sick?}");
+    // No text after the closing brace within the same sentence: the next thing is a new sentence.
+    expect(p).toMatch(/says in English: \{Mom, are you sick\?\} [A-Z]/);
+    expect(p).not.toMatch(/\}[^\s]/);
+    expect(p.match(/says in English: \{/g)).toHaveLength(1);
+  });
+
+  it("the speaker's voiceDescription appears verbatim in every shot they speak, and only the speaker's", () => {
+    expect(talkingPrompt(D1, DUO)).toContain(`Voice: ${MARA.voiceDescription}.`);
+    expect(talkingPrompt(D2, DUO)).toContain(`Voice: ${LEO.voiceDescription}.`);
+    expect(talkingPrompt(D2, DUO)).not.toContain(MARA.voiceDescription);
+    // Voice goes before the line: nothing annotates the dialogue after it.
+    const p = talkingPrompt(D1, DUO);
+    expect(p.indexOf("Voice:")).toBeLessThan(p.indexOf("says in English"));
+  });
+
+  it("a listener on screen stays silent; the audio policy still names only the speaker", () => {
+    const p = talkingPrompt({ ...D1, onScreen: ["Mara", "Leo"] }, DUO);
+    expect(p.startsWith(POLICY("Mara"))).toBe(true);
+    expect(p).toContain("Leo listens in silence, mouth closed.");
+    expect(p).toContain("Only one Mara and one Leo in frame; no duplicate or twin.");
+  });
+
+  it("judge issues go before the constraint tail, which stays last", () => {
+    const p = talkingPrompt(D2, DUO, { issues: ["six fingers"] });
+    expect(p).toContain("Avoid these problems from the previous attempt: six fingers.");
+    expect(p.endsWith(TAIL("Leo"))).toBe(true);
+  });
+
+  it("refs: @Image N (Name) numbered in upload order, speaker's portrait first, keyframe as the opening frame", () => {
+    const p = textToVideoPrompt({ ...D2, onScreen: ["Mara", "Leo"] }, DUO, { refs: ["Leo", "Mara", "opening frame"] });
+    expect(p.startsWith(POLICY("Leo"))).toBe(true);
+    expect(p.endsWith(TAIL("Leo").replace("The character's face remains", "Each character's face remains").replace("Only one Leo", "Only one Leo and one Mara"))).toBe(true);
+    expect(p).toContain("@Image 1 (Leo) is the face reference for Leo: keep Leo's facial features, hair and outfit from @Image 1 (Leo) exactly.");
+    expect(p).toContain("@Image 2 (Mara) is the face reference for Mara");
+    expect(p).toContain("@Image 3 (opening frame) is the first-frame constraint: start from this composition, setting and outfit.");
+    expect(p).toContain("@Image 1 (Leo) looks toward the camera and, scared, says in English: {Mom, are you sick?}");
+    expect(p).toContain("@Image 2 (Mara) listens in silence");
+    // A noun right after every tag (sd2-pe): never "@Image 1 runs…".
+    expect(p).not.toMatch(/@Image \d+(?! \()/);
+    expect(p).not.toMatch(/Reference image/);
+  });
+
+  it("text-only (no refs) names nobody by tag", () => {
+    const p = textToVideoPrompt(D2, DUO);
+    expect(p).not.toContain("@Image");
+    expect(p).toContain("Leo looks toward the camera");
+    expect(p).toContain(LEO.look);
+  });
+
+  it("keyframes describe everyone on screen, speaker first", () => {
+    const p = keyframePrompt({ ...D2, onScreen: ["Mara", "Leo"] }, DUO);
+    expect(p.indexOf(LEO.look)).toBeLessThan(p.indexOf(MARA.look));
+    expect(p).toContain("Same people as the reference images, in order: Leo, Mara.");
+  });
+
+  it("the prompt version was bumped", () => {
+    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v3");
+  });
+});
+
+describe("two characters (F11)", () => {
+  it("cast makes one portrait per character; keyframe refs are the on-screen portraits, speaker first, then the previous keyframe", async () => {
+    const dir = fresh();
+    const image = new MockImage();
+    const { portraits, attempts } = await castCharacters(DUO, { image, dir });
+    expect(Object.keys(portraits)).toEqual(["Mara", "Leo"]);
+    expect(portraits.Mara).not.toBe(portraits.Leo);
+    expect(image.calls.map((c) => c.prompt)).toEqual([portraitPrompt(DUO, "Mara"), portraitPrompt(DUO, "Leo")]);
+    expect(attempts.map((a) => a.stage)).toEqual(["portrait", "portrait"]);
+
+    const both = { ...D1, onScreen: ["Mara", "Leo"] };
+    const k1 = await keyframeShot(both, DUO, portraits, undefined, { image, dir });
+    const k2 = await keyframeShot(D2, DUO, portraits, k1.path, { image, dir });
+    expect(image.calls[2]!.refs).toEqual([portraits.Mara, portraits.Leo]);
+    expect(image.calls[3]!.refs).toEqual([portraits.Leo, k1.path]);
+
+    // Content-addressed per character: casting again makes no calls.
+    const again = new MockImage();
+    await castCharacters(DUO, { image: again, dir });
+    expect(again.calls).toHaveLength(0);
+    expect(k2.path).not.toBe(k1.path);
+  });
+
+  it("refs mode: the speaker's portrait is reference 1, then other on-screen portraits, then the keyframe (acceptance 4)", async () => {
+    const dir = fresh();
+    const image = new MockImage();
+    const { portraits } = await castCharacters(DUO, { image, dir });
+    const shot = { ...D2, onScreen: ["Mara", "Leo"] };
+    const kf = (await keyframeShot(shot, DUO, portraits, undefined, { image, dir })).path;
+    const realFace = "InputImageSensitiveContentDetected.PrivacyInformation: the input image may contain real person";
+    const r = rig(new MockVideo({ faults: [{ call: 0, reject: realFace }] }));
+    const out = await talkingShot(shot, kf, { script: DUO, dir, portrait: portraits, ...r });
+
+    expect(out.verbatim?.pass).toBe(true);
+    expect(r.video.calls).toHaveLength(2);
+    const refs = r.video.calls[1]!.refs!;
+    expect(refs).toEqual([portraits.Leo, portraits.Mara, kf]);
+    expect(r.video.calls[1]!.prompt).toBe(textToVideoPrompt(shot, DUO, { refs: ["Leo", "Mara", "opening frame"] }));
+  }, 60_000);
+
+  it("the fallback voice is the speaker's", async () => {
+    const dir = fresh();
+    const image = new MockImage();
+    const { portraits } = await castCharacters(DUO, { image, dir });
+    const kf = (await keyframeShot(D2, DUO, portraits, undefined, { image, dir })).path;
+    const r = rig(new MockVideo({ nativeSpeech: false }));
+    await talkingShot(D2, kf, { script: DUO, dir, ...r });
+    expect(r.tts.calls).toHaveLength(1);
+    expect(r.tts.calls[0]!.voice).toMatch(/^male/);
+  }, 60_000);
 });
 
 describe("portrait and keyframes (acceptance 2)", () => {
@@ -296,9 +466,9 @@ describe("talkingShot", () => {
       expect(c.textOnly).toBe(true);
       expect(c.refs).toEqual([portrait, kf]);
       // Without a first frame, the prompt itself carries the look and the setting, and names the references.
-      expect(c.prompt).toContain(SCRIPT.character.look);
+      expect(c.prompt).toContain(SCRIPT.characters[0]!.look);
       expect(c.prompt).toContain(SCRIPT.setting);
-      expect(c.prompt).toMatch(/Reference image 1 is .*Reference image 2 shows the scene/);
+      expect(c.prompt).toMatch(/@Image 1 \(Dan\) is the face reference for Dan.*@Image 2 \(opening frame\) is the first-frame constraint/);
     }
     expect(r.video.calls[0]!.prompt).not.toContain(SCRIPT.setting);
     expect(shot.attempts[0]).toMatchObject({ stage: "video", n: 1, ok: false, reason: expect.stringMatching(/keyframe refused.*real person.*reference-to-video/) });
@@ -312,7 +482,7 @@ describe("talkingShot", () => {
     const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait: kf, ...ok });
     expect(shot.verbatim?.pass).toBe(true);
     expect(ok.video.calls.map((c) => [c.textOnly ?? false, c.refs?.length ?? 0])).toEqual([[false, 0], [true, 2], [true, 0]]);
-    expect(ok.video.calls[2]!.prompt).not.toMatch(/Reference image/);
+    expect(ok.video.calls[2]!.prompt).not.toMatch(/@Image/);
 
     const dir2 = fresh();
     const kf2 = await keyframeFor(dir2);

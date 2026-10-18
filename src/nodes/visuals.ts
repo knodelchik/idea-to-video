@@ -16,16 +16,22 @@ import {
   type TtsProvider,
   type VideoProvider,
 } from "../providers/index.ts";
-import { keyframePrompt, portraitPrompt, talkingPrompt, textToVideoPrompt, VISUALS_PROMPT_VERSION } from "../prompts/visuals.ts";
+import {
+  keyframePrompt,
+  OPENING_FRAME,
+  portraitPrompt,
+  talkingPrompt,
+  textToVideoPrompt,
+  VISUALS_PROMPT_VERSION,
+} from "../prompts/visuals.ts";
 import { withIssues } from "../prompts/judge.ts";
-import type { Attempt, Script, Shot, VerbatimResult } from "../schemas.ts";
+import { castOf, speakerOf, type Attempt, type Script, type Shot, type VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { splitDelivery } from "../verbatim.ts";
 import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
 import { verifiedVoice } from "./voice.ts";
 
 export { keyframePrompt, portraitPrompt, talkingPrompt, textToVideoPrompt } from "../prompts/visuals.ts";
-
 /** Smallest allowed clip length ≥ `seconds` (models bill and generate whole durations). Above the max → throws. */
 export function snapDuration(seconds: number, durations: number[]): number {
   if (!Number.isFinite(seconds) || seconds <= 0) throw new RangeError(`seconds must be > 0, got ${seconds}`);
@@ -90,25 +96,63 @@ async function still(
   };
 }
 
-/** The identity anchor: neutral light, face large, 9:16. */
-export function castCharacter(script: Script, opts: { image: ImageProvider; dir: string }): Promise<Still> {
-  return still("portrait", portraitPrompt(script), [], opts);
+/**
+ * Portrait files by character name. A single path is shorthand for a one-character script (every name maps to it),
+ * which keeps single-character callers and tests unchanged.
+ */
+export type Portraits = string | Readonly<Record<string, string>>;
+
+export function portraitOf(portraits: Portraits, name: string): string {
+  if (typeof portraits === "string") return portraits;
+  const p = portraits[name];
+  if (p === undefined) throw new Error(`no portrait for character ${JSON.stringify(name)}`);
+  return p;
+}
+
+/** Portraits of everyone on screen in a shot, speaker first, without repeats. */
+export function shotPortraits(shot: Shot, script: Script, portraits: Portraits): { name: string; path: string }[] {
+  const seen = new Set<string>();
+  return castOf(script, shot)
+    .map((c) => ({ name: c.name, path: portraitOf(portraits, c.name) }))
+    .filter((p) => !seen.has(p.path) && Boolean(seen.add(p.path)));
+}
+
+/** One character's identity anchor (default: the first): the official headshot framing, 9:16. */
+export function castCharacter(script: Script, opts: { image: ImageProvider; dir: string; name?: string }): Promise<Still> {
+  const { name, ...rest } = opts;
+  return still("portrait", portraitPrompt(script, name), [], rest);
+}
+
+/** Every character's portrait. Content-addressed per character (the prompt holds its name and look). */
+export async function castCharacters(
+  script: Script,
+  opts: { image: ImageProvider; dir: string },
+): Promise<{ portraits: Record<string, string>; attempts: Attempt[] }> {
+  const portraits: Record<string, string> = {};
+  const attempts: Attempt[] = [];
+  for (const c of script.characters) {
+    const r = await castCharacter(script, { ...opts, name: c.name });
+    portraits[c.name] = r.path;
+    attempts.push(...r.attempts);
+  }
+  return { portraits, attempts };
 }
 
 /**
- * A shot's first frame, generated with the portrait (and the previous keyframe, for continuity) as refs.
- * `issues` (from the quality judge, F07) are appended to the prompt; `variant` > 0 makes a new take.
+ * A shot's first frame, generated with the portraits of everyone on screen (speaker first) and the previous keyframe
+ * (continuity) as refs. `issues` (from the quality judge, F07) are appended to the prompt; `variant` > 0 makes a new take.
  */
 export function keyframeShot(
   shot: Shot,
   script: Script,
-  portrait: string,
+  portraits: Portraits,
   prev: string | undefined,
   opts: { image: ImageProvider; dir: string; variant?: number; issues?: string[] },
 ): Promise<Still> {
   const { issues = [], ...rest } = opts;
   const prompt = withIssues(keyframePrompt(shot, script), issues);
-  return still("keyframe", prompt, prev ? [portrait, prev] : [portrait], { ...rest, shotId: shot.id });
+  const refs = shotPortraits(shot, script, portraits).map((p) => p.path);
+  return still("keyframe", prompt, prev ? [...refs, prev] : refs, { ...rest, shotId: shot.id });
 }
 
 export interface TalkingShotOpts {
@@ -130,11 +174,12 @@ export interface TalkingShotOpts {
   /** Judge issues from the previous take, appended to the video prompt. */
   issues?: string[];
   /**
-   * The character portrait. Used only when the provider refuses the keyframe as a first frame (real-face filter):
-   * the shot is then generated from references (portrait for identity, keyframe for the scene), which the filter
-   * was seen to accept on 2026-10-18.
+   * The character portraits (a single path for a one-character script). Used only when the provider refuses the
+   * keyframe as a first frame (real-face filter): the shot is then generated from references (the speaker's portrait
+   * first, then other on-screen portraits, for identity; the keyframe last, for the scene), which the filter was seen
+   * to accept on 2026-10-18.
    */
-  portrait?: string;
+  portrait?: Portraits;
   /** Measures every clip this node returns. ffprobe by default; injectable so tests can watch what gets measured. */
   probe?: (path: string) => Promise<{ seconds: number; hasAudio: boolean }>;
 }
@@ -187,19 +232,22 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   const shotId = shot.id;
   const spoken = splitDelivery(shot.line).spoken;
   const seconds = snapDuration(shot.seconds, video.capabilities.durations);
-  const prompt = withIssues(talkingPrompt(shot, script), opts.issues ?? []);
+  const issues = opts.issues ?? [];
+  const prompt = talkingPrompt(shot, script, { issues });
   /**
    * How the keyframe reaches the video model. `frame`: as the first frame (best). After a real-person refusal,
-   * `refs`: no first frame, portrait + keyframe as references. After another refusal, `text`: words only.
-   * The mode only ever steps down, and later takes of this shot keep it.
+   * `refs`: no first frame; the speaker's portrait, other on-screen portraits, then the keyframe as references.
+   * After another refusal, `text`: words only. The mode only ever steps down, and later takes of this shot keep it.
    */
   const ladder = ["frame", "refs", "text"] as const;
   let mode: (typeof ladder)[number] = "frame";
-  const refsFor = (): string[] => (opts.portrait ? [opts.portrait, keyframe] : [keyframe]);
+  const refList = [
+    ...(opts.portrait ? shotPortraits(shot, script, opts.portrait).map((p) => ({ label: p.name, path: p.path })) : []),
+    { label: OPENING_FRAME, path: keyframe },
+  ];
+  const refsFor = (): string[] => refList.map((r) => r.path);
   const promptFor = (m: typeof mode): string =>
-    m === "frame"
-      ? prompt
-      : withIssues(textToVideoPrompt(shot, script, m === "refs" ? { refs: refsFor().length } : {}), opts.issues ?? []);
+    m === "frame" ? prompt : textToVideoPrompt(shot, script, { issues, ...(m === "refs" ? { refs: refList.map((r) => r.label) } : {}) });
   const take = opts.take ?? 1;
   if (!Number.isInteger(take) || take < 1) throw new RangeError(`take must be an integer >= 1, got ${take}`);
   const record = (a: Omit<Attempt, "shotId">) => attempts.push({ ...a, shotId });
@@ -401,7 +449,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   });
   let voice;
   try {
-    voice = await verifiedVoice(shot.line, script.character, {
+    voice = await verifiedVoice(shot.line, speakerOf(script, shot), {
       tts: opts.tts,
       asr,
       dir,

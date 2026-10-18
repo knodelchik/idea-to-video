@@ -13,6 +13,7 @@ import { writeScript } from "../src/nodes/script.ts";
 import { keyframeRubric } from "../src/prompts/judge.ts";
 import { GeminiLlm } from "../src/providers/gemini.ts";
 import { GeminiJudge, GeminiTts, GroqAsr } from "../src/providers/index.ts";
+import { speakerOf } from "../src/schemas.ts";
 import { compareWords } from "../src/verbatim.ts";
 import { SAMPLE_IDEA, SAMPLE_PNG } from "./preflight.ts";
 
@@ -60,7 +61,8 @@ export async function main(argv: string[], env: Record<string, string | undefine
   // 2. TTS (Gemini only, whatever TTS_PROVIDERS says)
   const tts = GeminiTts.fromEnv(env);
   const wav = join(dir, "line.wav");
-  const spoken = await tts.speak({ text: shot.line, voice: `${script.character.voice.gender}-${script.character.voice.age}`, emotion: shot.emotion, out: wav });
+  const { voice } = speakerOf(script, shot);
+  const spoken = await tts.speak({ text: shot.line, voice: `${voice.gender}-${voice.age}`, emotion: shot.emotion, out: wav });
   console.log(JSON.stringify({ step: "tts", path: spoken.path, seconds: spoken.seconds }));
 
   // 3. ASR + verbatim check

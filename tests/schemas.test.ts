@@ -8,13 +8,23 @@ import {
   Shot,
   Transcript,
   VerbatimResult,
+  castOf,
   formatIssues,
+  speakerOf,
 } from "../src/schemas.ts";
 
 const character = {
   name: "Mara",
   look: "woman in her late 20s, short black bob, freckles, green apron over a grey t-shirt",
   voice: { gender: "female", age: "young", tone: "tired, warm" },
+  voiceDescription: "warm, slightly tired female voice, late twenties, neutral American accent, unhurried",
+} as const;
+
+const son = {
+  name: "Leo",
+  look: "man in his early 20s, curly brown hair, thin silver glasses, navy hoodie with frayed cuffs",
+  voice: { gender: "male", age: "young", tone: "anxious, soft" },
+  voiceDescription: "soft, anxious young male voice, early twenties, light American accent, quick",
 } as const;
 
 const shot = (over: Partial<z.input<typeof Shot>> = {}): z.input<typeof Shot> => ({
@@ -25,19 +35,37 @@ const shot = (over: Partial<z.input<typeof Shot>> = {}): z.input<typeof Shot> =>
   emotion: "surprised, then moved",
   line: "Meet me where it started.",
   seconds: 5,
+  speaker: "Mara",
+  onScreen: ["Mara"],
   ...over,
 });
 
-const script = (over: Partial<z.input<typeof Script>> = {}): z.input<typeof Script> => ({
+type ScriptInput = Record<string, unknown>;
+const script = (over: ScriptInput = {}): ScriptInput => ({
   promptVersion: "script-v1",
   title: "The Note",
   logline: "A barista finds a note in the tip jar.",
   setting: "small café at closing time",
-  character,
-  shots: [shot(), shot({ id: "s2", camera: "medium", line: "", seconds: 4 })],
+  characters: [character],
+  shots: [shot(), shot({ id: "s2", camera: "medium", line: "", seconds: 4, speaker: undefined })],
   quotedLines: ["Meet me where it started."],
   ...over,
 });
+
+/** A pre-F11 script: one `character`, no speaker, no onScreen, no voiceDescription. */
+const legacy = (): ScriptInput => {
+  const { voiceDescription: _, ...old } = character;
+  const strip = ({ speaker: _s, onScreen: _o, ...rest }: z.input<typeof Shot>) => rest;
+  return {
+    promptVersion: "script-v3",
+    title: "The Note",
+    logline: "A barista finds a note in the tip jar.",
+    setting: "small café at closing time",
+    character: old,
+    shots: [strip(shot()), strip(shot({ id: "s2", line: "", seconds: 4 }))],
+    quotedLines: ["Meet me where it started."],
+  };
+};
 
 /** Parse and return the readable error text, or "" when valid. */
 const errorsOf = (schema: z.ZodType, value: unknown): string => {
@@ -49,7 +77,7 @@ describe("Script", () => {
   it("accepts a valid two-shot script", () => {
     const parsed = Script.parse(script());
     expect(parsed.shots).toHaveLength(2);
-    expect(parsed.character.voice.gender).toBe("female");
+    expect(parsed.characters[0]!.voice.gender).toBe("female");
   });
 
   it("accepts a valid one-shot script", () => {
@@ -117,6 +145,86 @@ describe("Script", () => {
 
   it("rejects empty character look", () => {
     expect(errorsOf(Character, { ...character, look: "" })).toMatch(/look/);
+  });
+});
+
+describe("characters and speakers (F11 acceptance 1)", () => {
+  const dialogue = () =>
+    script({
+      characters: [character, son],
+      shots: [
+        shot({ line: "Open it after I leave.", onScreen: ["Mara", "Leo"] }),
+        shot({ id: "s2", line: "Mom, are you sick?", speaker: "Leo", onScreen: ["Leo"] }),
+      ],
+      quotedLines: [],
+    });
+
+  it("accepts 1 and 2 characters", () => {
+    expect(errorsOf(Script, script())).toBe("");
+    const two = Script.parse(dialogue());
+    expect(two.characters.map((c) => c.name)).toEqual(["Mara", "Leo"]);
+    expect(two.shots.map((s) => s.speaker)).toEqual(["Mara", "Leo"]);
+    expect(speakerOf(two, two.shots[1]!).name).toBe("Leo");
+    expect(castOf(two, { ...two.shots[0]!, onScreen: ["Leo", "Mara"] }).map((c) => c.name)).toEqual(["Mara", "Leo"]);
+  });
+
+  it("rejects 0 or 3 characters, duplicate names and a missing voiceDescription", () => {
+    expect(errorsOf(Script, script({ characters: [] }))).toMatch(/characters: a script has 1–2 characters, got 0/);
+    const third = { ...son, name: "Ana" };
+    expect(errorsOf(Script, script({ characters: [character, son, third] }))).toMatch(/1–2 characters, got 3/);
+    expect(errorsOf(Script, script({ characters: [character, { ...son, name: "Mara" }] }))).toMatch(/unique; "Mara"/);
+    const { voiceDescription: _, ...mute } = character;
+    expect(errorsOf(Character, mute)).toMatch(/voiceDescription/);
+  });
+
+  it("rejects a spoken shot without a speaker", () => {
+    const msg = errorsOf(Script, script({ shots: [shot({ speaker: undefined, seconds: 8 })] }));
+    expect(msg).toMatch(/shots\.0\.speaker: shot s1 has a spoken line but no speaker/);
+    expect(errorsOf(Script, script({ shots: [shot({ speaker: " ", seconds: 8 })] }))).toMatch(/no speaker/);
+  });
+
+  it("rejects an unknown speaker", () => {
+    const msg = errorsOf(Script, script({ shots: [shot({ speaker: "Leo", onScreen: ["Leo"], seconds: 8 })] }));
+    expect(msg).toMatch(/shots\.0\.speaker: shot s1: speaker "Leo" is not one of the characters \["Mara"\]/);
+    expect(msg).toMatch(/onScreen "Leo" is not one of the characters/);
+  });
+
+  it("rejects a speaker who is not on screen", () => {
+    const d = dialogue();
+    (d.shots as z.input<typeof Shot>[])[1]!.onScreen = ["Mara"];
+    expect(errorsOf(Script, d)).toMatch(/shots\.1\.onScreen: shot s2: speaker "Leo" must be in onScreen \["Mara"\]/);
+    expect(errorsOf(Shot, shot({ onScreen: [] }))).toMatch(/onScreen must name at least one character/);
+  });
+
+  it("a silent shot needs no speaker", () => {
+    expect(errorsOf(Script, script())).toBe("");
+  });
+
+  it("an old single-`character` script still parses and migrates", () => {
+    const s = Script.parse(legacy());
+    expect(s.characters).toHaveLength(1);
+    expect(s.characters[0]!.name).toBe("Mara");
+    expect(s.characters[0]!.voiceDescription).toBe("tired, warm female voice, young");
+    expect(s.shots.map((x) => x.speaker)).toEqual(["Mara", undefined]);
+    expect(s.shots.map((x) => x.onScreen)).toEqual([["Mara"], ["Mara"]]);
+    expect(s).not.toHaveProperty("character");
+    // Parsing is idempotent: a migrated script parses to itself.
+    expect(Script.parse(s)).toEqual(s);
+  });
+
+  it("an old manifest with a single-`character` script still parses", () => {
+    const m = RunManifest.parse({
+      runId: "old",
+      idea: "an idea",
+      mode: "mock",
+      createdAt: "2026-10-16T12:00:00.000Z",
+      script: legacy(),
+      attempts: [],
+      costUsd: 0,
+      ok: true,
+    });
+    expect(m.script?.characters[0]!.name).toBe("Mara");
+    expect(m.script?.shots[0]!.speaker).toBe("Mara");
   });
 });
 

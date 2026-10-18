@@ -6,17 +6,28 @@ import { SCRIPT_SECONDS, SHOT_SECONDS } from "../schemas.ts";
 
 // v2: shot range widened to the Seedance 2.0 clip range (F05), read from the schema so the two can't drift.
 // v3: several quoted lines may share one shot line, in order (F10).
-export const SCRIPT_PROMPT_VERSION = "script-v3";
+// v4: 1–2 characters, one speaker per spoken shot, a dialogue as shot-reverse-shot, voiceDescription (F11).
+export const SCRIPT_PROMPT_VERSION = "script-v4";
 
 export const SCRIPT_SYSTEM = `You write a single beat of a vertical (9:16) micro-drama: 8–30 seconds, 1 or 2 shots.
 
 Craft:
 - Hook in the first two seconds: open on the moment of tension, not on setup.
-- One character, one location, one clear emotion.
+- One location, one clear emotion. One character, or two when the idea has two people talk to each other.
 - Close framing ("close-up" or "medium close-up") that keeps the face large; lip-sync depends on it.
 - The line must sound spoken: short, plain words, contractions, no stage directions inside it.
-- character.look: at least 12 words of concrete, renderable detail (age, face, hair, wardrobe, one distinctive mark),
-  identical across shots.
+- Each character's look: at least 12 words of concrete, renderable detail (age, face, hair, wardrobe, one distinctive
+  mark), identical across shots. Names are unique.
+- Each character's voiceDescription: one sentence with timbre, gender, age, accent and pace, e.g.
+  "warm low female voice, mid-30s, neutral American accent, unhurried".
+
+Characters and speakers:
+- "characters" has 1 or 2 entries. Every shot lists in "onScreen" the names of the characters visible in it.
+- Every shot with a line has exactly one "speaker": the name of the character who says it, who is in "onScreen".
+  A silent shot has no speaker.
+- A dialogue between two people is two shots (shot-reverse-shot), one line each, each a close-up of whoever speaks.
+- When the idea says who says a line ("she says…", "he answers…"), that person is the speaker of that line. Never give
+  both people's lines to one character.
 
 The spoken line:
 - If the idea contains quoted text, that text IS the line, character-for-character: same words, case, punctuation.

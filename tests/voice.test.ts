@@ -41,6 +41,7 @@ const CHARACTER: Character = {
   name: "Dan",
   look: "late thirties, short dark beard, grey hoodie, tired eyes, rooftop at dusk behind him",
   voice: { gender: "male", age: "adult", tone: "low, steady" },
+  voiceDescription: "low, steady male voice, late thirties, neutral American accent, unhurried",
 };
 
 let dir: string;

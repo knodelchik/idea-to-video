@@ -17,6 +17,7 @@ import { DEFAULT_JUDGE_MODELS } from "../src/providers/gemini-judge.ts";
 import { firstPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../src/prompts/script.ts";
 import { IdeaRejectedError, preSpendProblems, ScriptError, scriptProblems, writeScript } from "../src/nodes/script.ts";
 import { Script, ScriptDraft, type Shot } from "../src/schemas.ts";
+import { differentSpeakers, quoteSpeakers } from "../src/speakers.ts";
 import { extractQuotedLines } from "../src/verbatim.ts";
 
 const QUOTE = "Meet me where it all started.";
@@ -32,16 +33,25 @@ function shot(over: Partial<Shot> = {}): Shot {
     emotion: "hopeful disbelief",
     line: QUOTE,
     seconds: 8,
+    speaker: "Maya",
+    onScreen: ["Maya"],
     ...over,
   };
 }
+
+const MAYA = {
+  name: "Maya",
+  look: LOOK,
+  voice: { gender: "female" as const, age: "adult" as const, tone: "soft, tired" },
+  voiceDescription: "soft, tired female voice, late twenties, neutral American accent, unhurried",
+};
 
 function draft(shots: Shot[] = [shot()], look = LOOK): ScriptDraft {
   return {
     title: "The Note",
     logline: "A barista finds a note from someone she lost.",
     setting: "Small café counter at closing time",
-    character: { name: "Maya", look, voice: { gender: "female", age: "adult", tone: "soft, tired" } },
+    characters: [{ ...MAYA, look }],
     shots,
   };
 }
@@ -114,12 +124,158 @@ describe("scriptProblems", () => {
 
   it("flags a thin character.look", () => {
     const p = scriptProblems(script(draft([shot()], "a tired barista")), IDEA);
-    expect(p).toContainEqual(expect.stringMatching(/character\.look has 3 words; needs at least 12/));
+    expect(p).toContainEqual(expect.stringMatching(/characters\[0\]\.look \(Maya\) has 3 words; needs at least 12/));
   });
 
   it("flags wrong shot ids", () => {
     const p = scriptProblems(script(draft([shot({ id: "s2" })])), IDEA);
     expect(p).toContainEqual(expect.stringMatching(/shot 1 must have id "s1"/));
+  });
+});
+
+describe("speakers (F11)", () => {
+  const OPEN = "Open it after I leave.";
+  const SICK = "Mom, are you sick?";
+  const KITCHEN = `At the kitchen table, a mother slides an envelope to her son. She says: "${OPEN}" He looks up and asks: "${SICK}"`;
+  const LEO = {
+    name: "Leo",
+    look: "a man in his early twenties, curly brown hair, thin silver glasses, a navy hoodie with frayed cuffs",
+    voice: { gender: "male" as const, age: "young" as const, tone: "anxious" },
+    voiceDescription: "soft, anxious young male voice, early twenties, light American accent, quick",
+  };
+  const two = (s1: Partial<Shot>, s2: Partial<Shot>, characters = [MAYA, LEO]): Script =>
+    script({ ...draft([shot({ line: OPEN, seconds: 5, ...s1 }), shot({ id: "s2", line: SICK, seconds: 5, ...s2 })]), characters }, [OPEN, SICK]);
+
+  it("accepts a dialogue: two characters, one line each, each line with its speaker", () => {
+    expect(scriptProblems(two({}, { speaker: "Leo", onScreen: ["Leo"] }), KITCHEN)).toEqual([]);
+  });
+
+  it("rejects one character saying both halves when the idea names two speakers (the 'Mom' bug)", () => {
+    const p = scriptProblems(two({}, {}, [MAYA]), KITCHEN);
+    expect(p).toContainEqual(expect.stringMatching(/two different people \(she and he\) but the script has 1 character/));
+  });
+
+  it("rejects two characters when one of them says both attributed lines", () => {
+    const p = scriptProblems(two({}, {}), KITCHEN);
+    expect(p).toContainEqual(expect.stringMatching(/"Open it after I leave\." \(she\) and "Mom, are you sick\?" \(he\) are said by different people.*"Maya" says both/));
+  });
+
+  it("rejects a 'he' line given to a female voice", () => {
+    const p = scriptProblems(two({ speaker: "Leo", onScreen: ["Leo"] }, { speaker: "Maya", onScreen: ["Maya"] }), KITCHEN);
+    expect(p).toContainEqual(expect.stringMatching(/"Open it after I leave\." \(she\) is said by a female speaker.*"Leo" has a male voice/));
+    expect(p).toContainEqual(expect.stringMatching(/"Mom, are you sick\?" \(he\) is said by a male speaker.*"Maya" has a female voice/));
+  });
+
+  it("reports a missing or unknown speaker to the model", () => {
+    expect(scriptProblems(script(draft([shot({ speaker: undefined })])), IDEA)).toContainEqual(expect.stringMatching(/shot s1 has a spoken line but no speaker/));
+    expect(scriptProblems(script(draft([shot({ speaker: "Leo", onScreen: ["Leo"] })])), IDEA)).toContainEqual(expect.stringMatching(/speaker "Leo" is not one of the characters/));
+  });
+
+  it("one speaker with several quotes, or no attribution, needs no second character", () => {
+    const idea = 'A detective leans in. He asks "Where were you?", then "Who saw you?"';
+    const s = script(
+      { ...draft([shot({ line: "Where were you?", seconds: 5 }), shot({ id: "s2", line: "Who saw you?", seconds: 5 })]), characters: [{ ...MAYA, voice: { ...MAYA.voice, gender: "male" } }] },
+      ["Where were you?", "Who saw you?"],
+    );
+    expect(scriptProblems(s, idea)).toEqual([]);
+    expect(scriptProblems(script(draft()), `A note says: "${QUOTE}"`)).toEqual([]);
+  });
+
+  it("an idea that changes speaker more often than there are shots is rejected before any spend", () => {
+    const idea = 'She says: "One." He says: "Two." She says: "Three."';
+    expect(preSpendProblems(idea)).toContainEqual(expect.stringMatching(/change speaker 2 times, but each of the 2 shots has one speaker/));
+    expect(preSpendProblems(KITCHEN)).toEqual([]);
+  });
+
+  it("quoteSpeakers reads attributions; a pronoun and a noun of one gender may be the same person", () => {
+    expect(quoteSpeakers(KITCHEN).map((a) => a?.who)).toEqual(["she", "he"]);
+    const same = quoteSpeakers('The mother says: "Go." She adds: "Now."');
+    expect(differentSpeakers(same[0], same[1])).toBe(false);
+    const nouns = quoteSpeakers('The detective says: "Sit." The suspect answers: "No."');
+    expect(differentSpeakers(nouns[0], nouns[1])).toBe(true);
+    // Only the subject's own words decide the gender, not who they act on.
+    expect(quoteSpeakers('A teenager hugs her dad and says: "Hi."')[0]).toMatchObject({ who: "teenager" });
+    expect(quoteSpeakers('An old fisherman talks to the sea: "Hi."')).toEqual([undefined]);
+  });
+
+  it("a speech tag after the quote belongs to that quote, not the next one", () => {
+    expect(quoteSpeakers(`"Open it after I leave," she says. "${SICK}" he asks.`).map((a) => a?.who)).toEqual(["she", "he"]);
+    expect(quoteSpeakers('"Sit down!" the detective snaps. "Why?" the suspect asks.').map((a) => a?.who)).toEqual(["detective", "suspect"]);
+    // Inverted tag, and a tag after "?" / "!" (lowercase continues the sentence).
+    expect(quoteSpeakers('"Go," says the mother. "Now?" asks her son.').map((a) => a?.gender)).toEqual(["female", "male"]);
+    // A capitalised sentence after a full stop is the next quote's lead-in, not a tag.
+    expect(quoteSpeakers(`She says: "${OPEN}" He looks up and asks: "${SICK}"`).map((a) => a?.who)).toEqual(["she", "he"]);
+    // No tag at all: the second quote still inherits.
+    expect(quoteSpeakers('"Hi," she says. "How are you?"').map((a) => a?.who)).toEqual(["she", "she"]);
+  });
+
+  it("a script for a tag-after-quote dialogue: the right cast passes, one character saying both is rejected", () => {
+    const idea = `At the kitchen table, a mother slides an envelope to her son. "Open it after I leave," she says. "${SICK}" he asks.`;
+    const line1 = "Open it after I leave,";
+    const mk = (s2: Partial<Shot>, characters = [MAYA, LEO]): Script =>
+      script({ ...draft([shot({ line: line1, seconds: 5 }), shot({ id: "s2", line: SICK, seconds: 5, ...s2 })]), characters }, [line1, SICK]);
+    const ok = scriptProblems(mk({ speaker: "Leo", onScreen: ["Leo"] }), idea);
+    expect(ok.filter((p) => /speaker|character/.test(p))).toEqual([]);
+    expect(scriptProblems(mk({}, [MAYA]), idea)).toContainEqual(expect.stringMatching(/two different people \(she and he\)/));
+  });
+
+  it("a pronoun after a connective is still the pronoun ('Then she adds')", () => {
+    const a = quoteSpeakers('The mother says: "Go." Then she adds: "Now."');
+    expect(a[1]).toMatchObject({ who: "she", pronoun: true, gender: "female" });
+    expect(differentSpeakers(a[0], a[1])).toBe(false);
+    expect(quoteSpeakers('He sits. Finally, he whispers: "Stay."')[0]).toMatchObject({ who: "he", pronoun: true });
+    // Connectives are not speakers either.
+    const nouns = quoteSpeakers('The detective says: "Sit." Then the suspect answers: "No."');
+    expect(nouns.map((x) => x?.who)).toEqual(["detective", "suspect"]);
+  });
+
+  it("a possessive does not set the speaker ('The bride's father says')", () => {
+    expect(quoteSpeakers('The bride\'s father says: "Welcome."')[0]).toMatchObject({ who: "father", gender: "male" });
+    expect(quoteSpeakers("The groom’s mother says: \"Welcome.\"")[0]).toMatchObject({ who: "mother", gender: "female" });
+    expect(quoteSpeakers('My sister\'s husband asks: "Ready?"')[0]).toMatchObject({ who: "husband", gender: "male" });
+  });
+
+  it("a pronoun in a leading subordinate clause is not the speaker ('As she opens the door, her husband asks')", () => {
+    const WHERE = "Where were you?";
+    const door = `As she opens the door, her husband asks: "${WHERE}"`;
+    expect(quoteSpeakers(door)[0]).toMatchObject({ who: "husband", gender: "male", pronoun: false });
+    // The right script (husband with a male voice) passes; a female voice is the one that gets flagged.
+    const one = (gender: "female" | "male"): Script =>
+      script({ ...draft([shot({ line: WHERE, seconds: 8 })]), characters: [{ ...MAYA, voice: { ...MAYA.voice, gender } }] }, [WHERE]);
+    expect(scriptProblems(one("male"), door)).toEqual([]);
+    expect(scriptProblems(one("female"), door)).toContainEqual(expect.stringMatching(/is said by a male speaker.*"Maya" has a female voice/));
+
+    const late = 'When he walks in, his wife says: "You are late." He answers: "I know."';
+    const said = quoteSpeakers(late);
+    expect(said.map((a) => a?.who)).toEqual(["wife", "he"]);
+    expect(differentSpeakers(said[0], said[1])).toBe(true);
+    const solo = script(
+      { ...draft([shot({ line: "You are late.", seconds: 5 }), shot({ id: "s2", line: "I know.", seconds: 5 })]), characters: [MAYA] },
+      ["You are late.", "I know."],
+    );
+    expect(scriptProblems(solo, late)).toContainEqual(expect.stringMatching(/two different people \(wife and he\) but the script has 1 character/));
+    // Connective first, and the other subordinators too.
+    expect(quoteSpeakers('Then, while he cooks, the mother says: "Eat."')[0]).toMatchObject({ who: "mother", gender: "female" });
+    expect(quoteSpeakers('After she leaves, he whispers: "Finally."')[0]).toMatchObject({ who: "he", gender: "male" });
+  });
+
+  it("writeScript on the dialogue idea with the mock writer: two characters, s1.speaker ≠ s2.speaker", async () => {
+    const llm = new MockLlm({ responder: mockScriptResponder });
+    const { script: s } = await writeScript(KITCHEN, { llm });
+    expect(s.characters).toHaveLength(2);
+    expect(s.shots.map((x) => x.line)).toEqual([OPEN, SICK]);
+    expect(s.shots[0]!.speaker).not.toBe(s.shots[1]!.speaker);
+    const genderOf = (name?: string) => s.characters.find((c) => c.name === name)?.voice.gender;
+    expect(s.shots.map((x) => genderOf(x.speaker))).toEqual(["female", "male"]);
+    expect(llm.calls).toHaveLength(1);
+  });
+
+  it("the prompt asks for 1–2 characters, one speaker per spoken shot, shot-reverse-shot and voiceDescription", () => {
+    expect(SCRIPT_PROMPT_VERSION).toBe("script-v4");
+    expect(SCRIPT_SYSTEM).toMatch(/"characters" has 1 or 2 entries/);
+    expect(SCRIPT_SYSTEM).toMatch(/exactly one "speaker"/);
+    expect(SCRIPT_SYSTEM).toMatch(/shot-reverse-shot/);
+    expect(SCRIPT_SYSTEM).toMatch(/voiceDescription/);
   });
 });
 
@@ -270,8 +426,10 @@ describe("writeScript pre-spend guards (F10 acceptance 2)", () => {
 });
 
 describe("several quoted lines per shot (F10 acceptance 3)", () => {
+  // The detective idea says "He asks": since F11 the speaker's voice must be plausibly his.
+  const he = (d: ScriptDraft): ScriptDraft => ({ ...d, characters: [{ ...MAYA, voice: { ...MAYA.voice, gender: "male" } }] });
   const two = (l1: string, l2: string) =>
-    script(draft([shot({ line: l1, seconds: 5 }), shot({ id: "s2", line: l2, seconds: 5 })]), THREE);
+    script(he(draft([shot({ line: l1, seconds: 5 }), shot({ id: "s2", line: l2, seconds: 5 })])), THREE);
 
   it("accepts two quotes in one shot, in idea order", () => {
     expect(scriptProblems(two(`${THREE[0]} ${THREE[1]}`, THREE[2]!), THREE_IDEA)).toEqual([]);
@@ -283,7 +441,7 @@ describe("several quoted lines per shot (F10 acceptance 3)", () => {
     expect(scriptProblems(two(`${THREE[0]} Tell me. ${THREE[1]}`, THREE[2]!), THREE_IDEA).join("\n")).toMatch(/s1.*words outside the quoted lines.*Tell me/);
   });
   it("writeScript passes when the mock LLM returns two quotes in one shot", async () => {
-    const d = draft([shot({ line: `${THREE[0]} ${THREE[1]}`, seconds: 5 }), shot({ id: "s2", line: THREE[2]!, seconds: 5 })]);
+    const d = he(draft([shot({ line: `${THREE[0]} ${THREE[1]}`, seconds: 5 }), shot({ id: "s2", line: THREE[2]!, seconds: 5 })]));
     const llm = new MockLlm({ queue: [d] });
     const { script: s, attempts } = await writeScript(THREE_IDEA, { llm });
     expect(s.quotedLines).toEqual(THREE);

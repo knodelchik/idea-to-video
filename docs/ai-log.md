@@ -155,3 +155,19 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [F10] Span placeholders used U+E000–U+F8FF, but private-use characters already in the input were not removed.
   `wordCount("Hi ")` (Apple logo) crashed, and a literal U+E000 was read as span #0 → caught by the reviewer →
   `fold()` turns `\p{Co}` into spaces before span marking. Tests added.
+- [F11] The first idea-attribution heuristic looked for a gendered noun in the first 5 words of the clause, so
+  "A teenager hugs her dad and says" made the speaker male. That would have added a false voice-gender rejection
+  → caught by running `quoteSpeakers` over every eval idea before wiring it into `scriptProblems` → the subject is
+  limited to its first 3 words, and a test pins the case.
+- [F11] `quoteSpeakers` only read the text *before* each quote, recognised she/he only as the clause's first
+  word, and let a possessive set the gender. So `"A," she says. "B," he asks.` gave [none, she]: the mock run
+  passed with one woman saying "Mom, are you sick?" to herself, which is the bug F11 exists to catch. "Then she
+  adds" became a second speaker, and "The bride's father" became female. The unit tests only covered the
+  `She says: "…"` form, so they passed for the wrong reason → caught by the attempt-1 reviewer → trailing speech
+  tags are now parsed, a she/he anywhere in the clause is the subject, leading connectives and possessives are
+  skipped, and each form has a test.
+- [F11] `subjectOf` took any she/he before the speech verb as the speaker, including one in a leading subordinate
+  clause. So 'As she opens the door, her husband asks' gave a female speaker, and the gender check rejected a
+  correct script. 'When he walks in, his wife says … He answers' gave he/he, which hid the 'Mom' bug → caught
+  by the attempt-2 reviewer with tsx → a leading as/when/while/… clause up to its comma is dropped before
+  looking for the subject. Both ideas are tests in tests/script.test.ts.

@@ -11,6 +11,7 @@ import { formatIssues, type Transcript } from "../schemas.ts";
 import { colorImageArgs, muxArgs, stillVideoArgs, toneArgs } from "../media/args.ts";
 import { probe, run } from "../media/ffmpeg.ts";
 import { readTranscript, writeTranscript } from "../util/sidecar.ts";
+import { differentSpeakers, quoteSpeakers, type Attribution, type Gender } from "../speakers.ts";
 import { splitDelivery, wordCount } from "../verbatim.ts";
 import { parseVerdict, PolicyRejectedError } from "./errors.ts";
 import type {
@@ -119,41 +120,82 @@ function packLines(quoted: string[]): string[] {
 /** Line the mock writer uses when the idea quotes none. Plain words, no digits (passes scriptProblems). */
 export const MOCK_DEFAULT_LINE = "I never stopped looking for you.";
 
+const MOCK_CAST: Record<Gender, { name: string; look: string; tone: string }[]> = {
+  female: [
+    { name: "Alex", look: "a woman in her thirties with short dark hair, a grey wool coat, a small scar above the left eyebrow", tone: "low and steady" },
+    { name: "Rosa", look: "a woman in her fifties with silver-streaked curly hair, a burgundy cardigan, thin gold reading glasses", tone: "warm and tired" },
+  ],
+  male: [
+    { name: "Sam", look: "a man in his twenties with messy brown hair, a navy hoodie, a faint freckled nose and tired green eyes", tone: "soft and anxious" },
+    { name: "Dan", look: "a man in his sixties with a short white beard, a flat cap, a brown corduroy jacket with patched elbows", tone: "deep and slow" },
+  ],
+};
+
+/** Quote groups by speaker, in order: each run of consecutive lines from one person, with that person's gender. */
+function speakerGroups(idea: string, quoted: string[]): { lines: string[]; gender?: Gender }[] {
+  let said: (Attribution | undefined)[];
+  try {
+    said = quoteSpeakers(idea);
+  } catch {
+    said = [];
+  }
+  if (said.length !== quoted.length) return [{ lines: quoted }];
+  const groups: { lines: string[]; gender?: Gender }[] = [];
+  quoted.forEach((q, i) => {
+    const g = said[i]?.gender;
+    const last = groups.at(-1);
+    if (last && !differentSpeakers(said[i - 1], said[i])) {
+      last.lines.push(q);
+      last.gender ??= g;
+    } else groups.push({ lines: [q], ...(g ? { gender: g } : {}) });
+  });
+  return groups;
+}
+
 /**
  * A script draft for any idea, read back out of the script prompt (`Idea:` block + `- "quoted line"` bullets), so
- * `pnpm make --mock` runs end to end with no canned queue. Shape: a silent 4 s establishing shot, then the
- * line(s); every shot is long enough for its words (words / 2.6 + 0.8 s, rounded up, plus 1 s of room).
+ * `pnpm make --mock` runs end to end with no canned queue. One speaker: a silent 4 s establishing shot, then the
+ * line(s). Two people given lines in the idea (F11): two characters, shot-reverse-shot, one speaker per shot. Every
+ * shot is long enough for its words (words / 2.6 + 0.8 s, rounded up, plus 1 s of room); voices follow the idea's
+ * "she"/"he".
  */
 export const mockScriptResponder: Responder = (prompt) => {
   const idea = /Idea:\n([\s\S]*?)\n\n/.exec(prompt)?.[1]?.trim() || "a quiet moment";
   const quoted = [...prompt.matchAll(/^- (".*")$/gm)].map((m) => JSON.parse(m[1]!) as string);
-  const lines = quoted.length ? packLines(quoted) : [MOCK_DEFAULT_LINE];
+  const groups: { lines: string[]; gender?: Gender }[] = quoted.length ? speakerGroups(idea, quoted) : [{ lines: [MOCK_DEFAULT_LINE] }];
+  const dialogue = groups.length === 2;
+  const used = { female: 0, male: 0 };
+  const cast = (dialogue ? groups : [groups[0]!]).map((g, i) => {
+    const gender: Gender = g.gender ?? (dialogue && i === 1 ? "male" : "female");
+    const c = MOCK_CAST[gender][used[gender]++ % 2]!;
+    return {
+      name: c.name,
+      look: c.look,
+      voice: { gender, age: "adult" as const, tone: c.tone },
+      voiceDescription: `${c.tone} ${gender} voice, adult, neutral American accent, unhurried`,
+    };
+  });
   // Sized by *spoken* words (wordCount), like scriptProblems: "1987" is three words, "[whispers]" none.
   const secondsFor = (line: string) => Math.min(15, Math.max(5, Math.ceil(spokenWords(line) / 2.6 + 0.8) + 1));
-  const shot = (id: "s1" | "s2", line: string, seconds: number) => ({
+  const shot = (id: "s1" | "s2", line: string, seconds: number, who: string) => ({
     id,
     camera: "close-up",
-    visual: `The character in the scene from the idea: ${idea}`,
+    visual: `${who} in the scene from the idea: ${idea}`,
     motion: "slow push-in",
     emotion: line ? "quiet resolve" : "stillness",
     line,
     seconds,
+    ...(line ? { speaker: who } : {}),
+    onScreen: [who],
   });
-  const shots =
-    lines.length === 2
-      ? lines.map((l, i) => shot(i === 0 ? "s1" : "s2", l, secondsFor(l)))
-      : [shot("s1", "", 4), shot("s2", lines[0]!, secondsFor(lines[0]!))];
-  return {
-    title: "Mock beat",
-    logline: idea,
-    setting: "a dim interior at night",
-    character: {
-      name: "Alex",
-      look: "a woman in her thirties with short dark hair, a grey wool coat, a small scar above the left eyebrow",
-      voice: { gender: "female", age: "adult", tone: "low and steady" },
-    },
-    shots,
-  };
+  const name = cast[0]!.name;
+  const lines = dialogue ? groups.map((g) => g.lines.join(" ")) : quoted.length ? packLines(quoted) : [MOCK_DEFAULT_LINE];
+  const shots = dialogue
+    ? lines.map((l, i) => shot(i === 0 ? "s1" : "s2", l, secondsFor(l), cast[i]!.name))
+    : lines.length === 2
+      ? lines.map((l, i) => shot(i === 0 ? "s1" : "s2", l, secondsFor(l), name))
+      : [shot("s1", "", 4, name), shot("s2", lines[0]!, secondsFor(lines[0]!), name)];
+  return { title: "Mock beat", logline: idea, setting: "a dim interior at night", characters: cast, shots };
 };
 
 // --- TTS ---

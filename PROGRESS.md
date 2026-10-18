@@ -226,3 +226,33 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - Mocks: the mock writer sizes shots by spoken words, and MockAsr hears only speakable tokens.
 - `npx tsx evals/run.ts --mock --set hard` runs `evals/hard.jsonl`. Rejected ideas show as `rejected: true`.
 - Every model in both Gemini default chains has a price (tested).
+
+## F11 — Two speakers, and prompts written the way Seedance 2.0 documents them
+- Contract: `Script.characters` (1–2 entries, unique names, each with a `voiceDescription`) and
+  `Shot.speaker` / `Shot.onScreen`. The rules live in `castProblems`. Old single-`character` scripts and manifests
+  still parse: `migrateScript` runs inside `Script`. Helpers: `speakerOf(script, shot)`, and `castOf`, which lists
+  the speaker first.
+- `src/speakers.ts` → `quoteSpeakers(idea)` reads who says each quoted line. `scriptProblems` rejects:
+  - one character for two attributed speakers;
+  - one character saying lines that belong to different people;
+  - a she/he line given to the wrong voice gender.
+
+  `preSpendProblems` rejects more than 2 speaker turns for $0. A leading subordinate clause ("As she opens the
+  door, her husband asks") is ignored when finding the speaker.
+- Visuals: `castCharacters(script)` → `{ portraits: { name: path } }`. `keyframeShot`, `talkingShot({ portrait })` and
+  `judgedKeyframe` take that map, or a single path for one character. In refs mode the refs are the speaker's
+  portrait, then the others, then the keyframe. The judge compares the clip with the speaker's portrait.
+- Prompts `visuals-v3` (`src/prompts/visuals.ts`):
+  - starts with the audio policy;
+  - `Voice: …`, then `Name … says in English: {line}` with nothing after the brace;
+  - `@Image N (Name)` / `@Image N (opening frame)` refs;
+  - judge issues, then the constraint tail last.
+
+  Script prompt `script-v4`: 1–2 characters, one speaker per spoken shot, shot-reverse-shot.
+- Assembly adds a 200 ms end fade-out per segment (`END_FADE`, `segmentArgs({ endFade })`).
+- Try it: `npx tsx src/cli.ts 'At the kitchen table, a mother slides an envelope to her son. She says: "Open it after I leave." He looks up and asks: "Mom, are you sick?"' --mock --json`.
+  The mock writer makes Alex (she) and Sam (he), one line each.
+- Attempt 2: speaker attribution also reads trailing tags (`"…," she says.`, `"…?" asks her son.`), pronouns after
+  connectives ("Then she adds") and possessive subjects ("The bride's father" → male). Try:
+  `pnpm make 'A mother slides an envelope to her son. "Open it after I leave," she says. "Mom, are you sick?" he asks.' --mock`
+  → Alex (she) says line 1, Sam (he) says line 2.

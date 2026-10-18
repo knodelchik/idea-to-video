@@ -98,3 +98,21 @@
 2026-10-19 01:00:55 F10-hard-lines attempt 3: implementer
 2026-10-19 01:06:25 F10-hard-lines attempt 3: gate
 2026-10-19 01:07:40 F10-hard-lines attempt 3: reviewer
+2026-10-19 01:12:46 F10-hard-lines PASSED on attempt 3 -> 8aa77b0
+2026-10-19 01:12:46 ### F11-dialogue-seedance start (specs/F11-dialogue-seedance-playbook.md)
+2026-10-19 01:12:46 F11-dialogue-seedance attempt 1: implementer
+2026-10-19 01:28:58 F11-dialogue-seedance attempt 1: gate
+2026-10-19 01:29:55 F11-dialogue-seedance attempt 1: reviewer
+2026-10-19 01:34:15 F11-dialogue-seedance attempt 1: REVIEW FAIL
+    - src/speakers.ts:55-65 quoteSpeakers only reads text before each quote, so a speech verb after a quote is credited to the next quote. '"Open it after I leave," she says. "Mom, are you sick?" he asks.' gives [none, she]. Reproduced: pnpm make --mock returns ok:true with one female character saying 'Mom, are you sick?' to herself (the exact F11 bug). A correct script (Rosa female for line 1, Leo male for line 2) is rejected by src/nodes/script.ts:201 with '"Mom, are you sick?" (she) is said by a female speaker'.
+    - src/speakers.ts:40-44 she/he is only recognised as the first word. 'Then she adds' becomes a noun attribution {who:'she', pronoun:false}, so 'The mother says: "Go." Then she adds: "Now."' counts as 2 different speakers (confirmed). This contradicts the spec's Decisions ('the mother … she adds is not flagged') and rejects a one-character script for a monologue idea.
+    - src/speakers.ts:42-43 a possessive noun sets the speaker's gender: "The bride's father says:" gives {who:'bride', gender:'female'}, so check 3 (src/nodes/script.ts:201) rejects any script that gives the father a male voice.
+    - tests/script.test.ts 'speakers (F11)' has no tests for attribution after the quote, a pronoun after a connective ('Then she…'), or a possessive subject. The core feature's attribution logic is only tested on the 'She says: "…"' form.
+2026-10-19 01:34:15 F11-dialogue-seedance attempt 2: implementer
+2026-10-19 01:39:43 F11-dialogue-seedance attempt 2: gate
+2026-10-19 01:40:39 F11-dialogue-seedance attempt 2: reviewer
+2026-10-19 01:45:06 F11-dialogue-seedance attempt 2: REVIEW FAIL
+    - src/speakers.ts:45 subjectOf takes any she/he in the clause before the speech verb as the speaker, including one in a leading subordinate clause. Verified with tsx: 'As she opens the door, her husband asks: "Where were you?"' gives she/female, and 'When he walks in, his wife says: "You are late." He answers: "I know."' gives he/he. As a result, the gender check at src/nodes/script.ts:201 rejects a correct script (husband with a male voice) and tells the model to give the line to a female voice, which burns retries or ends in ScriptError. In the second idea the two lines are not flagged as different speakers, so the one-character 'Mom' bug F11 targets goes undetected. Fix: drop leading subordinate clauses (as/when/while/after/before/once/if ... up to the comma) before looking for she/he, or prefer the gendered noun right before the verb over an earlier pronoun. Add both ideas as tests in tests/script.test.ts.
+2026-10-19 01:45:06 F11-dialogue-seedance attempt 3: implementer
+2026-10-19 01:50:20 F11-dialogue-seedance attempt 3: gate
+2026-10-19 01:51:16 F11-dialogue-seedance attempt 3: reviewer

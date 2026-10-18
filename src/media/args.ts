@@ -52,6 +52,11 @@ export interface SegmentOpts {
   audio: boolean;
   /** Fade length at each end of the audio, seconds. Two adjacent segments' fades form a short crossfade at the cut. */
   fade: number;
+  /**
+   * An extra, longer audio fade-out over the end of the segment, seconds (0 = none). Seedance clips often end on a
+   * click or cut-off noise; the official fix is a fade-out at the end (docs/research/seedance-playbook.md §4).
+   */
+  endFade?: number;
 }
 
 /**
@@ -60,13 +65,19 @@ export interface SegmentOpts {
  * segment's own edges, so the cut keeps every segment's length and speech timing (an acrossfade would overlap
  * and shorten the audio, desyncing lips from the following shot).
  */
-export function segmentArgs({ input, out, seconds, audio, fade }: SegmentOpts): string[] {
+export function segmentArgs({ input, out, seconds, audio, fade, endFade = 0 }: SegmentOpts): string[] {
   assertSeconds(seconds);
   if (!Number.isFinite(fade) || fade < 0 || fade * 2 > seconds) throw new RangeError(`fade must be 0–${seconds / 2} s, got ${fade}`);
+  if (!Number.isFinite(endFade) || endFade < 0 || endFade + fade > seconds) {
+    throw new RangeError(`endFade must be 0–${seconds - fade} s, got ${endFade}`);
+  }
   const frames = frameCount(seconds);
   const exact = sec(frames / FPS);
   const vf = `${COVER},fps=${FPS},tpad=stop_mode=clone:stop=-1,format=yuv420p`;
-  const fades = fade > 0 ? `,afade=t=in:st=0:d=${sec(fade)},afade=t=out:st=${sec(frames / FPS - fade)}:d=${sec(fade)}` : "";
+  const edges = fade > 0 ? `,afade=t=in:st=0:d=${sec(fade)},afade=t=out:st=${sec(frames / FPS - fade)}:d=${sec(fade)}` : "";
+  // Applied on top of the edge fade: the two gains multiply, so the last 50 ms still reach silence at the join.
+  const tail = endFade > 0 ? `,afade=t=out:st=${sec(frames / FPS - endFade)}:d=${sec(endFade)}` : "";
+  const fades = `${edges}${tail}`;
   const af = `aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:${exact}${fades}`;
   const silence = audio ? [] : ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"];
   return [

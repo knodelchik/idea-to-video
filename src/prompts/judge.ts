@@ -3,32 +3,38 @@
  * words and formats are checked by code. Bump JUDGE_PROMPT_VERSION on any wording change: it is part of the key of
  * every cached verdict.
  */
-import type { Script, Shot } from "../schemas.ts";
+import { castOf, speakerOf, type Script, type Shot } from "../schemas.ts";
 
-export const JUDGE_PROMPT_VERSION = "judge-v1";
+// v2: references are the on-screen characters' portraits; the clip is judged against the speaker's portrait (F11).
+export const JUDGE_PROMPT_VERSION = "judge-v2";
 
 const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
 
-/** A keyframe: the first frame a video model animates and a lip-sync model works on. */
+/** A keyframe: the first frame a video model animates and a lip-sync model works on. Refs: on-screen portraits. */
 export function keyframeRubric(shot: Shot, script: Script): string {
-  const c = script.character;
+  const cast = castOf(script, shot);
+  const who =
+    cast.length === 1
+      ? `4. It matches the character: ${oneLine(cast[0]!.look)}; the same person as the reference portrait.`
+      : `4. It shows ${cast.length} people, each the same person as their reference portrait, in order: ${cast.map((c) => `${oneLine(c.name)} (${oneLine(c.look)})`).join("; ")}. Nobody appears twice.`;
   return [
     "Judge this keyframe for a vertical 9:16 talking-head video. Check, and list every failure as an issue:",
     "1. Anatomy: correct hands and fingers, eyes, teeth, limbs; nothing melted, duplicated or missing.",
     "2. The face is large and sharp enough for lip-sync: frontal or three-quarter, mouth fully visible, in focus.",
     `3. It matches the shot: ${oneLine(shot.camera)}. ${oneLine(shot.visual)}. Setting: ${oneLine(script.setting)}.`,
-    `4. It matches the character: ${oneLine(c.look)}; the same person as the reference portrait.`,
+    who,
     "5. No text, captions, logos or watermark anywhere.",
     "6. Vertical composition: the subject fills a portrait frame, nothing important cut off.",
   ].join("\n");
 }
 
-/** A clip, seen as a few evenly sampled frames, with the portrait as reference. */
+/** A clip, seen as a few evenly sampled frames, with the speaker's portrait (silent shot: first on screen) as reference. */
 export function clipRubric(shot: Shot, script: Script): string {
   const speaking = shot.line.trim() !== "";
+  const c = speakerOf(script, shot);
   return [
     "Judge these frames, sampled in order from one vertical video clip. Check, and list every failure as an issue:",
-    `1. Same person as the reference portrait in every frame (${oneLine(script.character.look)}).`,
+    `1. The ${speaking ? "speaker" : "main character"}, ${oneLine(c.name)}, is the same person as the reference portrait in every frame (${oneLine(c.look)}).`,
     "2. No warping or morphing: face, hands and background stay stable and coherent between frames.",
     speaking
       ? "3. Mouth region intact and natural in every frame (it is speaking): no smearing, extra teeth or blur."
@@ -39,7 +45,12 @@ export function clipRubric(shot: Shot, script: Script): string {
 
 /** The retry prompt: the original, plus what the judge saw wrong, so the next take can fix it. */
 export function withIssues(prompt: string, issues: string[]): string {
+  const note = issuesNote(issues);
+  return note ? `${prompt} ${note}` : prompt;
+}
+
+/** The judge's issues as one sentence ("" when there are none), for prompts that place it themselves. */
+export function issuesNote(issues: string[]): string {
   const list = issues.map(oneLine).filter(Boolean);
-  if (list.length === 0) return prompt;
-  return `${prompt} Avoid these problems from the previous attempt: ${list.join("; ")}.`;
+  return list.length ? `Avoid these problems from the previous attempt: ${list.join("; ")}.` : "";
 }

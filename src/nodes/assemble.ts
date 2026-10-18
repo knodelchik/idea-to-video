@@ -16,6 +16,8 @@ import { linkSources } from "../util/sidecar.ts";
 export const SPEECH_TAIL = 0.4;
 /** Audio fade at each segment edge; two of them make the crossfade at a join. */
 export const JOIN_FADE = 0.05;
+/** Audio fade-out over the last 200 ms of every segment (F11): the official fix for Seedance's end-of-clip click. */
+export const END_FADE = 0.2;
 export const FINAL_NAME = "final.mp4";
 
 /**
@@ -45,9 +47,9 @@ export async function assemble(shots: AssembleShot[], { dir }: { dir: string }):
   const segments: { path: string; seconds: number }[] = [];
   for (const { shot, out } of shots) {
     const seconds = cutSeconds(shot.seconds, out.seconds, out.speechEnd);
-    const key = await contentKey("segment", { file: out.path }, seconds, out.hasAudio, JOIN_FADE);
+    const key = await contentKey("segment", { file: out.path }, seconds, out.hasAudio, JOIN_FADE, END_FADE);
     const made = await once(join(dir, `segment-${shot.id}-${key}.mp4`), async (tmp) => {
-      await run(segmentArgs({ input: out.path, out: tmp, seconds, audio: out.hasAudio, fade: JOIN_FADE }));
+      await run(segmentArgs({ input: out.path, out: tmp, seconds, audio: out.hasAudio, fade: JOIN_FADE, endFade: END_FADE }));
       await linkSources(tmp, [{ source: out.path, until: seconds }]);
     });
     if (made.cached) reused++;
@@ -91,7 +93,7 @@ export async function assemble(shots: AssembleShot[], { dir }: { dir: string }):
         ok: true,
         reason:
           `${segments.length} shot(s): ${segments.map((s) => `${s.seconds.toFixed(2)} s`).join(" + ")}, ` +
-          `${JOIN_FADE} s fades, loudnorm −16 LUFS${cached ? "; reused cached cut" : ""}`,
+          `${JOIN_FADE} s edge fades + ${END_FADE} s end fade-out, loudnorm −16 LUFS${cached ? "; reused cached cut" : ""}`,
         costUsd: 0,
         ms: Math.round(performance.now() - t0),
       },

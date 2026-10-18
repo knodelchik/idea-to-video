@@ -37,11 +37,14 @@ export function benchScript(line: string): Script {
     title: "Bench",
     logline: "A woman says one line to the camera.",
     setting: "a dim kitchen at night, warm practical light",
-    character: {
-      name: "Mara",
-      look: "a woman in her thirties with shoulder-length dark curly hair, a mustard knit sweater, small gold hoop earrings",
-      voice: { gender: "female", age: "adult", tone: "low and warm" },
-    },
+    characters: [
+      {
+        name: "Mara",
+        look: "a woman in her thirties with shoulder-length dark curly hair, a mustard knit sweater, small gold hoop earrings",
+        voice: { gender: "female", age: "adult", tone: "low and warm" },
+        voiceDescription: "low, warm female voice, mid-30s, neutral American accent, unhurried",
+      },
+    ],
     shots: [benchShot(line, 8)],
     quotedLines: [line],
   };
@@ -56,6 +59,8 @@ export function benchShot(line: string, seconds: number): Shot {
     emotion: "quiet resolve",
     line,
     seconds,
+    ...(line.trim() ? { speaker: "Mara" } : {}),
+    onScreen: ["Mara"],
   };
 }
 
@@ -79,7 +84,7 @@ export async function fixedInputs(line: string, shared: BenchShared, dir: string
   const prompt = portraitPrompt(script);
   const key = await contentKey(BENCH_VERSION, "keyframe", shared.image.name, prompt);
   const kf = await once(join(dir, `keyframe-${key}.png`), (tmp) => shared.image.generate({ prompt, out: tmp }));
-  const voice = await verifiedVoice(line, script.character, { tts: shared.tts, asr: shared.asr, dir, emotion: "quiet resolve" });
+  const voice = await verifiedVoice(line, script.characters[0]!, { tts: shared.tts, asr: shared.asr, dir, emotion: "quiet resolve" });
   const costUsd = (kf.result?.costUsd ?? 0) + voice.attempts.reduce((s, a) => s + a.costUsd, 0);
   return { keyframe: kf.path, voice: { path: voice.path, seconds: voice.seconds }, costUsd };
 }

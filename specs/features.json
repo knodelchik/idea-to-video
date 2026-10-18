@@ -87,7 +87,7 @@
     {
       "id": "F11-dialogue-seedance",
       "spec": "specs/F11-dialogue-seedance-playbook.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/schemas.test.ts tests/visuals.test.ts tests/script.test.ts",
         "npx tsx src/cli.ts 'At the kitchen table, a mother slides an envelope to her son. She says: \"Open it after I leave.\" He looks up and asks: \"Mom, are you sick?\"' --mock --json"

@@ -5,7 +5,8 @@
 import { performance } from "node:perf_hooks";
 import type { LlmProvider } from "../providers/index.ts";
 import { firstPrompt, retryPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../prompts/script.ts";
-import { formatIssues, Script, SCRIPT_SECONDS, ScriptDraft, SHOT_SECONDS, type Attempt } from "../schemas.ts";
+import { castProblems, formatIssues, Script, SCRIPT_SECONDS, ScriptDraft, SHOT_SECONDS, type Attempt, type Character } from "../schemas.ts";
+import { differentSpeakers, quoteSpeakers, speakerRuns } from "../speakers.ts";
 import { extractQuotedLines, nonLatinLetters, QuoteError, splitDelivery, wordCount } from "../verbatim.ts";
 
 /** Conservative speaking rate (words/s) plus breath, so TTS/video lines fit their shot. */
@@ -55,6 +56,11 @@ export function preSpendProblems(idea: string): string[] {
       `${quoted.length} quoted lines (${words.reduce((a, b) => a + b, 0)} words) can't be spoken in order within ${MAX_SHOTS} shots of at most ${SHOT_SECONDS.max} s each; use fewer or shorter lines`,
     );
   }
+  // One speaker per shot (F11): every change of speaker needs a new shot.
+  const runs = speakerRuns(quoteSpeakers(idea));
+  if (runs > MAX_SHOTS) {
+    out.push(`the quoted lines change speaker ${runs - 1} times, but each of the ${MAX_SHOTS} shots has one speaker; use at most ${MAX_SHOTS} turns of dialogue`);
+  }
   return out;
 }
 
@@ -69,9 +75,14 @@ function fitsShots(words: number[]): boolean {
  * Place each quote, in idea order, as a contiguous part of one shot line. Returns, per shot, the line with its
  * quotes cut out (what the model added around them), and a problem for every quote that can't be placed.
  */
-function placeQuotes(lines: string[], quoted: string[]): { leftovers: (string | undefined)[]; problems: string[] } {
+function placeQuotes(
+  lines: string[],
+  quoted: string[],
+): { leftovers: (string | undefined)[]; problems: string[]; shotOf: number[] } {
   const leftovers: (string | undefined)[] = lines.map(() => undefined);
   const problems: string[] = [];
+  /** Index of the shot each quote landed in; -1 when it is missing. */
+  const shotOf: number[] = [];
   let shot = 0;
   let pos = 0;
   for (const q of quoted) {
@@ -86,6 +97,7 @@ function placeQuotes(lines: string[], quoted: string[]): { leftovers: (string | 
       problems.push(
         `quoted line ${JSON.stringify(q)} must appear in a shot line exactly, character-for-character, after the quoted lines before it; shot lines were: ${spoken}`,
       );
+      shotOf.push(-1);
       continue;
     }
     const left = leftovers[s] ?? lines[s]!;
@@ -93,8 +105,9 @@ function placeQuotes(lines: string[], quoted: string[]): { leftovers: (string | 
     leftovers[s] = left.slice(0, at) + " ".repeat(q.length) + left.slice(at + q.length);
     shot = s;
     pos = at + q.length;
+    shotOf.push(s);
   }
-  return { leftovers, problems };
+  return { leftovers, problems, shotOf };
 }
 
 /** Deterministic checks. Each message names the field and the fix, since it goes straight back to the model. */
@@ -103,8 +116,10 @@ export function scriptProblems(script: Script, idea: string): string[] {
   const quoted = extractQuotedLines(idea);
   const lines = script.shots.map((s) => s.line);
 
-  const { leftovers, problems } = placeQuotes(lines, quoted);
+  const { leftovers, problems, shotOf } = placeQuotes(lines, quoted);
   out.push(...problems);
+  out.push(...castProblems(script).map((p) => p.message));
+  out.push(...speakerProblems(script, idea, quoted, shotOf));
   if (JSON.stringify(script.quotedLines) !== JSON.stringify(quoted)) {
     out.push(`quotedLines must be ${JSON.stringify(quoted)}, got ${JSON.stringify(script.quotedLines)}`);
   }
@@ -141,9 +156,51 @@ export function scriptProblems(script: Script, idea: string): string[] {
     }
   });
 
-  const look = looseWords(script.character.look);
-  if (look < MIN_LOOK_WORDS) {
-    out.push(`character.look has ${look} words; needs at least ${MIN_LOOK_WORDS} words of concrete visual detail`);
+  script.characters.forEach((c, i) => {
+    const look = looseWords(c.look);
+    if (look < MIN_LOOK_WORDS) {
+      out.push(`characters[${i}].look (${c.name}) has ${look} words; needs at least ${MIN_LOOK_WORDS} words of concrete visual detail`);
+    }
+  });
+  return out;
+}
+
+/**
+ * Each quoted line is said by a plausible speaker (F11): lines the idea gives to different people go to different
+ * characters, and a "she"/"he" line goes to a character with that voice. Catches the silent failure where one
+ * character says both halves of a dialogue ("…, Mom." to herself).
+ */
+function speakerProblems(script: Script, idea: string, quoted: string[], shotOf: number[]): string[] {
+  const said = quoteSpeakers(idea);
+  const out: string[] = [];
+  const speakerAt = (i: number): Character | undefined => {
+    const shot = script.shots[shotOf[i] ?? -1];
+    return shot?.speaker ? script.characters.find((c) => c.name === shot.speaker) : undefined;
+  };
+  const q = (i: number) => `${JSON.stringify(quoted[i])} (${said[i]!.who})`;
+  let reportedCount = false;
+  for (let i = 0; i < quoted.length; i++) {
+    for (let j = i + 1; j < quoted.length; j++) {
+      if (!differentSpeakers(said[i], said[j])) continue;
+      if (script.characters.length < 2) {
+        if (!reportedCount) {
+          out.push(
+            `the idea gives lines to two different people (${said[i]!.who} and ${said[j]!.who}) but the script has ${script.characters.length} character; add the second character and make each one the speaker of their own line`,
+          );
+          reportedCount = true;
+        }
+        continue;
+      }
+      const a = speakerAt(i);
+      if (a && a === speakerAt(j)) {
+        out.push(`quoted lines ${q(i)} and ${q(j)} are said by different people in the idea, but "${a.name}" says both; give each line to its own speaker`);
+      }
+    }
+    const gender = said[i]?.gender;
+    const who = speakerAt(i);
+    if (gender && who && who.voice.gender !== gender) {
+      out.push(`quoted line ${q(i)} is said by a ${gender} speaker in the idea, but its shot's speaker "${who.name}" has a ${who.voice.gender} voice`);
+    }
   }
   return out;
 }

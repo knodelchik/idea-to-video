@@ -1,90 +1,169 @@
 /**
  * Image and video prompts. Pure, so tests can pin exactly what a model is asked for. Bump VISUALS_PROMPT_VERSION
  * on any wording change: it is part of every artifact's content key, so a changed prompt makes a new file.
+ *
+ * Video prompts follow the official Seedance 2.0 guide (docs/research/seedance-playbook.md, "Changes we should
+ * make" 2–8): audio policy first, dialogue as `Name says in English: {line}` with nothing after the closing brace,
+ * references as `@Image N (noun)` in upload order, one camera move, and the constraint tail last.
  */
-import type { Script, Shot } from "../schemas.ts";
+import { castOf, speakerOf, type Character, type Script, type Shot } from "../schemas.ts";
 import { splitDelivery } from "../verbatim.ts";
+import { issuesNote } from "./judge.ts";
 
-export const VISUALS_PROMPT_VERSION = "visuals-v2";
+// v3: Seedance playbook wording, 1–2 characters (F11).
+export const VISUALS_PROMPT_VERSION = "visuals-v3";
 
 const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
+/** A field as one sentence: single-spaced, ending in exactly one full stop (unless it ends in ! or ?). */
+const sentence = (s: string): string => `${oneLine(s).replace(/[.\s]+$/, "")}${/[!?]$/.test(oneLine(s)) ? "" : "."}`;
 
 /** Image and video models write gibberish: any note, sign or screen in frame must show no readable writing. */
 const NO_WRITING = "Any paper, note, sign or screen in frame shows no legible writing: blank, folded, or turned away from the camera.";
 
-/** Identity anchor: every keyframe is generated with this as a reference, so the face is decided once. */
-export function portraitPrompt(script: Script): string {
-  const c = script.character;
+const NO_MUSIC = "no music, background music, BGM, score, instrumental, melody, soundtrack, synth, ambient pad or stinger at any moment.";
+
+/** The official headshot spec (playbook change 6). One view only: multi-view sheets make bad references. */
+export const HEADSHOT =
+  "Front-facing close-up framed above the shoulders, the face filling about two-thirds of the frame, neutral expression, mouth closed, plain light-grey background, even soft light. Vertical portrait.";
+
+const characterNamed = (script: Script, name: string | undefined): Character => {
+  const c = name === undefined ? script.characters[0] : script.characters.find((x) => x.name === name);
+  if (!c) throw new Error(`no character named ${JSON.stringify(name)} in the script`);
+  return c;
+};
+
+/** Identity anchor, one per character: every keyframe showing them is generated with it as a reference. */
+export function portraitPrompt(script: Script, name?: string): string {
+  const c = characterNamed(script, name);
   return [
-    `Character reference portrait of ${oneLine(c.name)}: ${oneLine(c.look)}.`,
-    "Head and shoulders, facing the camera, face large in frame, neutral expression, mouth closed.",
-    "Soft even neutral light, plain light-grey background.",
-    "Photoreal, vertical 9:16, no text, no watermark.",
+    `Character reference portrait of ${oneLine(c.name)}: ${sentence(c.look)}`,
+    HEADSHOT,
+    "Photoreal, 9:16, a single photo (not a multi-view sheet), no text, no watermark.",
   ].join(" ");
 }
 
-/** First frame of a shot. Mouth closed: the video model opens it when the line starts. */
+/** First frame of a shot: everyone on screen, speaker first (the order of the portrait refs). Mouths closed. */
 export function keyframePrompt(shot: Shot, script: Script): string {
-  const c = script.character;
+  const cast = castOf(script, shot);
+  const same =
+    cast.length === 1
+      ? "Same person as the reference image."
+      : `Same people as the reference images, in order: ${cast.map((c) => oneLine(c.name)).join(", ")}.`;
   return [
-    `${oneLine(c.name)}, ${oneLine(c.look)}.`,
-    `Setting: ${oneLine(script.setting)}.`,
-    `Shot: ${shot.camera}. ${oneLine(shot.visual)}.`,
-    `Emotion: ${oneLine(shot.emotion)}.`,
-    "Same person as the reference image.",
+    ...cast.map((c) => `${oneLine(c.name)}, ${sentence(c.look)}`),
+    `Setting: ${sentence(script.setting)}`,
+    `Shot: ${shot.camera}. ${sentence(shot.visual)}`,
+    `Emotion: ${sentence(shot.emotion)}`,
+    same,
     "Photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed, no text, no watermark.",
     NO_WRITING,
   ].join(" ");
 }
 
-/**
- * Image-to-video prompt. The spoken line goes in double quotes exactly as written (Seedance lip-syncs quoted
- * dialogue); delivery tags ("[whispers]") are not words, so they move into the emotion instead of the quote.
- */
-export function talkingPrompt(shot: Shot, script: Script): string {
-  const { spoken, tags, emoji } = splitDelivery(shot.line);
-  const emotion = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
-  const scene = `${oneLine(shot.visual)}. ${oneLine(shot.motion)}.`;
-  if (spoken === "") {
-    return [
-      scene,
-      `Emotion: ${emotion}. One person, ${oneLine(script.character.name)}, silent, mouth closed.`,
-      "Locked-off camera with at most a slow push-in. No speech, no music, no text.",
-      NO_WRITING,
-    ].join(" ");
-  }
-  // Emoji are not words either: a model asked to "say" 🚀 may improvise one (F10).
-  const said = tags.length || emoji ? spoken : shot.line;
+export interface VideoPromptOpts {
+  /** Judge issues from the previous take; they go before the constraint tail, which stays last. */
+  issues?: string[];
+}
+
+/** How a character is named in the body: with its `@Image N (Name)` tag when its portrait is a reference. */
+type Naming = (c: Character) => string;
+const plain: Naming = (c) => oneLine(c.name);
+
+const isSpoken = (shot: Shot): boolean => splitDelivery(shot.line).spoken !== "";
+
+function audioPolicy(shot: Shot, script: Script): string {
+  return isSpoken(shot)
+    ? `Audio policy: only ${oneLine(speakerOf(script, shot).name)}'s spoken line plus quiet natural room tone; ${NO_MUSIC}`
+    : `Audio policy: no speech, only quiet natural room tone; ${NO_MUSIC}`;
+}
+
+function constraintTail(shot: Shot, script: Script): string {
+  const cast = castOf(script, shot);
+  const only = cast.map((c) => `one ${oneLine(c.name)}`).join(" and ");
   return [
-    scene,
-    `${oneLine(script.character.name)} looks toward the camera and says, ${emotion}: "${said}"`,
-    "Exactly these words, once, in English, clearly lip-synced.",
-    "One speaking face toward the camera; locked-off camera with at most a slow push-in.",
-    "No other speech, no music, no subtitles, no text.",
-    NO_WRITING,
+    isSpoken(shot)
+      ? "Generate audio strictly according to the dialogue; do not add or remove any words; one speaker only; clean, clear, standard pronunciation. No music of any kind."
+      : "No speech and no music of any kind.",
+    `${cast.length === 1 ? "The character's face remains" : "Each character's face remains"} stable and consistent throughout, without deformation; hands anatomically correct; natural, smooth movement.`,
+    `Only ${only} in frame; no duplicate or twin.`,
+    "Avoid generating subtitles, captions, a logo or a watermark.",
   ].join(" ");
 }
 
 /**
- * Prompt without a first frame, for when the provider refuses the keyframe (real-face filter). With `refs`, the
- * images are references: the first is the portrait (identity), the last the keyframe (scene and framing). Without
- * them the model only knows what the text says, so the look and the setting lead either way.
+ * The shot itself. The spoken line goes in braces exactly as written, with the delivery *before* it and nothing after
+ * the closing brace in that sentence: the guide says text attached after a line can trigger burned-in subtitles.
+ * Delivery tags ("[whispers]") and emoji are not words, so they leave the braces (tags join the delivery).
  */
-export function textToVideoPrompt(shot: Shot, script: Script, opts: { refs?: number } = {}): string {
-  const c = script.character;
-  const refs = opts.refs ?? 0;
-  const refLine =
-    refs >= 2
-      ? `Reference image 1 is ${oneLine(c.name)}: keep exactly this face, hair and outfit. Reference image ${refs} shows the scene and framing to match.`
-      : refs === 1
-        ? `The reference image shows ${oneLine(c.name)} in the scene: keep exactly this face, hair, outfit and framing.`
-        : "";
+function body(shot: Shot, script: Script, name: Naming): string[] {
+  const { spoken, tags, emoji } = splitDelivery(shot.line);
+  const delivery = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
+  const scene = `${sentence(shot.visual)} ${sentence(shot.motion)}`;
+  const camera = "Locked-off camera with at most a slow push-in.";
+  const cast = castOf(script, shot);
+  if (spoken === "") {
+    const who = cast.map(name).join(" and ");
+    return [scene, camera, `Emotion: ${delivery}. ${who} ${cast.length === 1 ? "is" : "are"} silent, mouth closed.`, NO_WRITING];
+  }
+  const [speaker, ...listeners] = cast;
+  // Emoji are not words either: a model asked to "say" 🚀 may improvise one (F10).
+  const said = tags.length || emoji ? spoken : shot.line;
   return [
-    `Photoreal vertical 9:16 ${shot.camera} of ${oneLine(c.name)}, ${oneLine(c.look)}.`,
-    `Setting: ${oneLine(script.setting)}.`,
-    refLine,
-    talkingPrompt(shot, script),
-  ]
-    .filter(Boolean)
-    .join(" ");
+    scene,
+    camera,
+    ...listeners.map((c) => `${name(c)} listens in silence, mouth closed.`),
+    `Voice: ${sentence(speaker!.voiceDescription)}`,
+    `${name(speaker!)} looks toward the camera and, ${delivery}, says in English: {${said}}`,
+    NO_WRITING,
+  ];
+}
+
+const assemble = (parts: string[]): string => parts.filter(Boolean).join(" ");
+
+/** Image-to-video prompt (the keyframe is the first frame). */
+export function talkingPrompt(shot: Shot, script: Script, opts: VideoPromptOpts = {}): string {
+  return assemble([audioPolicy(shot, script), ...body(shot, script, plain), issuesNote(opts.issues ?? []), constraintTail(shot, script)]);
+}
+
+export interface TextToVideoOpts extends VideoPromptOpts {
+  /**
+   * What each reference image is, in upload order: character names (their portraits), then "opening frame" for the
+   * keyframe. Absent or empty: no images, the text is all the model gets.
+   */
+  refs?: string[];
+}
+
+/** Label of the keyframe among the references. */
+export const OPENING_FRAME = "opening frame";
+
+/**
+ * Prompt without a first frame, for when the provider refuses the keyframe (real-face filter). With `refs` the images
+ * are references in the official `@Image N (noun)` form, numbered by upload order: portraits (speaker first) for
+ * identity, the keyframe for the scene. Without a first frame the look and the setting lead either way.
+ */
+export function textToVideoPrompt(shot: Shot, script: Script, opts: TextToVideoOpts = {}): string {
+  const refs = opts.refs ?? [];
+  const tag = (label: string): string => `@Image ${refs.indexOf(label) + 1} (${label})`;
+  const name: Naming = (c) => (refs.includes(c.name) ? tag(c.name) : plain(c));
+  const cast = castOf(script, shot);
+  const portraits = refs.filter((r) => r !== OPENING_FRAME);
+  const refLines = [
+    ...portraits.map((n) => `${tag(n)} is the face reference for ${n}: keep ${n}'s facial features, hair and outfit from ${tag(n)} exactly.`),
+    ...(refs.includes(OPENING_FRAME)
+      ? [
+          portraits.length
+            ? `${tag(OPENING_FRAME)} is the first-frame constraint: start from this composition, setting and outfit.`
+            : `${tag(OPENING_FRAME)} shows ${cast.map(plain).join(" and ")} in the scene: keep exactly these faces, hair, outfits and framing.`,
+        ]
+      : []),
+  ];
+  return assemble([
+    audioPolicy(shot, script),
+    `Photoreal vertical 9:16 ${shot.camera} of ${cast.map((c) => `${oneLine(c.name)}, ${oneLine(c.look).replace(/[.\s]+$/, "")}`).join("; with ")}.`,
+    `Setting: ${sentence(script.setting)}`,
+    ...refLines,
+    ...body(shot, script, name),
+    issuesNote(opts.issues ?? []),
+    constraintTail(shot, script),
+  ]);
 }

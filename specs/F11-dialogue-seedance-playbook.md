@@ -68,3 +68,97 @@ Use the documented syntax (playbook "Changes we should make" 2–8):
 4. In `refs` mode the speaker's portrait is reference 1 (call recorder on MockVideo).
 5. `pnpm verify` green; all F01–F10 tests still pass (update tests only where the contract changed, never weaken an
    assertion about verbatim).
+
+## Decisions
+- **Contract.** `Character` gains a required `voiceDescription`. `Script.characters` is 1–2 entries with unique
+  names. `Shot` gains `speaker?` and a required `onScreen` (≥ 1 name). The cast rules live in one function,
+  `castProblems` (`src/schemas.ts`), used both by `Script.superRefine` and by `scriptProblems`, so the model gets the
+  same messages the contract enforces. These rules are: a spoken shot needs a speaker, the speaker must be a known
+  character, the speaker must be on screen, and onScreen names must be known.
+- **Back-compat by migration, not by optional fields.** `Script = z.preprocess(migrateScript, RefinedScript)`. A
+  pre-F11 object with `character` is migrated as follows:
+  - `character` becomes `characters: [character]`;
+  - every spoken shot gets `speaker` = that name, and every shot gets `onScreen` = `[name]`;
+  - `voiceDescription` is built from the voice fields, e.g. "tired, warm female voice, young".
+
+  `RunManifest.script` uses the same schema, so old manifests parse. `ScriptDraft` (what Gemini sees as a JSON
+  schema) stays a plain object without the preprocess, so `z.toJSONSchema` is unchanged in kind.
+  - Rejected: keeping `character` as an optional alias next to `characters`. It gives two sources of truth, and
+    every consumer would branch on it.
+  - Not covered: resuming a *pre-F11 checkpoint* past `cast`. Graph state renamed `portrait` → `portraits`, and
+    checkpoint state is not re-parsed. Manifests still read fine.
+- **Who says what is code (`src/speakers.ts`), and it is conservative.** Each quote's speaker comes from the
+  first of these that applies:
+  1. Its lead-in: the subject of the last speech verb before it ("She says:", "He looks up and asks:").
+  2. Its trailing tag: `"…," she says.`, `"…?" asks her son.`, `"…!" the detective snaps.` A tag must continue the
+     quote's sentence (it starts with a comma, a dash or a lowercase word) and reach its verb before any sentence
+     break. The text the tag uses is removed from the next quote's lead-in. Without this, `"A," she says. "B," he
+     asks.` credited "she" to B (attempt-1 review).
+  3. The previous quote's speaker.
+
+  The subject of a clause is read after dropping a leading subordinate clause up to its comma
+  (as/when/while/after/before/once/if/until/since/because/though/although, optionally after connectives): in
+  "As she opens the door, her husband asks" the husband speaks (attempt-2 review). Rejected: "prefer the gendered
+  noun right before the verb over any pronoun". It breaks "He hugs his mother and says", where the pronoun is
+  the subject. Without a comma nothing is dropped, so "When she finally speaks" keeps its she. Then the subject is:
+  - a she/he anywhere in what is left ("Then she adds", "Finally, he whispers"), or
+  - after leading connectives ("then", "finally", …) are dropped, a gendered noun among its first 3 words, else its
+    first content word.
+
+  Possessives ("the bride's", "my sister's") are skipped, so "The bride's father" is a male "father".
+  Two attributions count as *different* only when:
+  - their genders differ, or
+  - both are nouns and the nouns differ.
+
+  So "the mother … she adds" is not flagged.
+
+  `scriptProblems` adds three checks:
+  1. If the idea has different speakers and the script has 1 character, the script is rejected. This is the
+     spec's minimum.
+  2. Lines from different speakers must not share a speaker.
+  3. A she/he line must go to a character with that voice gender. This is the deterministic form of "plausible
+     speaker".
+
+  `preSpendProblems` rejects ideas with more speaker turns than shots (> 2) for $0, because one speaker per shot
+  makes them impossible. Over `evals/ideas.jsonl` + `evals/hard.jsonl` this gives no false positives: only the two
+  dialogue ideas have 2 speakers. "A teenager hugs her dad" does not become male, because only the subject's own
+  first words count. The hard eval set has the same 16/19 per-idea results as F10's run, and the 3 failures are the
+  intended pre-spend rejections.
+  - Rejected: asking the LLM who speaks. That is unverifiable, and it is the same model that made the bug.
+- **Prompts (`visuals-v3`).** Built from three parts, so the order is structural, not string-patched:
+  - start: the audio policy;
+  - middle: the body, with scene, one camera move, silent listeners, `Voice: <voiceDescription>.`, and the
+    `Name looks toward the camera and, <delivery>, says in English: {line}` sentence;
+  - end: the constraint tail.
+
+  Details:
+  - `Voice:` is placed *before* the dialogue sentence. That way nothing annotates the line after it.
+  - Judge issues are inserted *before* the tail through `issuesNote` (`talkingPrompt(shot, script, { issues })`). This
+    replaces wrapping the full prompt in `withIssues`, which would have pushed the tail off the end.
+  - `textToVideoPrompt` takes `refs: string[]`, the labels in upload order (character names, then
+    `"opening frame"`). Every mention of a referenced character is its `@Image N (Name)` tag.
+  - In a shot with two people on screen, the tail says "Each character's face…" and "Only one A and one B in frame".
+    With one person it uses the spec's exact wording.
+- **Portraits.** `castCharacters` makes one portrait per character. It is content-addressed by its prompt, which holds
+  the name and the look. The `Portraits` type is `string | Record<name, path>`. A single path is shorthand for a
+  one-character script, so single-character callers and F05/F07 tests kept their shape. The refs ladder is:
+  - keyframes: on-screen portraits, speaker first, then the previous keyframe;
+  - `refs` mode: the speaker's portrait, then the others, then the keyframe;
+  - judge: the keyframe is judged against the on-screen portraits, and the clip against the speaker's portrait
+    (`judge-v2` rubric names the speaker).
+
+  The fallback TTS uses the speaker's voice.
+- **Assembly.** `segmentArgs({ endFade })` adds a second `afade=t=out` over the last 200 ms (`END_FADE`). It sits on
+  top of the 50 ms edge fades, and the gains multiply. Segments end ≥ 0.4 s after the last word (`SPEECH_TAIL`), so
+  the fade never touches speech. `END_FADE` is part of the segment cache key.
+- **Mock writer.** It groups quotes by speaker run with the same `quoteSpeakers`. Two runs make two characters,
+  shot-reverse-shot with one line each, and their genders come from she/he. One run keeps the old shape, with the
+  voice gender taken from the idea, so "He says" gets a male voice.
+- **Tests changed only where the contract changed.**
+  - Fixtures gained `characters` / `speaker` / `onScreen` / `voiceDescription`.
+  - Quote assertions became brace assertions with the same verbatim strength.
+  - The removed "Exactly these words…" wording is now asserted absent.
+  - The F10 detective fixture ("He asks…") got a male voice, because the new plausibility rule applies to it.
+- No new dependencies. Sources: `docs/research/seedance-playbook.md` §1 (dialogue braces, `@Image N (noun)`,
+  negatives), §4 (voice description, music enumeration, end-click fade), and "Changes we should make" 2–8. No
+  external docs were fetched for this feature.

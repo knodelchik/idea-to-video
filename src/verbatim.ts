@@ -455,10 +455,15 @@ export class QuoteError extends Error {
  * with only whitespace between them, or an opening curly/guillemet quote inside a fragment of the same style.
  */
 export function extractQuotedLines(idea: string): string[] {
+  return quoteSpans(idea).map((q) => q.text);
+}
+
+/** extractQuotedLines with where each quote sits in the idea (start/end include the quote marks). */
+export function quoteSpans(idea: string): { text: string; start: number; end: number }[] {
   const re = /"([^"]*)"|“([^”]*)”|«([^»]*)»|„([^“”]*)[“”]/g;
   if ((idea.match(/"/g)?.length ?? 0) % 2 === 1) throw new QuoteError();
   const matches = [...idea.matchAll(re)];
-  const out: string[] = [];
+  const out: { text: string; start: number; end: number }[] = [];
   let prevEnd = -1;
   for (const m of matches) {
     const inner = m[1] ?? m[2] ?? m[3] ?? m[4] ?? "";
@@ -466,7 +471,7 @@ export function extractQuotedLines(idea: string): string[] {
     if (prevEnd >= 0 && idea.slice(prevEnd, m.index).trim() === "") throw new QuoteError();
     if (matches.length > 1 && m[1] !== undefined && /^\s|\s$/.test(inner)) throw new QuoteError();
     prevEnd = m.index + m[0].length;
-    if (inner !== "") out.push(inner);
+    if (inner !== "") out.push({ text: inner, start: m.index, end: prevEnd });
   }
   return out;
 }

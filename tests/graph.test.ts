@@ -6,7 +6,7 @@ import { main, parseArgs } from "../src/cli.ts";
 import { estimateRunUsd, isTransient } from "../src/graph.ts";
 import { loudnormArgs, parseLoudnorm, segmentArgs } from "../src/media/args.ts";
 import { probe } from "../src/media/ffmpeg.ts";
-import { cutSeconds, SPEECH_TAIL } from "../src/nodes/assemble.ts";
+import { cutSeconds, END_FADE, SPEECH_TAIL } from "../src/nodes/assemble.ts";
 import { expectedSpeech, probeProblems } from "../src/nodes/final-gate.ts";
 import { scriptProblems } from "../src/nodes/script.ts";
 import { ShotError } from "../src/nodes/visuals.ts";
@@ -143,6 +143,13 @@ describe("assembly helpers", () => {
     expect(b).not.toContain("anullsrc=r=48000:cl=stereo");
     expect(b[b.indexOf("-map", b.indexOf("-map") + 1) + 1]).toBe("0:a:0");
     expect(() => segmentArgs({ input: "i", out: "o", seconds: 0.05, audio: true, fade: 0.05 })).toThrow(RangeError);
+  });
+  it("segmentArgs: a 200 ms end fade-out on top of the 50 ms edge fades (F11, Seedance end-of-clip click)", () => {
+    const a = segmentArgs({ input: "i.mp4", out: "o.mp4", seconds: 4, audio: true, fade: 0.05, endFade: 0.2 });
+    const af = a[a.indexOf("-af") + 1]!;
+    expect(af).toContain("afade=t=in:st=0:d=0.05,afade=t=out:st=3.95:d=0.05,afade=t=out:st=3.8:d=0.2");
+    expect(() => segmentArgs({ input: "i", out: "o", seconds: 1, audio: true, fade: 0.05, endFade: 1 })).toThrow(/endFade/);
+    expect(END_FADE).toBe(0.2);
   });
   it("loudnorm: two-pass linear with the measured values", () => {
     const stderr = `[Parsed_loudnorm_0 @ 0x1]\n{\n "input_i" : "-36.40", "input_tp" : "-35.00", "input_lra" : "0.00",

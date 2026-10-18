@@ -15,8 +15,16 @@ export const Character = z.object({
     age: z.enum(["young", "adult", "older"]),
     tone: nonEmpty("voice tone"),
   }),
+  /**
+   * One sentence (timbre, age, accent, pace), repeated verbatim in every video prompt where this character speaks:
+   * the Seedance guide reports voice matching improves "significantly" with it (docs/research/seedance-playbook.md §4).
+   */
+  voiceDescription: nonEmpty("voiceDescription"),
 });
 export type Character = z.infer<typeof Character>;
+
+/** A script has 1–2 characters (F11): one, or two in a dialogue (shot-reverse-shot). */
+export const MAX_CHARACTERS = 2;
 
 /** Seedance 2.0 accepts 4–15 s clips (docs/research/video-models.md, specs/F05); one shot is one clip. */
 export const SHOT_SECONDS = { min: 4, max: 15 } as const;
@@ -34,6 +42,10 @@ export const Shot = z.object({
     .number()
     .min(SHOT_SECONDS.min, `shot seconds must be ${SHOT_SECONDS.min}–${SHOT_SECONDS.max}`)
     .max(SHOT_SECONDS.max, `shot seconds must be ${SHOT_SECONDS.min}–${SHOT_SECONDS.max}`),
+  /** `name` of the one character who says `line`. Required when the line is non-empty (checked on Script). */
+  speaker: z.string().optional(),
+  /** Names of the characters visible in the shot; the speaker must be among them. */
+  onScreen: z.array(nonEmpty("onScreen name")).min(1, "onScreen must name at least one character"),
 });
 export type Shot = z.infer<typeof Shot>;
 
@@ -42,7 +54,7 @@ const ScriptFields = z.object({
   title: nonEmpty("title"),
   logline: nonEmpty("logline"),
   setting: nonEmpty("setting"),
-  character: Character,
+  characters: z.array(Character),
   // Count is checked in superRefine so the message can say how many we got.
   shots: z.array(Shot),
   /** Lines quoted in the idea, as extracted by code (extractQuotedLines), not by the model. */
@@ -56,8 +68,74 @@ const ScriptFields = z.object({
 export const ScriptDraft = ScriptFields.omit({ promptVersion: true, quotedLines: true });
 export type ScriptDraft = z.infer<typeof ScriptDraft>;
 
-export const Script = ScriptFields
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Scripts written before F11 had one `character` and no speaker / onScreen. They still parse: the character becomes
+ * `characters[0]`, it speaks every spoken shot and is on screen in all of them, and its voiceDescription is built from
+ * its voice fields. Anything that is not that legacy shape passes through untouched.
+ */
+export function migrateScript(raw: unknown): unknown {
+  if (!isObj(raw) || !isObj(raw.character) || "characters" in raw) return raw;
+  const { character: c, ...rest } = raw;
+  const voice = isObj(c.voice) ? c.voice : {};
+  const said = [voice.tone, voice.gender].filter((x) => typeof x === "string").join(" ");
+  const voiceDescription = c.voiceDescription ?? `${said} voice${typeof voice.age === "string" ? `, ${voice.age}` : ""}`;
+  const shots = Array.isArray(rest.shots)
+    ? rest.shots.map((sh: unknown) => {
+        if (!isObj(sh)) return sh;
+        const spoken = typeof sh.line === "string" && sh.line.trim() !== "";
+        return {
+          ...sh,
+          ...(spoken && sh.speaker === undefined ? { speaker: c.name } : {}),
+          ...(sh.onScreen === undefined ? { onScreen: [c.name] } : {}),
+        };
+      })
+    : rest.shots;
+  return { ...rest, characters: [{ ...c, voiceDescription }], shots };
+}
+
+export interface CastProblem {
+  path: (string | number)[];
+  message: string;
+}
+
+/** Cast and speaker rules, shared by Script and the script node (which feeds them back to the model). */
+export function castProblems(s: { characters: { name: string }[]; shots: z.output<typeof Shot>[] }): CastProblem[] {
+  const out: CastProblem[] = [];
+  const names = s.characters.map((c) => c.name);
+  if (names.length < 1 || names.length > MAX_CHARACTERS) {
+    out.push({ path: ["characters"], message: `a script has 1–${MAX_CHARACTERS} characters, got ${names.length}` });
+  }
+  const dup = names.find((x, i) => names.indexOf(x) !== i);
+  if (dup !== undefined) out.push({ path: ["characters"], message: `character names must be unique; "${dup}" appears twice` });
+  const list = JSON.stringify(names);
+  s.shots.forEach((shot, i) => {
+    for (const who of shot.onScreen) {
+      if (!names.includes(who)) {
+        out.push({ path: ["shots", i, "onScreen"], message: `shot ${shot.id}: onScreen "${who}" is not one of the characters ${list}` });
+      }
+    }
+    if (shot.line.trim() === "") return;
+    const who = shot.speaker?.trim() ?? "";
+    if (who === "") {
+      out.push({ path: ["shots", i, "speaker"], message: `shot ${shot.id} has a spoken line but no speaker; set speaker to one of ${list}` });
+    } else if (!names.includes(shot.speaker!)) {
+      out.push({ path: ["shots", i, "speaker"], message: `shot ${shot.id}: speaker "${shot.speaker}" is not one of the characters ${list}` });
+    } else if (!shot.onScreen.includes(shot.speaker!)) {
+      out.push({
+        path: ["shots", i, "onScreen"],
+        message: `shot ${shot.id}: speaker "${shot.speaker}" must be in onScreen ${JSON.stringify(shot.onScreen)}`,
+      });
+    }
+  });
+  return out;
+}
+
+const RefinedScript = ScriptFields
   .superRefine((s, ctx) => {
+    for (const p of castProblems(s)) ctx.addIssue({ code: "custom", path: p.path, message: p.message });
     const n = s.shots.length;
     if (n < 1 || n > 2) {
       ctx.addIssue({ code: "custom", path: ["shots"], message: `a script has 1–2 shots, got ${n}` });
@@ -89,7 +167,28 @@ export const Script = ScriptFields
       });
     }
   });
-export type Script = z.infer<typeof Script>;
+
+/** Parses current scripts and migrates pre-F11 single-`character` ones (manifests on disk stay readable). */
+export const Script = z.preprocess(migrateScript, RefinedScript);
+export type Script = z.output<typeof RefinedScript>;
+
+/** The character who says a shot's line (a silent shot: the first one on screen). */
+export function speakerOf(script: Script, shot: Shot): Character {
+  const name = shot.line.trim() !== "" && shot.speaker ? shot.speaker : shot.onScreen[0];
+  const c = script.characters.find((x) => x.name === name) ?? script.characters[0];
+  if (!c) throw new Error("script has no characters");
+  return c;
+}
+
+/** Everyone visible in a shot, speaker first: reference images are uploaded, and numbered, in this order. */
+export function castOf(script: Script, shot: Shot): Character[] {
+  const first = speakerOf(script, shot);
+  const rest = shot.onScreen
+    .filter((x) => x !== first.name)
+    .map((x) => script.characters.find((c) => c.name === x))
+    .filter((c): c is Character => c !== undefined);
+  return [first, ...rest];
+}
 
 export const TranscriptWord = z
   .object({ word: z.string(), start: z.number().min(0), end: z.number().min(0) })

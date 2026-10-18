@@ -213,7 +213,8 @@ async function main(argv: string[]) {
             reasons: live.attempts.filter((a) => a.reason).map((a) => a.reason),
           }
         : undefined,
-      character: script?.character,
+      characters: script?.characters,
+      speakers: shots.map((s) => s.speaker ?? null),
       shots: shots.map((s) => ({ id: s.id, seconds: s.seconds, line: s.line, words: wordCount(splitDelivery(s.line).spoken) })),
       totalSeconds: shots.reduce((a, s) => a + s.seconds, 0),
       allQuotedVerbatim,

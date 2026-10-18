@@ -94,7 +94,7 @@ describe("contracts and pure parts", () => {
   it("rubrics name what a VLM can see, from the shot and the character; withIssues appends", () => {
     const k = keyframeRubric(S1, SCRIPT);
     expect(k).toContain(S1.visual);
-    expect(k).toContain(SCRIPT.character.look);
+    expect(k).toContain(SCRIPT.characters[0]!.look);
     expect(k).toMatch(/hands/i);
     expect(k).toMatch(/lip-sync/i);
     expect(k).toMatch(/watermark/i);
@@ -360,7 +360,7 @@ describe("clips (acceptance 3, 4)", () => {
       expect(video.calls).toHaveLength(2);
       expect(video.calls[0]!.prompt).not.toContain("face melts");
       expect(video.calls[1]!.prompt).toContain("face melts in frame 2");
-      expect(video.calls[1]!.prompt).toContain(`"${LINE}"`); // the line is still quoted exactly
+      expect(video.calls[1]!.prompt).toContain(`says in English: {${LINE}}`); // the line is still quoted exactly
       expect(video.calls[1]!.variant).not.toBe(video.calls[0]!.variant);
       expect(r.attempts.find((a) => a.stage === "regen")).toMatchObject({ ok: true });
       expect(judgeAttempts(r.attempts).map((a) => a.score)).toEqual([2, 7]);

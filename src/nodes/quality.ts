@@ -13,10 +13,20 @@ import { extractFrames } from "../media/frames.ts";
 import { clipRubric, JUDGE_PROMPT_VERSION, keyframeRubric } from "../prompts/judge.ts";
 import { talkingPrompt } from "../prompts/visuals.ts";
 import type { ImageProvider, JudgeProvider } from "../providers/index.ts";
-import { JudgeVerdict, type Attempt, type Script, type Shot } from "../schemas.ts";
+import { JudgeVerdict, speakerOf, type Attempt, type Script, type Shot } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { VerbatimError } from "./gate.ts";
-import { keyframeShot, ShotError, snapDuration, talkingShot, type TalkingShot, type TalkingShotOpts } from "./visuals.ts";
+import {
+  keyframeShot,
+  portraitOf,
+  shotPortraits,
+  ShotError,
+  snapDuration,
+  talkingShot,
+  type Portraits,
+  type TalkingShot,
+  type TalkingShotOpts,
+} from "./visuals.ts";
 
 export const DEFAULT_KEYFRAME_MIN = 7;
 export const DEFAULT_CLIP_MIN = 5;
@@ -136,19 +146,21 @@ export interface JudgedKeyframe {
 export async function judgedKeyframe(
   shot: Shot,
   script: Script,
-  portrait: string,
+  portraits: Portraits,
   prev: string | undefined,
   opts: { image: ImageProvider; judge: JudgeProvider; dir: string; min?: number; maxExtra?: number },
 ): Promise<JudgedKeyframe> {
   const { image, judge: j, dir, min = DEFAULT_KEYFRAME_MIN, maxExtra = DEFAULT_KEYFRAME_EXTRA } = opts;
   const rubric = keyframeRubric(shot, script);
+  // Judged against everyone it should show, speaker first (the order the rubric lists them in).
+  const refs = shotPortraits(shot, script, portraits).map((p) => p.path);
   const attempts: Attempt[] = [];
   const takes: { path: string; pass: boolean; score?: number }[] = [];
   let issues: string[] = [];
   for (let variant = 0; variant <= maxExtra; variant++) {
-    const still = await keyframeShot(shot, script, portrait, prev, { image, dir, variant, issues });
+    const still = await keyframeShot(shot, script, portraits, prev, { image, dir, variant, issues });
     attempts.push(...still.attempts);
-    const judged = await judge("keyframe", { paths: [still.path], refs: [portrait] }, { judge: j, rubric, min, dir, shotId: shot.id, n: variant + 1 });
+    const judged = await judge("keyframe", { paths: [still.path], refs }, { judge: j, rubric, min, dir, shotId: shot.id, n: variant + 1 });
     attempts.push(judged.attempt);
     takes.push({ path: still.path, pass: judged.pass, ...(judged.verdict ? { score: judged.verdict.score } : {}) });
     if (judged.pass) break;
@@ -180,8 +192,8 @@ export interface JudgedShot extends TalkingShot {
 
 export interface JudgedShotOpts extends TalkingShotOpts {
   judge: JudgeProvider;
-  /** Reference for "same person". */
-  portrait: string;
+  /** Reference for "same person": the clip is judged against the speaker's portrait. */
+  portrait: Portraits;
   min?: number;
   /** The run's budget guard. Absent = no cap (tests, mocks). */
   budget?: { allows(estimateUsd: number): boolean };
@@ -206,8 +218,9 @@ export function regenEstimateUsd(shot: Shot, keyframe: string, opts: JudgedShotO
  * allows. A failing second take never loses the first: it was gated and paid for.
  */
 export async function judgedTalkingShot(shot: Shot, keyframe: string, opts: JudgedShotOpts): Promise<JudgedShot> {
-  const { judge: j, portrait, dir, min = DEFAULT_CLIP_MIN } = opts;
+  const { judge: j, dir, min = DEFAULT_CLIP_MIN } = opts;
   const rubric = clipRubric(shot, opts.script);
+  const portrait = portraitOf(opts.portrait, speakerOf(opts.script, shot).name);
   const attempts: Attempt[] = [];
   const judgeClip = async (r: TalkingShot, n: number) => {
     let frames: string[];

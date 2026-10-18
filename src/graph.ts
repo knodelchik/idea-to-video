@@ -22,7 +22,7 @@ import {
   type JudgedShot,
   type QualitySettings,
 } from "./nodes/quality.ts";
-import { castCharacter } from "./nodes/visuals.ts";
+import { castCharacters } from "./nodes/visuals.ts";
 import { firstPrompt, SCRIPT_SYSTEM } from "./prompts/script.ts";
 import {
   Budget,
@@ -59,7 +59,8 @@ export const RunState = Annotation.Root({
   runId: Annotation<string>,
   createdAt: Annotation<string>,
   script: last<Script | undefined>(),
-  portrait: last<string | undefined>(),
+  /** Portrait file per character name (F11: one per character). */
+  portraits: last<Record<string, string> | undefined>(),
   keyframes: Annotation<Partial<Record<ShotId, string>>>({ reducer: merge, default: () => ({}) }),
   /** Judge outcome of each kept keyframe (F07), carried into the shot output. */
   keyframeQuality: Annotation<Partial<Record<ShotId, KeyframeQuality>>>({ reducer: merge, default: () => ({}) }),
@@ -86,7 +87,7 @@ interface ShotTask {
   script: Script;
   shot: Shot;
   keyframe: string;
-  portrait: string;
+  portraits: Record<string, string>;
   keyframeQuality?: KeyframeQuality;
 }
 
@@ -239,8 +240,8 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
     .addNode(
       "cast",
       node("cast", async (s: RunStateValues) => {
-        const r = await castCharacter(need(s.script, "script"), { image: p().image, dir: runDir(s.runId) });
-        return { portrait: r.path, attempts: r.attempts };
+        const r = await castCharacters(need(s.script, "script"), { image: p().image, dir: runDir(s.runId) });
+        return { portraits: r.portraits, attempts: r.attempts };
       }),
       { retryPolicy },
     )
@@ -248,14 +249,14 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
       "drawKeyframes",
       node("drawKeyframes", async (s: RunStateValues) => {
         const script = need(s.script, "script");
-        const portrait = need(s.portrait, "portrait");
+        const portraits = need(s.portraits, "portraits");
         const keyframes: Partial<Record<ShotId, string>> = {};
         const keyframeQuality: Partial<Record<ShotId, KeyframeQuality>> = {};
         const attempts: Attempt[] = [];
         let prev: string | undefined;
         // Sequential on purpose: each keyframe is a reference for the next (continuity of light, wardrobe, place).
         for (const shot of script.shots) {
-          const r = await judgedKeyframe(shot, script, portrait, prev, {
+          const r = await judgedKeyframe(shot, script, portraits, prev, {
             image: p().image,
             judge: p().judge,
             dir: runDir(s.runId),
@@ -283,7 +284,7 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
             tts: pr.tts,
             lipsync: pr.lipsync,
             judge: pr.judge,
-            portrait: t.portrait,
+            portrait: t.portraits,
             dir: runDir(t.runId),
             min: quality.clipMin,
             ...(ctx.budget ? { budget: ctx.budget } : {}),
@@ -333,7 +334,7 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
               script,
               shot,
               keyframe: need(s.keyframes[shot.id], `keyframe ${shot.id}`),
-              portrait: need(s.portrait, "portrait"),
+              portraits: need(s.portraits, "portraits"),
               ...(s.keyframeQuality?.[shot.id] ? { keyframeQuality: s.keyframeQuality[shot.id] } : {}),
             } satisfies ShotTask),
         );
