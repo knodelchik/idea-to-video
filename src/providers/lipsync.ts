@@ -92,3 +92,36 @@ export function lipsyncFromEnv(env: Env, deps: { fal?: FalLike; fetch?: FetchLik
   }
   throw new Error(`LIPSYNC_PROVIDER: unknown "${which}"; known: fal-kling, command`);
 }
+
+/**
+ * Stands in for a lip-sync provider whose key is missing. Lip-sync is only the fallback after native speech fails the
+ * gate, so a live run must not refuse to start without its key; the NotConfiguredError is thrown when (and only when)
+ * the fallback actually calls `sync`, and the node records it as a failed lipsync attempt.
+ */
+export class UnconfiguredLipsync implements LipsyncProvider {
+  /** No trim before the call that is going to fail anyway. */
+  readonly maxSeconds = Infinity;
+  constructor(
+    readonly name: string,
+    private readonly error: NotConfiguredError,
+    /** What the configured provider would cost, so budget planning doesn't treat the fallback as free. */
+    private readonly estimate: number,
+  ) {}
+  estimateUsd(): number {
+    return this.estimate;
+  }
+  async sync(): Promise<never> {
+    throw this.error;
+  }
+}
+
+/** lipsyncFromEnv, but a missing key is deferred to the first `sync`. Typos and bad numbers still fail at startup. */
+export function lipsyncOrDeferred(env: Env, deps: Parameters<typeof lipsyncFromEnv>[1] = {}): LipsyncProvider {
+  try {
+    return lipsyncFromEnv(env, deps);
+  } catch (e) {
+    if (!(e instanceof NotConfiguredError)) throw e;
+    const which = (env.LIPSYNC_PROVIDER || "fal-kling").toLowerCase();
+    return new UnconfiguredLipsync(`${which}-lipsync (not configured)`, e, which === "fal-kling" ? klingLipsyncCost(KLING_LIPSYNC_MAX_SECONDS) : 0);
+  }
+}

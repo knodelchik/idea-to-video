@@ -13,10 +13,16 @@ import type { FetchLike } from "./http.ts";
 import { NotConfiguredError } from "./errors.ts";
 import { seedanceFromEnv } from "./seedance.ts";
 import { imageFromEnv } from "./image.ts";
-import { lipsyncFromEnv } from "./lipsync.ts";
+import { lipsyncOrDeferred } from "./lipsync.ts";
+import { talkingOrDeferred } from "./talking.ts";
 import { GeminiJudge } from "./gemini-judge.ts";
 
-const SELF_CONFIGURED = new Set<keyof Providers>(["tts", "image", "video", "lipsync"]);
+/**
+ * Capabilities whose *FromEnv picks and names the key. `lipsync` and `talking` are also deferred: lip-sync is only the
+ * fallback and the pipeline never calls `talking`, so their missing key throws NotConfiguredError on first use instead
+ * of blocking a live run whose native takes may pass.
+ */
+const SELF_CONFIGURED = new Set<keyof Providers>(["tts", "image", "video", "lipsync", "talking"]);
 
 export type * from "./types.ts";
 export {
@@ -39,11 +45,18 @@ export type { AsrFault, Responder, VideoFault } from "./mock.ts";
 export { GeminiTts, ElevenLabsTts, GroqAsr, TtsChain };
 export { HttpError, isTransient as isTransientHttp, type FetchLike } from "./http.ts";
 export { JudgeOutputError, NotConfiguredError, PolicyRejectedError } from "./errors.ts";
-export { BytePlusSeedance, FalSeedance, SeedanceVideo, seedanceFromEnv, SEEDANCE_DURATIONS } from "./seedance.ts";
-export { FalNanoBananaImage, GeminiImage, SeedreamImage, imageFromEnv } from "./image.ts";
-export { CommandLipsync, FalKlingLipsync, lipsyncFromEnv } from "./lipsync.ts";
+export { BytePlusSeedance, FalSeedance, OpenRouterSeedance, SeedanceVideo, seedanceFromEnv, SEEDANCE_DURATIONS } from "./seedance.ts";
+export { FalNanoBananaImage, GeminiImage, OpenRouterImage, SeedreamImage, imageFromEnv } from "./image.ts";
+export { CommandLipsync, FalKlingLipsync, lipsyncFromEnv, lipsyncOrDeferred, UnconfiguredLipsync } from "./lipsync.ts";
 export type { FalLike } from "./fal.ts";
-export { FalKlingAvatar, KLING_AVATAR_ENDPOINTS, KLING_AVATAR_USD_PER_SECOND, klingAvatarFromEnv, type KlingAvatarTier } from "./talking.ts";
+export {
+  FalKlingAvatar,
+  KLING_AVATAR_ENDPOINTS,
+  KLING_AVATAR_USD_PER_SECOND,
+  klingAvatarFromEnv,
+  talkingOrDeferred,
+  type KlingAvatarTier,
+} from "./talking.ts";
 export { KLING_LIPSYNC_MAX_SECONDS, klingLipsyncCost } from "./lipsync.ts";
 export { FAL_SEEDANCE_USD_PER_SECOND } from "./seedance.ts";
 export { FAL_NANO_BANANA_USD } from "./image.ts";
@@ -121,7 +134,8 @@ export function createProviders({ mode, env, overrides = {} }: CreateProvidersOp
     asr: overrides.asr ?? GroqAsr.fromEnv(env),
     image: overrides.image ?? imageFromEnv(env),
     video: overrides.video ?? seedanceFromEnv(env),
-    lipsync: overrides.lipsync ?? lipsyncFromEnv(env),
+    lipsync: overrides.lipsync ?? lipsyncOrDeferred(env),
+    talking: overrides.talking ?? talkingOrDeferred(env),
     judge: overrides.judge ?? GeminiJudge.fromEnv(env),
   };
   // Keys are present but no live adapter exists yet; still refuse rather than silently using a mock.

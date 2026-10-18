@@ -27,6 +27,7 @@ import {
   HttpError,
   imageFromEnv,
   lipsyncFromEnv,
+  lipsyncOrDeferred,
   MockAsr,
   MockImage,
   MockLipsync,
@@ -34,6 +35,8 @@ import {
   MockTts,
   MockVideo,
   NotConfiguredError,
+  OpenRouterImage,
+  OpenRouterSeedance,
   PolicyRejectedError,
   SEEDANCE_DURATIONS,
   SeedanceVideo,
@@ -388,6 +391,23 @@ describe("talkingShot", () => {
     expect(e.attempts.map((a) => `${a.stage}:${a.ok}`)).toEqual(["video:false", "fallback:true", "voice:true", "lipsync:false"]);
     expect(e.attempts.at(-1)!.reason).toMatch(/lipsync service 503/);
     for (const a of e.attempts) Attempt.parse(a);
+  }, 60_000);
+
+  it("a missing lip-sync key costs nothing until the fallback is reached, then fails as a recorded NotConfiguredError", async () => {
+    const lipsync = lipsyncOrDeferred({}); // no FAL_KEY, default LIPSYNC_PROVIDER=fal-kling
+    const dirA = fresh();
+    const ok = await talkingShot(S1, await keyframeFor(dirA), { script: SCRIPT, dir: dirA, ...rig(new MockVideo()), lipsync });
+    expect(ok.via).toBe("native");
+
+    const dirB = fresh();
+    const kf = await keyframeFor(dirB);
+    const err = await talkingShot(S1, kf, { script: SCRIPT, dir: dirB, maxNative: 1, ...rig(toFallback()), lipsync }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ShotError);
+    const e = err as ShotError;
+    expect(e.cause).toBeInstanceOf(NotConfiguredError);
+    expect((e.cause as Error).message).toMatch(/lipsync .*set FAL_KEY/);
+    expect(e.attempts.map((a) => `${a.stage}:${a.ok}`)).toEqual(["video:false", "fallback:true", "voice:true", "lipsync:false"]);
+    expect(e.attempts.at(-1)!.reason).toMatch(/FAL_KEY/);
   }, 60_000);
 
   it("an ASR error on the lip-synced clip surfaces as ShotError with every earlier attempt", async () => {
@@ -762,6 +782,129 @@ describe("live adapters (acceptance 7, no network)", () => {
     });
   });
 
+  describe("Seedance via OpenRouter", () => {
+    const API = "https://openrouter.ai/api/v1/videos";
+
+    it("submits the documented body, polls the job, downloads /content with the key, bills usage.cost", async () => {
+      let polls = 0;
+      const { fetch, calls } = fakeFetch({
+        [`POST ${API}`]: () => json({ id: "gen-vid-1", polling_url: "/api/v1/videos/gen-vid-1", status: "pending" }, 202),
+        [`GET ${API}/gen-vid-1`]: () =>
+          ++polls < 3
+            ? json({ id: "gen-vid-1", status: polls === 1 ? "pending" : "in_progress" })
+            : json({
+                id: "gen-vid-1",
+                status: "completed",
+                unsigned_urls: [`${API}/gen-vid-1/content?index=0`],
+                usage: { cost: 1.0584, is_byok: false },
+              }),
+        [`GET ${API}/gen-vid-1/content`]: () => new Response(VIDEO_BYTES),
+      });
+      const sleeps: number[] = [];
+      const transport = new OpenRouterSeedance({ apiKey: "or-key", fetch, sleep: async (ms) => void sleeps.push(ms), pollMs: 10 });
+      const p = fakeProbe({ seconds: 6.96, hasAudio: true });
+      const video = new SeedanceVideo({ transport, fetch, probe: p.probe });
+      expect(video.name).toBe("openrouter-seedance-2.0");
+      const out = join(root, "or.mp4");
+      const r = await video.animate({ image: kf, prompt: `Dan says: "${LINE}"`, seconds: 7, out, line: LINE, variant: 2, refs: [kf2] });
+
+      expect(calls.map((c) => `${c.init.method} ${c.url}`)).toEqual([
+        `POST ${API}`,
+        `GET ${API}/gen-vid-1`,
+        `GET ${API}/gen-vid-1`,
+        `GET ${API}/gen-vid-1`,
+        `GET ${API}/gen-vid-1/content`,
+      ]);
+      expect(sleeps).toEqual([10, 10, 10]);
+      expect(calls[0]!.init.headers).toEqual({ Authorization: "Bearer or-key", "Content-Type": "application/json" });
+      const keyframeUrl = `data:image/png;base64,${(await readFile(kf)).toString("base64")}`;
+      const refUrl = `data:image/png;base64,${(await readFile(kf2)).toString("base64")}`;
+      expect(JSON.parse(String(calls[0]!.init.body))).toEqual({
+        model: "bytedance/seedance-2.0",
+        prompt: `Dan says: "${LINE}"`,
+        duration: 7, // integer, like BytePlus
+        resolution: "720p",
+        aspect_ratio: "9:16",
+        generate_audio: true,
+        frame_images: [{ type: "image_url", image_url: { url: keyframeUrl }, frame_type: "first_frame" }],
+        input_references: [{ type: "image_url", image_url: { url: refUrl } }],
+        seed: 2,
+        provider: { options: { seed: { watermark: false } } },
+      });
+      expect(calls[1]!.init.headers).toEqual({ Authorization: "Bearer or-key" });
+      // The content endpoint is not pre-signed: the download must carry the key.
+      expect(calls[4]!.init.headers).toEqual({ Authorization: "Bearer or-key" });
+      expect(await readFile(out)).toEqual(VIDEO_BYTES);
+      expect(r.costUsd).toBe(1.0584);
+      // Measured, not echoed (same as the other transports).
+      expect(p.probed).toEqual([out]);
+      expect(r).toMatchObject({ path: out, seconds: 6.96, hasAudio: true });
+    });
+
+    it("without usage.cost bills the token estimate; fast tier uses the fast model and $4.2/M; no refs/seed → omitted", async () => {
+      const done = () =>
+        fakeFetch({
+          [`POST ${API}`]: () => json({ id: "j2", polling_url: "/api/v1/videos/j2", status: "pending" }, 202),
+          [`GET ${API}/j2`]: () => json({ id: "j2", status: "completed", usage: { cost: null } }),
+          [`GET ${API}/j2/content`]: () => new Response(VIDEO_BYTES),
+        });
+      const tokensPerSecond = (720 * 1280 * 24) / 1024; // 21 600
+      const f1 = done();
+      const std = new OpenRouterSeedance({ apiKey: "k", fetch: f1.fetch, sleep: async () => {} });
+      expect(std.usdPerSecond).toBeCloseTo(0.1512, 9);
+      const r1 = await new SeedanceVideo({ transport: std, fetch: f1.fetch, probe: fakeProbe().probe }).animate({
+        image: kf,
+        prompt: "P",
+        seconds: 5,
+        out: join(root, "or1.mp4"),
+      });
+      expect(r1.costUsd).toBeCloseTo(tokensPerSecond * 5 * 7e-6, 9);
+      const b1 = JSON.parse(String(f1.calls[0]!.init.body)) as Record<string, unknown>;
+      expect(b1).not.toHaveProperty("input_references");
+      expect(b1).not.toHaveProperty("seed");
+
+      const f2 = done();
+      const fast = new OpenRouterSeedance({ apiKey: "k", tier: "fast", fetch: f2.fetch, sleep: async () => {} });
+      expect(fast.name).toBe("openrouter-seedance-2.0-fast");
+      expect(fast.usdPerSecond).toBeCloseTo(0.09072, 9);
+      const v2 = new SeedanceVideo({ transport: fast, fetch: f2.fetch, probe: fakeProbe().probe });
+      expect(v2.estimateUsd({ image: kf, prompt: "P", seconds: 10, out: "" })).toBeCloseTo(0.9072, 9);
+      const r2 = await v2.animate({ image: kf, prompt: "P", seconds: 5, out: join(root, "or2.mp4") });
+      expect(JSON.parse(String(f2.calls[0]!.init.body))).toMatchObject({ model: "bytedance/seedance-2.0-fast" });
+      expect(r2.costUsd).toBeCloseTo(tokensPerSecond * 5 * 4.2e-6, 9);
+    });
+
+    it("failed / expired jobs and policy texts: PolicyRejectedError only for moderation, no download", async () => {
+      const ended = (status: string, error?: string) =>
+        fakeFetch({
+          [`POST ${API}`]: () => json({ id: "j3", polling_url: "/api/v1/videos/j3", status: "pending" }, 202),
+          [`GET ${API}/j3`]: () => json({ id: "j3", status, ...(error ? { error } : {}) }),
+        });
+      const run = async (f: ReturnType<typeof fakeFetch>) =>
+        new SeedanceVideo({ transport: new OpenRouterSeedance({ apiKey: "k", fetch: f.fetch, sleep: async () => {} }), fetch: f.fetch })
+          .animate({ image: kf, prompt: "P", seconds: 5, out: join(root, "or3.mp4") })
+          .catch((e: unknown) => e);
+
+      const policy = ended("failed", "Content policy violation");
+      expect(await run(policy)).toBeInstanceOf(PolicyRejectedError);
+      expect(policy.calls).toHaveLength(2); // submit + one poll, never a download
+
+      const e2 = await run(ended("failed", "upstream timeout"));
+      expect(e2).not.toBeInstanceOf(PolicyRejectedError);
+      expect((e2 as Error).message).toMatch(/job j3 failed: upstream timeout/);
+      expect(((await run(ended("expired"))) as Error).message).toMatch(/job j3 expired: expired/);
+
+      const rejected = fakeFetch({
+        [`POST ${API}`]: () => json({ error: { code: 400, message: "the input image may contain a real person" } }, 400),
+      });
+      expect(await run(rejected)).toBeInstanceOf(PolicyRejectedError);
+      const broke = fakeFetch({ [`POST ${API}`]: () => json({ error: { code: 402, message: "Insufficient credits" } }, 402) });
+      const e5 = await run(broke);
+      expect(e5).toBeInstanceOf(HttpError);
+      expect((e5 as HttpError).status).toBe(402);
+    });
+  });
+
   it("seedanceFromEnv picks the transport from SEEDANCE_TRANSPORT and names the missing key", () => {
     const f = fakeFal({}).fal;
     expect(seedanceFromEnv({ FAL_KEY: "x" }, { fal: f }).name).toBe("fal-seedance-2.0");
@@ -772,6 +915,11 @@ describe("live adapters (acceptance 7, no network)", () => {
     expect(() => seedanceFromEnv({ SEEDANCE_TRANSPORT: "byteplus" })).toThrow(/ARK_API_KEY/);
     expect(() => seedanceFromEnv({})).toThrow(/FAL_KEY/);
     expect(() => seedanceFromEnv({ SEEDANCE_TRANSPORT: "replicate" })).toThrow(/unknown "replicate"/);
+    expect(seedanceFromEnv({ SEEDANCE_TRANSPORT: "openrouter", OPENROUTER_API_KEY: "k" }).name).toBe("openrouter-seedance-2.0");
+    expect(seedanceFromEnv({ SEEDANCE_TRANSPORT: "OpenRouter", SEEDANCE_TIER: "fast", OPENROUTER_API_KEY: "k" }).name).toBe(
+      "openrouter-seedance-2.0-fast",
+    );
+    expect(() => seedanceFromEnv({ SEEDANCE_TRANSPORT: "openrouter", FAL_KEY: "x", ARK_API_KEY: "a" })).toThrow(/OPENROUTER_API_KEY/);
   });
 
   describe("image providers", () => {
@@ -832,12 +980,57 @@ describe("live adapters (acceptance 7, no network)", () => {
       expect(await readFile(r.path, "utf8")).toBe("SD");
     });
 
+    it("openrouter: Image API with 9:16, data-URL refs, per-model knobs; bills usage.cost", async () => {
+      const { fetch, calls } = fakeFetch({
+        "POST https://openrouter.ai/api/v1/images": () =>
+          json({ created: 1, data: [{ b64_json: Buffer.from("ORI").toString("base64"), media_type: "image/png" }], usage: { cost: 0.0341 } }),
+      });
+      const image = new OpenRouterImage({ apiKey: "or", fetch });
+      expect(image.estimateUsd()).toBe(0.0336);
+      const r = await image.generate({ prompt: "K", refs: [kf2, kf], out: join(root, "or.png"), variant: 3 });
+      expect(calls[0]!.init.headers).toEqual({ Authorization: "Bearer or", "Content-Type": "application/json" });
+      const dataOf = async (p: string) => `data:image/png;base64,${(await readFile(p)).toString("base64")}`;
+      // gemini-nano-banana-2.1 lists no `seed`, and unlisted parameters are rejected: none is sent.
+      expect(JSON.parse(String(calls[0]!.init.body))).toEqual({
+        model: "google/gemini-nano-banana-2.1",
+        prompt: "K",
+        aspect_ratio: "9:16",
+        n: 1,
+        resolution: "1K",
+        input_references: [
+          { type: "image_url", image_url: { url: await dataOf(kf2) } },
+          { type: "image_url", image_url: { url: await dataOf(kf) } },
+        ],
+      });
+      expect(r.costUsd).toBe(0.0341);
+      expect(await readFile(r.path, "utf8")).toBe("ORI");
+
+      const f2 = fakeFetch({
+        "POST https://openrouter.ai/api/v1/images": () => json({ data: [{ b64_json: Buffer.from("S").toString("base64") }] }),
+      });
+      const flash = new OpenRouterImage({ apiKey: "or", model: "bytedance-seed/seedream-5-0-flash", fetch: f2.fetch });
+      const r2 = await flash.generate({ prompt: "P", out: join(root, "or2.png"), variant: 3 });
+      expect(JSON.parse(String(f2.calls[0]!.init.body))).toEqual({
+        model: "bytedance-seed/seedream-5-0-flash",
+        prompt: "P",
+        aspect_ratio: "9:16",
+        n: 1,
+        resolution: "1K",
+        seed: 3,
+      });
+      expect(r2.costUsd).toBe(0.018); // no usage in the reply → list price
+      expect(new OpenRouterImage({ apiKey: "or", model: "someone/new-model" }).estimateUsd()).toBe(0.04);
+    });
+
     it("imageFromEnv selects by IMAGE_PROVIDER", () => {
       expect(imageFromEnv({ FAL_KEY: "x" }, { fal: fakeFal({}).fal }).name).toBe("fal-nano-banana");
       expect(imageFromEnv({ IMAGE_PROVIDER: "gemini", GEMINI_API_KEY: "g" }).name).toBe("gemini-image");
       expect(imageFromEnv({ IMAGE_PROVIDER: "seedream", ARK_API_KEY: "a" }).name).toBe("byteplus-seedream");
       expect(() => imageFromEnv({ IMAGE_PROVIDER: "seedream" })).toThrow(NotConfiguredError);
       expect(() => imageFromEnv({ IMAGE_PROVIDER: "dalle" })).toThrow(/unknown "dalle"/);
+      expect(imageFromEnv({ IMAGE_PROVIDER: "openrouter", OPENROUTER_API_KEY: "o" }).name).toBe("openrouter-image");
+      expect((imageFromEnv({ IMAGE_PROVIDER: "openrouter", OPENROUTER_API_KEY: "o", OPENROUTER_IMAGE_MODEL: "x/y" }) as OpenRouterImage).model).toBe("x/y");
+      expect(() => imageFromEnv({ IMAGE_PROVIDER: "openrouter", FAL_KEY: "f" })).toThrow(/OPENROUTER_API_KEY/);
     });
   });
 
@@ -924,5 +1117,21 @@ describe("live adapters (acceptance 7, no network)", () => {
     expect(bp.image).toBeInstanceOf(SeedreamImage);
     expect(bp.lipsync).toBeInstanceOf(CommandLipsync);
     expect(() => createProviders({ mode: "live", env: base, overrides: { talking } })).toThrow(NotConfiguredError);
+  });
+
+  it("createProviders(live) on OpenRouter needs no FAL_KEY: lip-sync and talking fail only when called", async () => {
+    const p = createProviders({
+      mode: "live",
+      env: { GEMINI_API_KEY: "g", GROQ_API_KEY: "q", OPENROUTER_API_KEY: "o", SEEDANCE_TRANSPORT: "openrouter", IMAGE_PROVIDER: "openrouter" },
+    });
+    expect(p.video.name).toBe("openrouter-seedance-2.0");
+    expect(p.image).toBeInstanceOf(OpenRouterImage);
+    expect(p.lipsync.estimateUsd?.({ video: "", audio: "", out: "" })).toBeCloseTo(klingLipsyncCost(10), 9); // budget still plans for it
+    await expect(p.lipsync.sync({ video: "v", audio: "a", out: "o" })).rejects.toThrow(/live lipsync provider is not configured: set FAL_KEY/);
+    await expect(p.talking.talk({ image: "i", audio: "a", prompt: "p", out: "o" })).rejects.toBeInstanceOf(NotConfiguredError);
+    // A typo is still a startup error, not a deferred one.
+    expect(() =>
+      createProviders({ mode: "live", env: { GEMINI_API_KEY: "g", GROQ_API_KEY: "q", FAL_KEY: "f", LIPSYNC_PROVIDER: "kling2" } }),
+    ).toThrow(/unknown "kling2"/);
   });
 });

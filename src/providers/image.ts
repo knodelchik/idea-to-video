@@ -13,13 +13,18 @@
  *   and price against https://ai.byteplus.com/ark/region:ap-southeast-1/docs/ModelArk/1544106, 2026-10-16):
  *   POST {ark}/images/generations { model, prompt, image[] (data URLs, UNVERIFIED), size, response_format "b64_json",
  *   watermark false } → data[0].b64_json. Key ARK_API_KEY (the same as Seedance on BytePlus). $0.035 / image.
+ * - `openrouter` (VERIFIED 2026-10-18 against https://openrouter.ai/docs/guides/overview/multimodal/image-generation and
+ *   GET https://openrouter.ai/api/v1/images/models[/<id>/endpoints]): the dedicated Image API, not chat completions.
+ *   POST {base}/images { model, prompt, aspect_ratio "9:16", n 1, resolution?, input_references: [{ type: "image_url",
+ *   image_url: { url } }] (https or base64 data URL), seed? } → { data: [{ b64_json, media_type }], usage: { cost } }.
+ *   Key OPENROUTER_API_KEY. Default model google/gemini-nano-banana-2.1 at 1K (~$0.0336 / image).
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { NotConfiguredError } from "./errors.ts";
 import { falClient, falImageUrl, falUpload, rethrowFalPolicy, type FalLike } from "./fal.ts";
 import { dataUrl, download, ensureOk, sniffMime, type FetchLike } from "./http.ts";
-import { BYTEPLUS_ARK_BASE } from "./seedance.ts";
+import { BYTEPLUS_ARK_BASE, OPENROUTER_BASE } from "./seedance.ts";
 import type { ImageProvider, ImageRequest } from "./types.ts";
 
 type Env = Record<string, string | undefined>;
@@ -154,6 +159,70 @@ export class SeedreamImage implements ImageProvider {
   }
 }
 
+// --- OpenRouter ---
+
+export const DEFAULT_OPENROUTER_IMAGE_MODEL = "google/gemini-nano-banana-2.1";
+/**
+ * Per-model request knobs and list price, from GET /api/v1/images/models/<id>/endpoints (2026-10-18). A parameter an
+ * endpoint doesn't list is unsupported, so `resolution` / `seed` are only sent where listed. Unknown models get neither.
+ */
+export const OPENROUTER_IMAGE_MODELS: Record<string, { resolution?: string; seed: boolean; usd: number }> = {
+  // $30 / 1M output tokens; a 1K image is ~1120 tokens.
+  "google/gemini-nano-banana-2.1": { resolution: "1K", seed: false, usd: 0.0336 },
+  "bytedance-seed/seedream-5-0-flash": { resolution: "1K", seed: true, usd: 0.018 },
+  "bytedance-seed/seedream-5-0-lite": { resolution: "2K", seed: true, usd: 0.035 },
+};
+/** Budget estimate for a model not in the table (the dearest above, rounded up). */
+export const OPENROUTER_IMAGE_FALLBACK_USD = 0.04;
+
+const OpenRouterImageResponse = z.object({
+  data: z.array(z.object({ b64_json: z.string().optional() })).min(1),
+  usage: z.object({ cost: z.number().nullish() }).partial().nullish(),
+});
+
+export class OpenRouterImage implements ImageProvider {
+  readonly name = "openrouter-image";
+  constructor(private readonly opts: { apiKey: string; model?: string; base?: string; fetch?: FetchLike }) {}
+
+  get model(): string {
+    return this.opts.model ?? DEFAULT_OPENROUTER_IMAGE_MODEL;
+  }
+  estimateUsd(): number {
+    return OPENROUTER_IMAGE_MODELS[this.model]?.usd ?? OPENROUTER_IMAGE_FALLBACK_USD;
+  }
+
+  async body({ prompt, refs = [], variant }: ImageRequest): Promise<Record<string, unknown>> {
+    const caps = OPENROUTER_IMAGE_MODELS[this.model];
+    return {
+      model: this.model,
+      prompt,
+      aspect_ratio: "9:16",
+      n: 1,
+      ...(caps?.resolution ? { resolution: caps.resolution } : {}),
+      ...(refs.length
+        ? { input_references: await Promise.all(refs.map(async (r) => ({ type: "image_url", image_url: { url: await dataUrl(r) } }))) }
+        : {}),
+      ...(variant && caps?.seed ? { seed: variant } : {}),
+    };
+  }
+
+  async generate(req: ImageRequest) {
+    const res = await ensureOk(
+      this.name,
+      await fetchOf(this.opts.fetch)(`${this.opts.base ?? OPENROUTER_BASE}/images`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.opts.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(await this.body(req)),
+      }),
+    );
+    const r = OpenRouterImageResponse.parse(await res.json());
+    const b64 = r.data[0]!.b64_json;
+    if (!b64) throw new Error(`${this.name}: response has no b64_json`);
+    await writeFile(req.out, Buffer.from(b64, "base64"));
+    return { path: req.out, costUsd: typeof r.usage?.cost === "number" ? r.usage.cost : this.estimateUsd() };
+  }
+}
+
 export function imageFromEnv(env: Env, deps: { fal?: FalLike; fetch?: FetchLike } = {}): ImageProvider {
   const which = (env.IMAGE_PROVIDER || "fal-nano-banana").toLowerCase();
   const fetchDep = deps.fetch ? { fetch: deps.fetch } : {};
@@ -175,5 +244,13 @@ export function imageFromEnv(env: Env, deps: { fal?: FalLike; fetch?: FetchLike 
       ...fetchDep,
     });
   }
-  throw new Error(`IMAGE_PROVIDER: unknown "${which}"; known: seedream, fal-nano-banana, gemini`);
+  if (which === "openrouter") {
+    if (!env.OPENROUTER_API_KEY) throw new NotConfiguredError("image", "OPENROUTER_API_KEY");
+    return new OpenRouterImage({
+      apiKey: env.OPENROUTER_API_KEY,
+      ...(env.OPENROUTER_IMAGE_MODEL ? { model: env.OPENROUTER_IMAGE_MODEL } : {}),
+      ...fetchDep,
+    });
+  }
+  throw new Error(`IMAGE_PROVIDER: unknown "${which}"; known: seedream, fal-nano-banana, gemini, openrouter`);
 }

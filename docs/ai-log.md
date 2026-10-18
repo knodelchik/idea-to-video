@@ -114,3 +114,10 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   reading the official BytePlus Python SDK source and pricing page before the first paid run → fixed test-first
   (model id, $0.1512/s standard, $0.12096/s fast, cost from `usage.completion_tokens`). `pnpm preflight` now prints
   every live request without sending it.
+- [OpenRouter] The brief (mine) said OpenRouter images go through chat completions with `modalities`. The current
+  docs have a dedicated Image API (`POST /api/v1/images`, `usage.cost`), and the model pages say an unlisted
+  parameter is rejected, so sending `seed` to gemini-nano-banana-2.1 would have 400'd → caught by reading
+  `/api/v1/images/models/<id>/endpoints` before coding → the adapter sends `seed`/`resolution` only where listed. Also,
+  wiring the new transport showed that `createProviders("live")` had never worked: `talking` sat in the eager key
+  check and was never constructed, so every live run died at setup. Mocks and tests always overrode `talking`, which
+  hid it → deferred `talking` and `lipsync` (missing key fails on first use), tested.

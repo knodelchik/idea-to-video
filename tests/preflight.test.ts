@@ -40,6 +40,14 @@ describe("preflight", () => {
     expect(bp.headers).toEqual({ Authorization: "Bearer <redacted>", "Content-Type": "application/json" });
     expect(bp.body).toMatchObject({ model: "dreamina-seedance-2-0-fast-260128", duration: 7, ratio: "9:16", generate_audio: true });
 
+    const or = byLabel("seedance openrouter")[0]!;
+    expect(or.url).toBe("https://openrouter.ai/api/v1/videos");
+    expect(or.headers).toEqual({ Authorization: "Bearer <redacted>", "Content-Type": "application/json" });
+    expect(or.body).toMatchObject({ model: "bytedance/seedance-2.0-fast", duration: 7, aspect_ratio: "9:16", resolution: "720p", generate_audio: true });
+    const orImg = byLabel("image openrouter")[0]!;
+    expect(orImg.url).toBe("https://openrouter.ai/api/v1/images");
+    expect(orImg.body).toMatchObject({ model: "google/gemini-nano-banana-2.1", aspect_ratio: "9:16" });
+
     const asr = byLabel("asr groq")[0]!;
     expect(JSON.stringify(asr.body)).toContain("timestamp_granularities[]");
     expect(byLabel("judge gemini")[0]!.params).toMatchObject({ model: "gemini-3.5-flash" });
@@ -49,6 +57,7 @@ describe("preflight", () => {
     const r = envReport(env);
     expect(r.set).toEqual(["GEMINI_API_KEY", "FAL_KEY", "ARK_API_KEY", "SEEDANCE_TIER"]);
     expect(r.missing).toContain("GROQ_API_KEY");
+    expect(r.missing).toContain("OPENROUTER_API_KEY");
     expect(JSON.stringify(r)).not.toContain("secret");
   });
 });

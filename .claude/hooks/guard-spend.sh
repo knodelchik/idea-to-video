@@ -14,6 +14,10 @@ fi
 if printf '%s' "$cmd" | grep -qE '(fal\.run|queue\.fal\.run|api\.elevenlabs\.io|api\.groq\.com|generativelanguage\.googleapis\.com)'; then
   deny "Direct calls to paid APIs are not allowed for agents. Go through providers with --mock."
 fi
+# OpenRouter: generation endpoints are paid; the public metadata (/videos/models, /images/models, /models) is free.
+if printf '%s' "$cmd" | grep -qE 'openrouter\.ai/api/v1/(chat/completions|completions|responses|images($|[^/a-zA-Z])|videos($|[^/a-zA-Z])|videos/[^m])'; then
+  deny "Direct calls to paid APIs are not allowed for agents. Go through providers with --mock."
+fi
 if printf '%s' "$cmd" | grep -qE 'git (push|reset --hard|clean -f)|rm -rf (/|~|\.\.)'; then
   deny "Destructive or outward git/file commands are reserved for the human."
 fi

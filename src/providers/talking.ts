@@ -64,3 +64,19 @@ export function klingAvatarFromEnv(
     ...(deps.probe ? { probe: deps.probe } : {}),
   });
 }
+
+/** The pipeline never calls `talking` (only the bench does), so its missing key fails on use, not at startup. */
+export function talkingOrDeferred(env: Env): TalkingProvider {
+  try {
+    return klingAvatarFromEnv(env);
+  } catch (e) {
+    if (!(e instanceof NotConfiguredError)) throw e;
+    return {
+      name: "fal-kling-avatar (not configured)",
+      estimateUsd: () => KLING_AVATAR_ESTIMATE_SECONDS * KLING_AVATAR_USD_PER_SECOND.standard,
+      talk: async () => {
+        throw e;
+      },
+    };
+  }
+}

@@ -251,6 +251,79 @@ the video model, with the clip's cost). ASR is not called, and the loop moves on
 - Added `scripts/preflight.ts` (`pnpm preflight`, no network) and `scripts/smoke-free.ts` (`pnpm smoke:free --yes`,
   free-tier hosts only, guarded fetch). No new dependencies.
 
+### OpenRouter transport
+
+Added 2026-10-18: `SEEDANCE_TRANSPORT=openrouter` and `IMAGE_PROVIDER=openrouter`, key
+`OPENROUTER_API_KEY`. Why: OpenRouter bills Seedance 2.0 at the BytePlus rate ($7/M video tokens), half of fal. The
+default transport stays `fal`. Sources, all read on 2026-10-18:
+- https://openrouter.ai/docs/guides/overview/multimodal/video-generation (async flow, request fields, statuses, the
+  content endpoint needs the API key);
+- https://openrouter.ai/docs/cookbook/video-generation/image-to-video (exact `frame_images` entry shape);
+- https://openrouter.ai/docs/api/api-reference/video-generation/submit-a-video-generation-request (OpenAPI:
+  `FrameImage`, `InputReference`, `VideoGenerationResponse.error` is a **string**, `usage.cost` is USD or null);
+- https://openrouter.ai/bytedance/seedance-2.0/llms.txt and `.../seedance-2.0-fast/llms.txt` (per-model enums; the
+  frame image url "is an https URL or a base64 data URL"; terminal statuses `completed|failed|cancelled|expired`);
+- `GET https://openrouter.ai/api/v1/videos/models` (public, free) for both models: durations 4–15, aspect ratios incl.
+  `9:16`, `supported_frame_images: [first_frame, last_frame]`, `generate_audio: true`, `seed: true`,
+  allowed passthrough `watermark`, `req_key`. Standard: resolutions 480p/720p/1080p/4K, `video_tokens` $0.000007
+  (1080p $0.0000077). Fast: 480p/720p, `video_tokens` $0.0000042. Same price with or without audio.
+- https://openrouter.ai/docs/guides/overview/multimodal/image-generation, `GET /api/v1/images/models` and
+  `/api/v1/images/models/<id>/endpoints` for images. (https://openrouter.ai/docs/guides/overview/multimodal/videos.md is
+  about video *input* to chat models, so it doesn't apply here.)
+
+Video request, one shot (`OpenRouterSeedance`): `POST https://openrouter.ai/api/v1/videos`,
+`Authorization: Bearer …`:
+`{model:"bytedance/seedance-2.0"|"bytedance/seedance-2.0-fast" (OPENROUTER_VIDEO_MODEL overrides), prompt,
+duration:<int>, resolution:"720p", aspect_ratio:"9:16", generate_audio:true, frame_images:[{type:"image_url",
+image_url:{url:<keyframe data URL>}, frame_type:"first_frame"}], input_references?:[{type:"image_url",
+image_url:{url}}], seed?:<take>, provider:{options:{seed:{watermark:false}}}}` → 202 `{id, polling_url, status}`.
+Then the adapter sleeps 10 s and polls `GET /videos/{id}` (20 min timeout) and downloads
+`GET /videos/{id}/content` **with** the Authorization header (`download()` now takes optional headers).
+- Cost is `usage.cost` when it's a number. Otherwise it's an estimate: tokens = w·h·24/1024·s × $/token, with 720p
+  9:16 = 720×1280 from `supported_sizes`. Per second: standard $0.1512 at 720p and $0.0673 at 480p (480×854); fast
+  $0.0907 at 720p and $0.0404 at 480p. **UNVERIFIED:** the token formula is BytePlus's (OpenRouter publishes only the
+  per-token price). It's only the fallback and the budget estimate.
+- Failed, cancelled or expired → `Error` with the string `error`. Moderation wording → `PolicyRejectedError` (same
+  `isPolicyText` as BytePlus). HTTP errors use `{error:{code,message}}`; a 4xx with policy text → PolicyRejected,
+  anything else → `HttpError` (402 = no credits).
+- `SeedanceJob` gains optional `refs` and `seed`, filled from `AnimateRequest.refs` / `.variant`. Only OpenRouter sends
+  them. Today the node passes no refs, so `input_references` never goes out. The docs say `frame_images` takes
+  precedence when both are present, so references might be ignored anyway.
+- **UNVERIFIED:** `provider.options.seed.watermark=false`. `watermark` is in `allowed_passthrough_parameters`, and the
+  provider slug `seed` comes from `/api/v1/models/bytedance/seedance-2.0/endpoints`. The flat shape follows the image
+  docs' passthrough example, and the docs say unknown option keys are dropped, so the worst case is a watermark.
+- The measured ffprobe duration and `hasAudio` behave exactly as on the other transports (`SeedanceVideo` is shared).
+
+Image request (`OpenRouterImage`): OpenRouter now has a dedicated **Image API**, `POST /api/v1/images`, so the adapter
+uses it instead of chat completions with `modalities` (it's simpler and returns `usage.cost`). The body is
+`{model, prompt, aspect_ratio:"9:16", n:1, resolution?, input_references?:[{type:"image_url", image_url:{url:<data
+URL>}}], seed?}`, and the reply is `data[0].b64_json` plus `usage.cost`. The model pages say "an unlisted value is
+rejected", so `resolution` and `seed` are sent only for models whose endpoint lists them (`OPENROUTER_IMAGE_MODELS`).
+- Default `google/gemini-nano-banana-2.1`: 1K, no seed, $30/M output tokens ≈ $0.0336 per image, up to 14 refs.
+  It's the same model the `gemini` provider defaults to.
+- Listed alternatives:
+  - `bytedance-seed/seedream-5-0-flash`: $0.018, 1K, seed;
+  - `bytedance-seed/seedream-5-0-lite`: $0.035, 2K minimum, seed.
+- An unknown model gets no resolution and no seed, and is budgeted at $0.04.
+
+Missing lip-sync key (and a live-mode bug found on the way): `createProviders("live")` built lip-sync eagerly, so
+a run without `FAL_KEY` (e.g. OpenRouter-only) refused to start even though lip-sync is only the fallback. Worse,
+`talking` was in the eager key check and never wired, so **every** live `createProviders` call without a `talking`
+override threw, including with all keys set ("live talking provider is not configured: set a live talking adapter
+(not implemented yet)"). Reproduced offline with `tsx` before the fix. Now `lipsyncOrDeferred` / `talkingOrDeferred`
+return a stand-in when the key is missing:
+- its `sync` / `talk` throws the original `NotConfiguredError`;
+- lip-sync keeps `estimateUsd` (Kling's) so budget planning doesn't treat the fallback as free;
+- `maxSeconds = Infinity`, so nothing is trimmed before the call fails.
+The node records it as a failed `lipsync` attempt inside `ShotError`. Unknown provider names and bad
+`LIPSYNC_MAX_SECONDS` still fail at startup. Tested: a native shot passes with the stand-in; a fallback shot fails
+with `cause` NotConfiguredError naming FAL_KEY and the full attempt list; `createProviders` on OpenRouter-only keys
+builds.
+- `scripts/bench.ts` still calls `lipsyncFromEnv` eagerly. Left as is: the bench's lip-sync path needs the key.
+- `.claude/hooks/guard-spend.sh` now denies `openrouter.ai/api/v1/{videos,images,chat/completions,…}` but allows
+  `/videos/models`, `/images/models…` and `/models` (free metadata). Checked with sample commands.
+- No new dependencies (fetch only).
+
 ## Human notes after BLOCKED (2026-10-16)
 The harness stopped after 3 rejected attempts; each review found a new real issue. Carry these over:
 - Last open review issue: errors thrown by `lipsync.sync` and by the final `listen` in the fallback escape without

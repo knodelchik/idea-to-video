@@ -1,6 +1,6 @@
 /**
  * Live video: ByteDance Seedance 2.0 image-to-video with native, lip-synced speech (the line is in the prompt,
- * in double quotes). Two transports, chosen by SEEDANCE_TRANSPORT, because we don't yet know which key we get:
+ * in double quotes). Three transports, chosen by SEEDANCE_TRANSPORT (default fal), priced differently for the same model:
  *
  * - `fal` (VERIFIED against https://fal.ai/models/bytedance/seedance-2.0/image-to-video/llms.txt, 2026-10-16):
  *   endpoint `bytedance/seedance-2.0/image-to-video` (or `.../fast/image-to-video`); input `prompt`, `image_url`,
@@ -16,6 +16,15 @@
  *   `usage.completion_tokens`) or `failed`/`cancelled`/`expired`. Inline base64 data URLs for the image are documented
  *   only by third-party gateways (UNVERIFIED on BytePlus itself). The real-face rejection text seen in the wild is
  *   "the input image may contain a real person".
+ * - `openrouter` (VERIFIED 2026-10-18 against https://openrouter.ai/docs/guides/overview/multimodal/video-generation,
+ *   https://openrouter.ai/docs/cookbook/video-generation/image-to-video, the OpenAPI page
+ *   https://openrouter.ai/docs/api/api-reference/video-generation/submit-a-video-generation-request,
+ *   https://openrouter.ai/bytedance/seedance-2.0/llms.txt and GET https://openrouter.ai/api/v1/videos/models):
+ *   POST `{base}/videos` { model, prompt, duration (int 4..15), resolution, aspect_ratio, generate_audio,
+ *   frame_images: [{ type: "image_url", image_url: { url }, frame_type: "first_frame" }] (https or base64 data URL),
+ *   input_references?, seed? } → 202 { id, polling_url, status }; GET `{base}/videos/{id}` until `completed`
+ *   (usage.cost = USD) or `failed`/`cancelled`/`expired` (`error` is a string); bytes from GET
+ *   `{base}/videos/{id}/content` WITH the Authorization header. Billed $7/M video tokens (standard) and $4.2/M (fast).
  */
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
@@ -63,12 +72,17 @@ export interface SeedanceJob {
   image: string;
   prompt: string;
   seconds: number;
+  /** Identity/style references. Only the OpenRouter transport sends them (as `input_references`). */
+  refs?: string[];
+  /** Take number → `seed`, where the transport accepts one (OpenRouter). */
+  seed?: number;
 }
 export interface SeedanceTransport {
   readonly name: string;
   /** List price per requested second, for the pre-call budget check. Absent → the dearest known rate. */
   readonly usdPerSecond?: number;
-  run(job: SeedanceJob): Promise<{ url: string; costUsd: number }>;
+  /** `headers` are sent with the download (OpenRouter's content URL is not pre-signed). */
+  run(job: SeedanceJob): Promise<{ url: string; costUsd: number; headers?: Record<string, string> }>;
 }
 
 // --- fal ---
@@ -207,6 +221,130 @@ export class BytePlusSeedance implements SeedanceTransport {
   }
 }
 
+// --- OpenRouter ---
+
+export const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+/** Model ids from GET https://openrouter.ai/api/v1/videos/models (2026-10-18); override with OPENROUTER_VIDEO_MODEL. */
+export const OPENROUTER_SEEDANCE_MODELS = {
+  standard: "bytedance/seedance-2.0",
+  fast: "bytedance/seedance-2.0-fast",
+} as const;
+/** USD per video token, `pricing_skus.video_tokens` (same with or without audio) from the same endpoint. */
+export const OPENROUTER_SEEDANCE_USD_PER_TOKEN = { standard: 7e-6, fast: 4.2e-6 } as const;
+/** 9:16 pixel sizes the models list in `supported_sizes`. */
+export const SEEDANCE_SIZES_9x16 = { "480p": [480, 854], "720p": [720, 1280] } as const;
+/**
+ * Video tokens for a clip: width × height × 24 fps / 1024 × seconds. The formula is BytePlus's (pricing page); OpenRouter
+ * only publishes the per-token price, so this is the estimate used when a job reports no `usage.cost`.
+ */
+export const seedanceTokens = (width: number, height: number, seconds: number): number => ((width * height * 24) / 1024) * seconds;
+
+const VideoJob = z.object({
+  id: z.string(),
+  status: z.string(),
+  error: z.string().nullish(),
+  usage: z.object({ cost: z.number().nullish() }).partial().nullish(),
+});
+
+export class OpenRouterSeedance implements SeedanceTransport {
+  readonly name: string;
+  constructor(
+    private readonly opts: {
+      apiKey: string;
+      tier?: keyof typeof OPENROUTER_SEEDANCE_MODELS;
+      model?: string;
+      base?: string;
+      fetch?: FetchLike;
+      sleep?: (ms: number) => Promise<void>;
+      pollMs?: number;
+      timeoutMs?: number;
+    },
+  ) {
+    this.name = `openrouter-seedance-2.0${opts.tier === "fast" ? "-fast" : ""}`;
+  }
+
+  private get tier(): keyof typeof OPENROUTER_SEEDANCE_MODELS {
+    return this.opts.tier ?? "standard";
+  }
+  get model(): string {
+    return this.opts.model ?? OPENROUTER_SEEDANCE_MODELS[this.tier];
+  }
+  get usdPerSecond(): number {
+    const [w, h] = SEEDANCE_SIZES_9x16[SEEDANCE_RESOLUTION];
+    return seedanceTokens(w, h, 1) * OPENROUTER_SEEDANCE_USD_PER_TOKEN[this.tier];
+  }
+  get base(): string {
+    return this.opts.base ?? OPENROUTER_BASE;
+  }
+  private get f(): FetchLike {
+    return this.opts.fetch ?? (globalThis.fetch as FetchLike);
+  }
+  private auth(): Record<string, string> {
+    return { Authorization: `Bearer ${this.opts.apiKey}` };
+  }
+
+  async body(job: SeedanceJob): Promise<Record<string, unknown>> {
+    const refs = job.refs ?? [];
+    return {
+      model: this.model,
+      prompt: job.prompt,
+      duration: job.seconds,
+      resolution: SEEDANCE_RESOLUTION,
+      aspect_ratio: SEEDANCE_RATIO,
+      generate_audio: true,
+      frame_images: [{ type: "image_url", image_url: { url: await dataUrl(job.image) }, frame_type: "first_frame" }],
+      // Docs: with frame_images present the job is image-to-video, so references may be ignored by the provider.
+      ...(refs.length
+        ? { input_references: await Promise.all(refs.map(async (r) => ({ type: "image_url", image_url: { url: await dataUrl(r) } }))) }
+        : {}),
+      ...(job.seed !== undefined ? { seed: job.seed } : {}),
+      // `watermark` is in the model's allowed_passthrough_parameters; provider slug "seed" from
+      // /api/v1/models/bytedance/seedance-2.0/endpoints. Flat shape UNVERIFIED (unknown keys are dropped, per the docs).
+      provider: { options: { seed: { watermark: false } } },
+    };
+  }
+
+  /** 4xx whose body reads like moderation → PolicyRejectedError; other failures → HttpError. */
+  private async check(res: Response): Promise<Response> {
+    if (res.ok) return res;
+    const text = await res.text().catch(() => "");
+    if (res.status >= 400 && res.status < 500 && isPolicyText(text)) throw new PolicyRejectedError(this.name, text.slice(0, 300));
+    throw new HttpError(this.name, res.status, text);
+  }
+
+  async run(job: SeedanceJob) {
+    const created = await this.check(
+      await this.f(`${this.base}/videos`, {
+        method: "POST",
+        headers: { ...this.auth(), "Content-Type": "application/json" },
+        body: JSON.stringify(await this.body(job)),
+      }),
+    );
+    const { id } = VideoJob.pick({ id: true }).parse(await created.json());
+    const jobUrl = `${this.base}/videos/${encodeURIComponent(id)}`;
+    const sleep = this.opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    const pollMs = this.opts.pollMs ?? 10_000;
+    const deadline = Date.now() + (this.opts.timeoutMs ?? 20 * 60_000);
+    for (;;) {
+      await sleep(pollMs); // a job is never done at submit time; the docs poll after a wait too
+      const t = VideoJob.parse(await (await this.check(await this.f(jobUrl, { method: "GET", headers: this.auth() }))).json());
+      if (t.status === "completed") {
+        const [w, h] = SEEDANCE_SIZES_9x16[SEEDANCE_RESOLUTION];
+        const estimate = seedanceTokens(w, h, job.seconds) * OPENROUTER_SEEDANCE_USD_PER_TOKEN[this.tier];
+        // usage.cost is what OpenRouter charged; the token estimate is only for a reply without it.
+        const costUsd = typeof t.usage?.cost === "number" ? t.usage.cost : estimate;
+        return { url: `${jobUrl}/content`, costUsd, headers: this.auth() };
+      }
+      if (t.status === "failed" || t.status === "cancelled" || t.status === "expired") {
+        const why = t.error || t.status;
+        if (isPolicyText(why)) throw new PolicyRejectedError(this.name, why);
+        throw new Error(`${this.name}: job ${id} ${t.status}: ${why}`);
+      }
+      if (Date.now() > deadline) throw new Error(`${this.name}: job ${id} still ${t.status} after timeout`);
+    }
+  }
+}
+
 // --- provider ---
 
 export class SeedanceVideo implements VideoProvider {
@@ -225,8 +363,14 @@ export class SeedanceVideo implements VideoProvider {
       throw new RangeError(`${this.name}: ${req.seconds} s is not one of ${SEEDANCE_DURATIONS.join(", ")}`);
     }
     await readFile(req.image); // a missing keyframe is our bug: fail before paying for an upload
-    const { url, costUsd } = await this.opts.transport.run({ image: req.image, prompt: req.prompt, seconds: req.seconds });
-    await download(this.name, url, req.out, this.opts.fetch ?? (globalThis.fetch as FetchLike));
+    const { url, costUsd, headers } = await this.opts.transport.run({
+      image: req.image,
+      prompt: req.prompt,
+      seconds: req.seconds,
+      ...(req.refs?.length ? { refs: req.refs } : {}),
+      ...(req.variant !== undefined ? { seed: req.variant } : {}),
+    });
+    await download(this.name, url, req.out, this.opts.fetch ?? (globalThis.fetch as FetchLike), headers);
     // Report what came back, not what we asked for (hard rule 4): `generate_audio: true` is a request, not a
     // guarantee, and the returned length can differ from `duration`. Cost is billed on the requested length.
     const { seconds, hasAudio } = await (this.opts.probe ?? ffprobe)(req.out);
@@ -253,5 +397,15 @@ export function seedanceFromEnv(env: Env, deps: { fal?: FalLike; fetch?: FetchLi
     });
     return new SeedanceVideo({ transport: t, ...fetchDep });
   }
-  throw new Error(`SEEDANCE_TRANSPORT: unknown "${transport}"; known: fal, byteplus`);
+  if (transport === "openrouter") {
+    if (!env.OPENROUTER_API_KEY) throw new NotConfiguredError("video", "OPENROUTER_API_KEY");
+    const t = new OpenRouterSeedance({
+      apiKey: env.OPENROUTER_API_KEY,
+      tier,
+      ...(env.OPENROUTER_VIDEO_MODEL ? { model: env.OPENROUTER_VIDEO_MODEL } : {}),
+      ...fetchDep,
+    });
+    return new SeedanceVideo({ transport: t, ...fetchDep });
+  }
+  throw new Error(`SEEDANCE_TRANSPORT: unknown "${transport}"; known: fal, byteplus, openrouter`);
 }

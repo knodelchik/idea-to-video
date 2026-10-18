@@ -60,8 +60,15 @@ export async function dataUrl(path: string): Promise<string> {
 }
 
 /** GET `url` and write the body to `out` (result URLs from fal / BytePlus expire, so we keep our own copy). */
-export async function download(provider: string, url: string, out: string, f: FetchLike): Promise<void> {
-  const res = await ensureOk(provider, await f(url, { method: "GET" }));
+export async function download(
+  provider: string,
+  url: string,
+  out: string,
+  f: FetchLike,
+  headers?: Record<string, string>,
+): Promise<void> {
+  // OpenRouter's content URL needs the API key; fal / BytePlus result URLs are pre-signed and get no headers.
+  const res = await ensureOk(provider, await f(url, headers ? { method: "GET", headers } : { method: "GET" }));
   await writeFile(out, Buffer.from(await res.arrayBuffer()));
 }
 

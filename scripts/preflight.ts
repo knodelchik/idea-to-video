@@ -1,7 +1,7 @@
 /**
  * npx tsx scripts/preflight.ts   (pnpm preflight)
  * Zero network, zero cost. Builds the exact live requests for one sample shot through the real adapters
- * (Seedance on fal + BytePlus, every image provider, Gemini TTS, ElevenLabs, Groq ASR, Gemini script + judge,
+ * (Seedance on fal + BytePlus + OpenRouter, every image provider, Gemini TTS, ElevenLabs, Groq ASR, Gemini script + judge,
  * Kling lip-sync / avatar) with fake transports that record the request and stop it, then prints them as JSON.
  * Keys are never read into a request: every secret is replaced by "<redacted>" before an adapter sees it.
  * The env report lists variable NAMES only (set / missing), never values.
@@ -28,6 +28,8 @@ import {
   GeminiJudge,
   GeminiTts,
   GroqAsr,
+  OpenRouterImage,
+  OpenRouterSeedance,
   SEEDANCE_DURATIONS,
   SeedreamImage,
   type FalLike,
@@ -81,7 +83,8 @@ export const SAMPLE_PNG = Buffer.from(
 
 /** Env vars the live adapters read. Secrets are the *_KEY ones. */
 export const ENV_VARS = [
-  "GEMINI_API_KEY", "GROQ_API_KEY", "FAL_KEY", "ARK_API_KEY", "ELEVENLABS_API_KEY",
+  "GEMINI_API_KEY", "GROQ_API_KEY", "FAL_KEY", "ARK_API_KEY", "ELEVENLABS_API_KEY", "OPENROUTER_API_KEY",
+  "OPENROUTER_VIDEO_MODEL", "OPENROUTER_IMAGE_MODEL",
   "SEEDANCE_TRANSPORT", "SEEDANCE_TIER", "SEEDANCE_MODEL", "ARK_BASE_URL", "IMAGE_PROVIDER", "GEMINI_IMAGE_MODEL",
   "SEEDREAM_MODEL", "SEEDREAM_SIZE", "TTS_PROVIDERS", "GEMINI_TTS_MODEL", "GEMINI_TTS_VOICES", "ELEVENLABS_MODEL",
   "ELEVENLABS_VOICES", "GROQ_ASR_MODEL", "SCRIPT_MODELS", "JUDGE_MODELS", "LIPSYNC_PROVIDER", "LIPSYNC_CMD",
@@ -211,6 +214,15 @@ export async function buildPreflight(env: Env): Promise<Record<string, unknown>>
           ...(safe.ARK_BASE_URL ? { base: safe.ARK_BASE_URL } : {}),
         }).run(job),
       ),
+      await capture(`seedance openrouter (${tier})`, ({ fetch }) =>
+        new OpenRouterSeedance({
+          apiKey: key,
+          tier,
+          fetch,
+          sleep: async () => {},
+          ...(safe.OPENROUTER_VIDEO_MODEL ? { model: safe.OPENROUTER_VIDEO_MODEL } : {}),
+        }).run({ ...job, seed: 0 }),
+      ),
       await capture("image fal-nano-banana (keyframe, refs)", ({ fal, fetch }) =>
         new FalNanoBananaImage({ fal, fetch }).generate({ prompt: "keyframe prompt", refs: [portrait], out: join(dir, "a.png") }),
       ),
@@ -229,6 +241,13 @@ export async function buildPreflight(env: Env): Promise<Record<string, unknown>>
           ...(safe.SEEDREAM_SIZE ? { size: safe.SEEDREAM_SIZE } : {}),
           ...(safe.ARK_BASE_URL ? { base: safe.ARK_BASE_URL } : {}),
         }).generate({ prompt: "keyframe prompt", refs: [portrait], out: join(dir, "c.png") }),
+      ),
+      await capture("image openrouter (keyframe, refs)", ({ fetch }) =>
+        new OpenRouterImage({ apiKey: key, fetch, ...(safe.OPENROUTER_IMAGE_MODEL ? { model: safe.OPENROUTER_IMAGE_MODEL } : {}) }).generate({
+          prompt: "keyframe prompt",
+          refs: [portrait],
+          out: join(dir, "d.png"),
+        }),
       ),
       await capture("tts gemini", ({ fetch }) =>
         GeminiTts.fromEnv({ ...safe, GEMINI_API_KEY: key }, { fetch }).speak({
