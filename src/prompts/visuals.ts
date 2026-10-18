@@ -57,3 +57,16 @@ export function talkingPrompt(shot: Shot, script: Script): string {
     "No other speech, no music, no subtitles, no text.",
   ].join(" ");
 }
+
+/**
+ * Text-to-video prompt, for when the provider refuses the keyframe (real-face filter). Without a first frame the
+ * model only knows what the text says, so the character's look and the setting lead, then the shot as usual.
+ */
+export function textToVideoPrompt(shot: Shot, script: Script): string {
+  const c = script.character;
+  return [
+    `Photoreal vertical 9:16 ${shot.camera} of ${oneLine(c.name)}, ${oneLine(c.look)}.`,
+    `Setting: ${oneLine(script.setting)}.`,
+    talkingPrompt(shot, script),
+  ].join(" ");
+}

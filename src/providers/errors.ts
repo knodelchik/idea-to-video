@@ -13,6 +13,15 @@ export class PolicyRejectedError extends Error {
     super(`${provider}: rejected by content policy: ${detail}`);
     this.name = "PolicyRejectedError";
   }
+
+  /**
+   * The input image was refused as a possible real person (Seedance's real-face filter; seen live 2026-10-18 via
+   * OpenRouter as `InputImageSensitiveContentDetected.PrivacyInformation`). The same scene can still be made
+   * without the image (text-to-video).
+   */
+  get realPerson(): boolean {
+    return /real person|PrivacyInformation/i.test(this.detail);
+  }
 }
 
 /**

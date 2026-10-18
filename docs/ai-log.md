@@ -121,3 +121,9 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   wiring the new transport showed that `createProviders("live")` had never worked: `talking` sat in the eager key
   check and was never constructed, so every live run died at setup. Mocks and tests always overrode `talking`, which
   hid it → deferred `talking` and `lipsync` (missing key fails on first use), tested.
+- [live] First paid run (2026-10-18, via OpenRouter): Seedance 2.0 refused both photoreal AI keyframes with
+  `InputImageSensitiveContentDetected.PrivacyInformation` ("may contain real person"). The research had flagged this
+  as UNCERTAIN; mocks can't show it. Nothing was billed for the refused jobs ($0.06 spent on script + images) →
+  the talking-shot node now retries a real-person refusal once as text-to-video (`textOnly`; the prompt carries the
+  look and setting), keeps later takes text-only, and records the switch. Any other policy rejection is still not
+  retried. Also: Nano Banana via OpenRouter hit Google's upstream quota (429), so images moved to Seedream 5.0 Flash.

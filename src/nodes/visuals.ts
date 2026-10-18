@@ -16,7 +16,7 @@ import {
   type TtsProvider,
   type VideoProvider,
 } from "../providers/index.ts";
-import { keyframePrompt, portraitPrompt, talkingPrompt, VISUALS_PROMPT_VERSION } from "../prompts/visuals.ts";
+import { keyframePrompt, portraitPrompt, talkingPrompt, textToVideoPrompt, VISUALS_PROMPT_VERSION } from "../prompts/visuals.ts";
 import { withIssues } from "../prompts/judge.ts";
 import type { Attempt, Script, Shot, VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
@@ -24,7 +24,7 @@ import { splitDelivery } from "../verbatim.ts";
 import { describeOps, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
 import { verifiedVoice } from "./voice.ts";
 
-export { keyframePrompt, portraitPrompt, talkingPrompt } from "../prompts/visuals.ts";
+export { keyframePrompt, portraitPrompt, talkingPrompt, textToVideoPrompt } from "../prompts/visuals.ts";
 
 /** Smallest allowed clip length ≥ `seconds` (models bill and generate whole durations). Above the max → throws. */
 export function snapDuration(seconds: number, durations: number[]): number {
@@ -182,6 +182,9 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   const spoken = splitDelivery(shot.line).spoken;
   const seconds = snapDuration(shot.seconds, video.capabilities.durations);
   const prompt = withIssues(talkingPrompt(shot, script), opts.issues ?? []);
+  const textPrompt = withIssues(textToVideoPrompt(shot, script), opts.issues ?? []);
+  /** Set once the provider refused the keyframe as a real person; every later take of this shot skips the image. */
+  let textOnly = false;
   const take = opts.take ?? 1;
   if (!Number.isInteger(take) || take < 1) throw new RangeError(`take must be an integer >= 1, got ${take}`);
   const record = (a: Omit<Attempt, "shotId">) => attempts.push({ ...a, shotId });
@@ -223,11 +226,13 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   /** One video call (content-addressed). A provider error is recorded, then surfaces as a ShotError. */
   const animate = async (n: number, line: string | undefined): Promise<Clip> => {
     const variant = n - 1;
-    const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, { file: keyframe }, prompt, line, seconds, variant);
+    const p = textOnly ? textPrompt : prompt;
+    const input = textOnly ? "text-to-video" : { file: keyframe };
+    const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, input, p, line, seconds, variant);
     const t0 = performance.now();
     try {
       const made = await once(join(dir, `clip-${shotId}-${key}.mp4`), (tmp) =>
-        video.animate({ image: keyframe, prompt, seconds, out: tmp, variant, ...(line ? { line } : {}) }),
+        video.animate({ image: keyframe, prompt: p, seconds, out: tmp, variant, ...(line ? { line } : {}), ...(textOnly ? { textOnly } : {}) }),
       );
       // Length and audio come from the file, never from the adapter's report (hard rule 4). Only the cost is the
       // adapter's, since that is what the provider bills; a cached clip cost nothing this run.
@@ -235,7 +240,22 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       return { path: made.path, seconds: measured, hasAudio, costUsd: made.result?.costUsd ?? 0, cached: made.cached };
     } catch (e) {
       const policy = e instanceof PolicyRejectedError;
-      // Not retried: the same keyframe and prompt would be rejected again. A human has to change the input.
+      if (policy && e.realPerson && !textOnly) {
+        // The keyframe, not the scene, was refused: the same shot can still be generated from text alone. Identity
+        // then rests on the written look instead of the portrait; the judge still compares the clip to it.
+        record({
+          stage: "video",
+          n,
+          provider: video.name,
+          ok: false,
+          reason: `keyframe refused as a possible real person (${e.detail.slice(0, 160)}); retrying as text-to-video`,
+          costUsd: 0,
+          ms: ms(t0),
+        });
+        textOnly = true;
+        return animate(n, line);
+      }
+      // Not retried: the same input would be rejected again. A human has to change it.
       const reason = policy
         ? `rejected by content policy (${e.detail}); not retried with the same input`
         : `video error: ${(e as Error).message}`;

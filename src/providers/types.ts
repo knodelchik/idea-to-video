@@ -98,6 +98,11 @@ export interface AnimateRequest {
   line?: string;
   refs?: string[];
   variant?: number;
+  /**
+   * Text-to-video: `image` is not sent. Used after a provider rejected the keyframe as a possible real person
+   * (Seedance's real-face filter); the prompt then has to describe the character and setting itself.
+   */
+  textOnly?: boolean;
 }
 export interface AnimateResult {
   path: string;

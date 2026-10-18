@@ -76,6 +76,8 @@ export interface SeedanceJob {
   refs?: string[];
   /** Take number → `seed`, where the transport accepts one (OpenRouter). */
   seed?: number;
+  /** Text-to-video: no first frame is sent (see AnimateRequest.textOnly). */
+  textOnly?: boolean;
 }
 export interface SeedanceTransport {
   readonly name: string;
@@ -111,6 +113,7 @@ export class FalSeedance implements SeedanceTransport {
   }
 
   async run(job: SeedanceJob) {
+    if (job.textOnly) throw new Error(`${this.name}: text-to-video is not wired for the fal transport; use openrouter or byteplus`);
     const input = this.input(job, await falUpload(this.opts.fal, job.image));
     const { data } = await this.opts.fal.subscribe(this.endpoint, { input }).catch((e: unknown) => rethrowFalPolicy(this.name, e));
     return { url: falVideoUrl(this.endpoint, data), costUsd: job.seconds * FAL_SEEDANCE_USD_PER_SECOND[this.opts.tier ?? "standard"] };
@@ -163,12 +166,12 @@ export class BytePlusSeedance implements SeedanceTransport {
     return { Authorization: `Bearer ${this.opts.apiKey}`, "Content-Type": "application/json" };
   }
 
-  body(job: SeedanceJob, image: string): Record<string, unknown> {
+  body(job: SeedanceJob, image: string | undefined): Record<string, unknown> {
     return {
       model: this.opts.model ?? BYTEPLUS_SEEDANCE_MODELS[this.tier],
       content: [
         { type: "text", text: job.prompt },
-        { type: "image_url", image_url: { url: image }, role: "first_frame" },
+        ...(image === undefined ? [] : [{ type: "image_url", image_url: { url: image }, role: "first_frame" }]),
       ],
       ratio: SEEDANCE_RATIO,
       duration: job.seconds,
@@ -191,7 +194,7 @@ export class BytePlusSeedance implements SeedanceTransport {
       await this.f(`${this.base}/contents/generations/tasks`, {
         method: "POST",
         headers: this.headers(),
-        body: JSON.stringify(this.body(job, await dataUrl(job.image))),
+        body: JSON.stringify(this.body(job, job.textOnly ? undefined : await dataUrl(job.image))),
       }),
     );
     const { id } = TaskCreated.parse(await created.json());
@@ -292,7 +295,9 @@ export class OpenRouterSeedance implements SeedanceTransport {
       resolution: SEEDANCE_RESOLUTION,
       aspect_ratio: SEEDANCE_RATIO,
       generate_audio: true,
-      frame_images: [{ type: "image_url", image_url: { url: await dataUrl(job.image) }, frame_type: "first_frame" }],
+      ...(job.textOnly
+        ? {}
+        : { frame_images: [{ type: "image_url", image_url: { url: await dataUrl(job.image) }, frame_type: "first_frame" }] }),
       // Docs: with frame_images present the job is image-to-video, so references may be ignored by the provider.
       ...(refs.length
         ? { input_references: await Promise.all(refs.map(async (r) => ({ type: "image_url", image_url: { url: await dataUrl(r) } }))) }
@@ -362,13 +367,14 @@ export class SeedanceVideo implements VideoProvider {
     if (!SEEDANCE_DURATIONS.includes(req.seconds)) {
       throw new RangeError(`${this.name}: ${req.seconds} s is not one of ${SEEDANCE_DURATIONS.join(", ")}`);
     }
-    await readFile(req.image); // a missing keyframe is our bug: fail before paying for an upload
+    if (!req.textOnly) await readFile(req.image); // a missing keyframe is our bug: fail before paying for an upload
     const { url, costUsd, headers } = await this.opts.transport.run({
       image: req.image,
       prompt: req.prompt,
       seconds: req.seconds,
       ...(req.refs?.length ? { refs: req.refs } : {}),
       ...(req.variant !== undefined ? { seed: req.variant } : {}),
+      ...(req.textOnly ? { textOnly: true } : {}),
     });
     await download(this.name, url, req.out, this.opts.fetch ?? (globalThis.fetch as FetchLike), headers);
     // Report what came back, not what we asked for (hard rule 4): `generate_audio: true` is a request, not a

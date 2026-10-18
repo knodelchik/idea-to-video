@@ -263,7 +263,7 @@ describe("talkingShot", () => {
   it("PolicyRejectedError is not retried with the same input and is reported clearly (acceptance 5)", async () => {
     const dir = fresh();
     const kf = await keyframeFor(dir);
-    const r = rig(new MockVideo({ faults: [{ call: 0, reject: "input image may contain a real person" }] }));
+    const r = rig(new MockVideo({ faults: [{ call: 0, reject: "output video flagged by content policy" }] }));
     const err = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, ...r }).catch((e: unknown) => e);
 
     expect(r.video.calls).toHaveLength(1);
@@ -272,10 +272,41 @@ describe("talkingShot", () => {
     expect(err).toBeInstanceOf(ShotError);
     const e = err as ShotError;
     expect(e.cause).toBeInstanceOf(PolicyRejectedError);
-    expect(e.message).toMatch(/shot s1: video provider mock-video rejected by content policy \(input image may contain a real person\); not retried/);
+    expect(e.message).toMatch(/shot s1: video provider mock-video rejected by content policy \(output video flagged by content policy\); not retried/);
     expect(e.attempts).toEqual([
       expect.objectContaining({ stage: "video", shotId: "s1", n: 1, ok: false, reason: expect.stringMatching(/content policy/) }),
     ]);
+  }, 60_000);
+
+  it("keyframe refused as a real person → the same shot as text-to-video; later takes stay text-only", async () => {
+    const dir = fresh();
+    const kf = await keyframeFor(dir);
+    const realFace = "InputImageSensitiveContentDetected.PrivacyInformation: the input image may contain real person";
+    // Call 0 is refused; call 1 (text-to-video) mishears, so a second native take (call 2) is needed.
+    const r = rig(new MockVideo({ faults: [{ call: 0, reject: realFace }, { call: 1, say: "I kept the wash. I kept everything." }] }));
+    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, ...r });
+
+    expect(shot.via).toBe("native");
+    expect(shot.verbatim?.pass).toBe(true);
+    expect(r.video.calls).toHaveLength(3);
+    expect(r.video.calls[0]!.textOnly).toBeUndefined();
+    expect(r.video.calls[1]!.textOnly).toBe(true);
+    expect(r.video.calls[2]!.textOnly).toBe(true);
+    // Without a first frame, the prompt itself carries the look and the setting.
+    expect(r.video.calls[1]!.prompt).toContain(SCRIPT.character.look);
+    expect(r.video.calls[1]!.prompt).toContain(SCRIPT.setting);
+    expect(r.video.calls[0]!.prompt).not.toContain(SCRIPT.setting);
+    expect(shot.attempts[0]).toMatchObject({ stage: "video", n: 1, ok: false, reason: expect.stringMatching(/real person.*retrying as text-to-video/) });
+  }, 60_000);
+
+  it("a second real-person refusal while already text-only is not retried again", async () => {
+    const dir = fresh();
+    const kf = await keyframeFor(dir);
+    const r = rig(new MockVideo({ faults: [{ call: 0, reject: "may contain real person" }, { call: 1, reject: "may contain real person" }] }));
+    const err = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, ...r }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ShotError);
+    expect(r.video.calls).toHaveLength(2);
+    expect((err as ShotError).attempts.map((a) => a.ok)).toEqual([false, false]);
   }, 60_000);
 
   it("silent shot skips the gate: one video call, no ASR, no TTS", async () => {
@@ -784,6 +815,15 @@ describe("live adapters (acceptance 7, no network)", () => {
 
   describe("Seedance via OpenRouter", () => {
     const API = "https://openrouter.ai/api/v1/videos";
+
+    it("textOnly sends no first frame (OpenRouter and BytePlus) and needs no keyframe file", async () => {
+      const job = { image: "/does/not/exist.png", prompt: "P", seconds: 5, textOnly: true };
+      const orBody = await new OpenRouterSeedance({ apiKey: "k" }).body(job);
+      expect(orBody).not.toHaveProperty("frame_images");
+      expect(orBody).toMatchObject({ prompt: "P", duration: 5, aspect_ratio: "9:16", generate_audio: true });
+      const bpBody = new BytePlusSeedance({ apiKey: "k" }).body(job, undefined);
+      expect(bpBody.content).toEqual([{ type: "text", text: "P" }]);
+    });
 
     it("submits the documented body, polls the job, downloads /content with the key, bills usage.cost", async () => {
       let polls = 0;
