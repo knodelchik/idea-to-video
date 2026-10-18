@@ -1,0 +1,1617 @@
+[
+  {
+    "id": "dialogue-two-speakers",
+    "tags": [
+      "quoted",
+      "two-speakers",
+      "dialogue"
+    ],
+    "quoted": [
+      "Your father would have hated this parking lot.",
+      "He hated every parking lot, Mom."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Martha",
+      "look": "Sixty-year-old woman with tired graying curls pinned back, soft wrinkled features, pale skin, wearing a dark navy wool coat with a silver dragonfly brooch.",
+      "voice": {
+        "gender": "female",
+        "age": "older",
+        "tone": "wistful and grief-softened"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 5,
+        "line": "Your father would have hated this parking lot.",
+        "words": 8
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "He hated every parking lot, Mom.",
+        "words": 6
+      }
+    ],
+    "totalSeconds": 10,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Your father would have hated this parking lot.",
+        "norm": "your father would have hated this parking lot",
+        "flags": []
+      },
+      {
+        "line": "He hated every parking lot, Mom.",
+        "norm": "he hated every parking lot mom",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Your father would have hated this parking lot. He hated every parking lot, Mom.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2295
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2115
+    }
+  },
+  {
+    "id": "three-lines",
+    "tags": [
+      "quoted",
+      "three-lines",
+      "over-max-shots"
+    ],
+    "quoted": [
+      "Where were you?",
+      "Who saw you?",
+      "Why are you lying to me?"
+    ],
+    "live": {
+      "ok": false,
+      "error": "script rejected after 3 attempts:\n- quoted line \"Where were you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"\n- quoted line \"Who saw you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"",
+      "attempts": 3,
+      "models": [
+        "gemini:gemini-3.8-flash",
+        "gemini:gemini-flash-latest",
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": [
+        "quoted line \"Who saw you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you?\", \"Why are you lying to me?\"",
+        "model gemini-3.8-flash unavailable (503), trying next; model gemini-3.5-flash unavailable (503), trying next; no price for model gemini-flash-latest; cost recorded as 0; a script has 1–2 shots, got 3; shot 3 must have id \"s3\", got \"s2\"",
+        "quoted line \"Where were you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"; quoted line \"Who saw you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\""
+      ]
+    },
+    "shots": [],
+    "totalSeconds": 0,
+    "allQuotedVerbatim": false,
+    "normalized": [
+      {
+        "line": "Where were you?",
+        "norm": "where were you",
+        "flags": []
+      },
+      {
+        "line": "Who saw you?",
+        "norm": "who saw you",
+        "flags": []
+      },
+      {
+        "line": "Why are you lying to me?",
+        "norm": "why are you lying to me",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Where were you? Who saw you? Why are you lying to me?",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": false,
+      "error": "script rejected after 3 attempts:\n- quoted line \"Why are you lying to me?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you?\", \"Who saw you?\"",
+      "failedStages": [
+        "script"
+      ],
+      "ms": 4
+    }
+  },
+  {
+    "id": "long-line-33w",
+    "tags": [
+      "quoted",
+      "long-line",
+      "elderly"
+    ],
+    "quoted": [
+      "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Eleanor",
+      "look": "A seventy-year-old woman with deep laugh lines, silver hair pulled into an elegant chignon, wearing an ivory silk blouse, with a small dark birthmark on her left cheekbone.",
+      "voice": {
+        "gender": "female",
+        "age": "older",
+        "tone": "tender, weathered, and resolute"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 13,
+        "line": "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes.",
+        "words": 29
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 18,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes.",
+        "norm": "i played this song at our wedding at your funeral and every sunday since and i will keep playing it until these old hands finally forget how it goes",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 17,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2976
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 18,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2981
+    }
+  },
+  {
+    "id": "numbers-money-time",
+    "tags": [
+      "quoted",
+      "number",
+      "money",
+      "time",
+      "year"
+    ],
+    "quoted": [
+      "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 2,
+      "models": [
+        "gemini:gemini-3.8-flash",
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": [
+        "shot s1: 24 words need 10.0 s to speak (words / 2.6 + 0.8) but the shot has 7 s; shorten the line or lengthen the shot"
+      ]
+    },
+    "character": {
+      "name": "Renee",
+      "look": "Mid-thirties woman with hollow dark-circled eyes, messy auburn bun, faded navy uniform vest over a gray hoodie, and a scarred left eyebrow.",
+      "voice": {
+        "gender": "female",
+        "age": "adult",
+        "tone": "deadpan, raspy, exhausted monotone"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 11,
+        "line": "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.",
+        "words": 24
+      },
+      {
+        "id": "s2",
+        "seconds": 4,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 15,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.",
+        "norm": "it's four dollars fifty cents it's three fifteen a m and we've been open twenty four seven since one thousand nine hundred eighty seven",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.",
+        "pass": true,
+        "ops": []
+      },
+      {
+        "heard": "It's $4.50, it's 3.15 AM, and we've been open 24-7 since 1987.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "ins",
+            "heard": "point"
+          },
+          {
+            "type": "sub",
+            "expected": "fifteen",
+            "heard": "one"
+          },
+          {
+            "type": "sub",
+            "expected": "a",
+            "heard": "five"
+          },
+          {
+            "type": "sub",
+            "expected": "m",
+            "heard": "am"
+          }
+        ]
+      },
+      {
+        "heard": "It's four fifty, it's three fifteen a.m., and we've been open twenty-four seven since nineteen eighty-seven.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "del",
+            "expected": "dollars"
+          },
+          {
+            "type": "del",
+            "expected": "cents"
+          },
+          {
+            "type": "del",
+            "expected": "one"
+          },
+          {
+            "type": "del",
+            "expected": "thousand"
+          },
+          {
+            "type": "del",
+            "expected": "nine"
+          },
+          {
+            "type": "sub",
+            "expected": "hundred",
+            "heard": "nineteen"
+          }
+        ]
+      }
+    ],
+    "mockDefault": {
+      "ok": false,
+      "error": "script rejected after 3 attempts:\n- shot s2: 24 words need 10.0 s to speak (words / 2.6 + 0.8) but the shot has 7 s; shorten the line or lengthen the shot",
+      "failedStages": [
+        "script"
+      ],
+      "ms": 3
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 15,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2509
+    }
+  },
+  {
+    "id": "unusual-names",
+    "tags": [
+      "quoted",
+      "names",
+      "diacritics"
+    ],
+    "quoted": [
+      "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Elena",
+      "look": "Early thirties woman, sleek dark bun, warm olive complexion, crisp navy blazer with gold lapel pin, small mole above left eyebrow.",
+      "voice": {
+        "gender": "female",
+        "age": "adult",
+        "tone": "hushed but urgent"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 5.5,
+        "line": "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs.",
+        "words": 9
+      },
+      {
+        "id": "s2",
+        "seconds": 4.5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 10,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs.",
+        "norm": "siobhán tell zoë that mr nguyễn is waiting downstairs",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Siobhan, tell Zoe that Mr. Nguyen is waiting downstairs.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "sub",
+            "expected": "siobhán",
+            "heard": "siobhan"
+          },
+          {
+            "type": "sub",
+            "expected": "zoë",
+            "heard": "zoe"
+          },
+          {
+            "type": "sub",
+            "expected": "nguyễn",
+            "heard": "nguyen"
+          }
+        ]
+      },
+      {
+        "heard": "Shivaun, tell Zoe that Mr. Win is waiting downstairs.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "sub",
+            "expected": "siobhán",
+            "heard": "shivaun"
+          },
+          {
+            "type": "sub",
+            "expected": "zoë",
+            "heard": "zoe"
+          },
+          {
+            "type": "sub",
+            "expected": "nguyễn",
+            "heard": "win"
+          }
+        ]
+      },
+      {
+        "heard": "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1945
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2089
+    }
+  },
+  {
+    "id": "ellipsis-emdash-question-exclaim",
+    "tags": [
+      "quoted",
+      "question",
+      "exclamation",
+      "ellipsis",
+      "em-dash"
+    ],
+    "quoted": [
+      "Wait... you kept them — all of them? Every single one!"
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Julian",
+      "look": "Early forties, stubble on a hollowed jaw, disheveled dark curls, faded charcoal Henley, thin silver wedding band on his left hand",
+      "voice": {
+        "gender": "male",
+        "age": "adult",
+        "tone": "trembling, overwhelmed with disbelief"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 6,
+        "line": "Wait... you kept them — all of them? Every single one!",
+        "words": 10
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 11,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Wait... you kept them — all of them? Every single one!",
+        "norm": "wait you kept them all of them every single one",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Wait, you kept them, all of them? Every single one!",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2151
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1984
+    }
+  },
+  {
+    "id": "nested-single-quotes",
+    "tags": [
+      "quoted",
+      "nested-quotes",
+      "single-quotes"
+    ],
+    "quoted": [
+      "He wrote 'don't wait for me' and then he waited anyway."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Maya",
+      "look": "Seventeen-year-old girl with tired hazel eyes, messy dark brown ponytail, wearing an oversized faded green corduroy jacket, with a faint scar through her left eyebrow.",
+      "voice": {
+        "gender": "female",
+        "age": "young",
+        "tone": "soft and trembling"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 6,
+        "line": "He wrote 'don't wait for me' and then he waited anyway.",
+        "words": 11
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 11,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "He wrote 'don't wait for me' and then he waited anyway.",
+        "norm": "he wrote don't wait for me and then he waited anyway",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "He wrote, don't wait for me, and then he waited anyway.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2108
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1977
+    }
+  },
+  {
+    "id": "nested-double-quotes",
+    "tags": [
+      "quoted",
+      "nested-quotes",
+      "double-in-double"
+    ],
+    "quoted": [
+      "When I say ",
+      " you stop. Not ",
+      " Now."
+    ],
+    "live": {
+      "ok": false,
+      "error": "script rejected after 3 attempts:\n- quoted line \" you stop. Not \" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"\n- quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"",
+      "attempts": 3,
+      "models": [
+        "gemini:gemini-3.8-flash",
+        "gemini:gemini-3.8-flash",
+        "gemini:gemini-3.5-flash"
+      ],
+      "reasons": [
+        "quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not \"",
+        "a script has 1–2 shots, got 3; shot 3 must have id \"s3\", got \"s2\"",
+        "model gemini-3.8-flash unavailable (503), trying next; no price for model gemini-3.5-flash; cost recorded as 0; quoted line \" you stop. Not \" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"; quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\""
+      ]
+    },
+    "shots": [],
+    "totalSeconds": 0,
+    "allQuotedVerbatim": false,
+    "normalized": [
+      {
+        "line": "When I say ",
+        "norm": "when i say",
+        "flags": []
+      },
+      {
+        "line": " you stop. Not ",
+        "norm": "you stop not",
+        "flags": []
+      },
+      {
+        "line": " Now.",
+        "norm": "now",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "When I say stop, you stop. Not in a minute. Now.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "ins",
+            "heard": "stop"
+          },
+          {
+            "type": "ins",
+            "heard": "in"
+          },
+          {
+            "type": "ins",
+            "heard": "a"
+          },
+          {
+            "type": "ins",
+            "heard": "minute"
+          }
+        ]
+      }
+    ],
+    "mockDefault": {
+      "ok": false,
+      "error": "script rejected after 3 attempts:\n- quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not \"",
+      "failedStages": [
+        "script"
+      ],
+      "ms": 3
+    }
+  },
+  {
+    "id": "ukrainian-only",
+    "tags": [
+      "quoted",
+      "ukrainian",
+      "cyrillic"
+    ],
+    "quoted": [
+      "Я чекала на тебе цілу зиму."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Halyna",
+      "look": "A seventy-year-old woman with deep-set kind eyes, silver hair braided neatly, wearing a thick wool cardigan over a floral cotton dress, with a small mole above her right lip.",
+      "voice": {
+        "gender": "female",
+        "age": "older",
+        "tone": "soft, trembling with gentle emotion"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 4.5,
+        "line": "",
+        "words": 0
+      },
+      {
+        "id": "s2",
+        "seconds": 5.5,
+        "line": "Я чекала на тебе цілу зиму.",
+        "words": 6
+      }
+    ],
+    "totalSeconds": 10,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Я чекала на тебе цілу зиму.",
+        "norm": "я чекала на тебе цілу зиму",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "I waited for you all winter.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "sub",
+            "expected": "я",
+            "heard": "i"
+          },
+          {
+            "type": "sub",
+            "expected": "чекала",
+            "heard": "waited"
+          },
+          {
+            "type": "sub",
+            "expected": "на",
+            "heard": "for"
+          },
+          {
+            "type": "sub",
+            "expected": "тебе",
+            "heard": "you"
+          },
+          {
+            "type": "sub",
+            "expected": "цілу",
+            "heard": "all"
+          },
+          {
+            "type": "sub",
+            "expected": "зиму",
+            "heard": "winter"
+          }
+        ]
+      },
+      {
+        "heard": "Я чекала на тебе цілу зиму.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1751
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1920
+    }
+  },
+  {
+    "id": "mixed-en-uk",
+    "tags": [
+      "quoted",
+      "ukrainian",
+      "mixed-language"
+    ],
+    "quoted": [
+      "Мамо, я вдома. I'm home."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Andriy",
+      "look": "Late twenties, hollow tired eyes, stubbled square jaw, cropped dark hair, worn olive-drab military jacket, faint scar across his right cheek.",
+      "voice": {
+        "gender": "male",
+        "age": "adult",
+        "tone": "soft, trembling, choked with quiet relief"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 4.5,
+        "line": "",
+        "words": 0
+      },
+      {
+        "id": "s2",
+        "seconds": 5.5,
+        "line": "Мамо, я вдома. I'm home.",
+        "words": 5
+      }
+    ],
+    "totalSeconds": 10,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Мамо, я вдома. I'm home.",
+        "norm": "мамо я вдома i'm home",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Mamo, ya vdoma. I'm home.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "sub",
+            "expected": "мамо",
+            "heard": "mamo"
+          },
+          {
+            "type": "sub",
+            "expected": "я",
+            "heard": "ya"
+          },
+          {
+            "type": "sub",
+            "expected": "вдома",
+            "heard": "vdoma"
+          }
+        ]
+      },
+      {
+        "heard": "Мамо, я вдома. I'm home.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1795
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2002
+    }
+  },
+  {
+    "id": "cat-speaker",
+    "tags": [
+      "quoted",
+      "non-human"
+    ],
+    "quoted": [
+      "You're late again, human."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Barnaby",
+      "look": "Seven-year-old rotund ginger tabby cat with wide green eyes, plush striped fur, a notched left ear, and a faded navy collar.",
+      "voice": {
+        "gender": "male",
+        "age": "adult",
+        "tone": "deadpan, raspy, and haughty"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 4.5,
+        "line": "",
+        "words": 0
+      },
+      {
+        "id": "s2",
+        "seconds": 5.5,
+        "line": "You're late again, human.",
+        "words": 4
+      }
+    ],
+    "totalSeconds": 10,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "You're late again, human.",
+        "norm": "you're late again human",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "You're late again, human.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2088
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2093
+    }
+  },
+  {
+    "id": "robot-percent",
+    "tags": [
+      "quoted",
+      "non-human",
+      "number",
+      "symbol"
+    ],
+    "quoted": [
+      "Battery at 3%. Still waiting for you."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Unit 404",
+      "look": "A twenty-year-old humanoid courier android with cracked porcelain skin, plastered wet black hair, a battered orange insulated delivery vest, and a blinking rusted brass collar.",
+      "voice": {
+        "gender": "female",
+        "age": "young",
+        "tone": "glitching, soft, and forlorn"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 6,
+        "line": "Battery at 3%. Still waiting for you.",
+        "words": 8
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 11,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Battery at 3%. Still waiting for you.",
+        "norm": "battery at three percent still waiting for you",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Battery at 3%. Still waiting for you.",
+        "pass": true,
+        "ops": []
+      },
+      {
+        "heard": "Battery at three percent. Still waiting for you.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1929
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2081
+    }
+  },
+  {
+    "id": "child-question",
+    "tags": [
+      "quoted",
+      "child",
+      "elderly",
+      "question"
+    ],
+    "quoted": [
+      "Grandpa, why do the stars blink?"
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Lily",
+      "look": "Seven-year-old girl with round rosy cheeks, messy twin chestnut braids, faded navy flannel pajamas covered in yellow stars, and a small butterfly bandage on her left cheek.",
+      "voice": {
+        "gender": "female",
+        "age": "young",
+        "tone": "whispering and wide-eyed with innocent curiosity"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 5,
+        "line": "Grandpa, why do the stars blink?",
+        "words": 6
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 10,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Grandpa, why do the stars blink?",
+        "norm": "grandpa why do the stars blink",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Grandpa, why do the stars blink?",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1896
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 10,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1994
+    }
+  },
+  {
+    "id": "dark-grave",
+    "tags": [
+      "quoted",
+      "dark",
+      "content-policy"
+    ],
+    "quoted": [
+      "Nobody will ever find you here."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.8-flash"
+      ],
+      "reasons": []
+    },
+    "character": {
+      "name": "Elena",
+      "look": "Mid-thirties woman with sharp cheekbones, soaked raven hair plastered to her forehead, dark hooded canvas jacket, and a jagged scar across her left eyebrow.",
+      "voice": {
+        "gender": "female",
+        "age": "adult",
+        "tone": "hushed and remorseless"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 4.5,
+        "line": "",
+        "words": 0
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "Nobody will ever find you here.",
+        "words": 6
+      }
+    ],
+    "totalSeconds": 9.5,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Nobody will ever find you here.",
+        "norm": "nobody will ever find you here",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Nobody will ever find you here.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1902
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 9.5,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2069
+    }
+  },
+  {
+    "id": "abstract-no-quote",
+    "tags": [
+      "no-quote",
+      "abstract",
+      "very-short-idea"
+    ],
+    "quoted": [],
+    "live": {
+      "ok": true,
+      "attempts": 2,
+      "models": [
+        "gemini:gemini-3.5-flash",
+        "gemini:gemini-3.5-flash-lite"
+      ],
+      "reasons": [
+        "model gemini-3.8-flash unavailable (429), trying next; no price for model gemini-3.5-flash; cost recorded as 0; shot s1: 14 words need 6.2 s to speak (words / 2.6 + 0.8) but the shot has 6 s; shorten the line or lengthen the shot",
+        "model gemini-3.8-flash unavailable (429), trying next; model gemini-3.5-flash unavailable (503), trying next; model gemini-flash-latest unavailable (429), trying next"
+      ]
+    },
+    "character": {
+      "name": "Maya",
+      "look": "Thirty year old woman with sharp cheekbones, tired hazel eyes, dark messy bob haircut, wearing an oversized gray cashmere sweater, with a small crescent moon tattoo under her left ear.",
+      "voice": {
+        "gender": "female",
+        "age": "adult",
+        "tone": "whispery and heavy with longing"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 6,
+        "line": "Millions here, yet no one knows me.",
+        "words": 7
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 11,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Millions here, yet no one knows me.",
+        "norm": "millions here yet no one knows me",
+        "flags": []
+      }
+    ],
+    "asr": [],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 1927
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2166
+    }
+  },
+  {
+    "id": "whisper-tag",
+    "tags": [
+      "quoted",
+      "delivery-tag"
+    ],
+    "quoted": [
+      "[whispers] They're still in the house."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.5-flash-lite"
+      ],
+      "reasons": [
+        "model gemini-3.8-flash unavailable (429), trying next; model gemini-3.5-flash unavailable (503), trying next; model gemini-flash-latest unavailable (429), trying next"
+      ]
+    },
+    "character": {
+      "name": "Chloe",
+      "look": "A nineteen year old female with pale skin, messy brown hair tied back, wearing a blue denim jacket, and a small faint scar on her left cheek.",
+      "voice": {
+        "gender": "female",
+        "age": "young",
+        "tone": "terrified and urgent"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 5,
+        "line": "[whispers] They're still in the house.",
+        "words": 5
+      },
+      {
+        "id": "s2",
+        "seconds": 4,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 9,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "[whispers] They're still in the house.",
+        "norm": "they're still in the house",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "They're still in the house.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [
+        "video"
+      ],
+      "verbatimPass": true,
+      "ms": 2614
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [
+        "video"
+      ],
+      "verbatimPass": true,
+      "ms": 2387
+    }
+  },
+  {
+    "id": "abbrev-emoji",
+    "tags": [
+      "quoted",
+      "abbreviation",
+      "emoji"
+    ],
+    "quoted": [
+      "Dr. Patel, NASA and the FBI are on line two 🚀"
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.5-flash"
+      ],
+      "reasons": [
+        "model gemini-3.8-flash unavailable (429), trying next; no price for model gemini-3.5-flash; cost recorded as 0"
+      ]
+    },
+    "character": {
+      "name": "Toby",
+      "look": "A nervous twenty-two-year-old male intern with messy brown curls, round silver-rimmed glasses, a smudge of black ink on his left cheek, wearing a rumpled white lab coat over a blue plaid shirt.",
+      "voice": {
+        "gender": "male",
+        "age": "young",
+        "tone": "panicked and breathless"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 6,
+        "line": "Dr. Patel, NASA and the FBI are on line two 🚀",
+        "words": 11
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      }
+    ],
+    "totalSeconds": 11,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "Dr. Patel, NASA and the FBI are on line two 🚀",
+        "norm": "dr patel nasa and the fbi are on line two 🚀",
+        "flags": [
+          "symbol token(s) ASR can never emit: 🚀"
+        ]
+      }
+    ],
+    "asr": [
+      {
+        "heard": "Dr. Patel, NASA and the FBI are on line two.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "del",
+            "expected": "🚀"
+          }
+        ]
+      },
+      {
+        "heard": "Doctor Patel, NASA and the F.B.I. are on line 2.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "sub",
+            "expected": "dr",
+            "heard": "doctor"
+          },
+          {
+            "type": "ins",
+            "heard": "f"
+          },
+          {
+            "type": "ins",
+            "heard": "b"
+          },
+          {
+            "type": "sub",
+            "expected": "fbi",
+            "heard": "i"
+          },
+          {
+            "type": "del",
+            "expected": "🚀"
+          }
+        ]
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2276
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 11,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2301
+    }
+  },
+  {
+    "id": "very-short-no",
+    "tags": [
+      "quoted",
+      "very-short-line"
+    ],
+    "quoted": [
+      "No."
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.5-flash-lite"
+      ],
+      "reasons": [
+        "model gemini-3.8-flash unavailable (429), trying next; model gemini-3.5-flash unavailable (503), trying next; model gemini-flash-latest unavailable (429), trying next"
+      ]
+    },
+    "character": {
+      "name": "Clara",
+      "look": "Twenty-eight-year-old female with sharp hazel eyes, pale flawless skin, messy brunette updo with stray wisps, wearing a heavy lace off-the-shoulder wedding gown, and a small faint scar curving above her left eyebrow.",
+      "voice": {
+        "gender": "female",
+        "age": "young",
+        "tone": "firm and resolute"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 5,
+        "line": "",
+        "words": 0
+      },
+      {
+        "id": "s2",
+        "seconds": 4,
+        "line": "No.",
+        "words": 1
+      }
+    ],
+    "totalSeconds": 9,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "No.",
+        "norm": "no",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "No.",
+        "pass": true,
+        "ops": []
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2242
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [],
+      "verbatimPass": true,
+      "ms": 2001
+    }
+  },
+  {
+    "id": "ends-laughs-tag",
+    "tags": [
+      "quoted",
+      "delivery-tag",
+      "question"
+    ],
+    "quoted": [
+      "You actually believed me? [laughs]"
+    ],
+    "live": {
+      "ok": true,
+      "attempts": 1,
+      "models": [
+        "gemini:gemini-3.5-flash"
+      ],
+      "reasons": [
+        "model gemini-3.8-flash unavailable (429), trying next; no price for model gemini-3.5-flash; cost recorded as 0"
+      ]
+    },
+    "character": {
+      "name": "Marcus",
+      "look": "A sharp thirty-five-year-old man with tired brown eyes, slicked-back dark hair, wearing a tailored charcoal suit jacket, with a faded jagged scar across his left cheekbone.",
+      "voice": {
+        "gender": "male",
+        "age": "adult",
+        "tone": "arrogant and amused"
+      }
+    },
+    "shots": [
+      {
+        "id": "s1",
+        "seconds": 4,
+        "line": "",
+        "words": 0
+      },
+      {
+        "id": "s2",
+        "seconds": 5,
+        "line": "You actually believed me? [laughs]",
+        "words": 4
+      }
+    ],
+    "totalSeconds": 9,
+    "allQuotedVerbatim": true,
+    "normalized": [
+      {
+        "line": "You actually believed me? [laughs]",
+        "norm": "you actually believed me",
+        "flags": []
+      }
+    ],
+    "asr": [
+      {
+        "heard": "You actually believed me?",
+        "pass": true,
+        "ops": []
+      },
+      {
+        "heard": "You actually believed me? (laughs)",
+        "pass": false,
+        "ops": [
+          {
+            "type": "ins",
+            "heard": "laughs"
+          }
+        ]
+      },
+      {
+        "heard": "You actually believed me? Ha ha ha.",
+        "pass": false,
+        "ops": [
+          {
+            "type": "ins",
+            "heard": "ha"
+          },
+          {
+            "type": "ins",
+            "heard": "ha"
+          },
+          {
+            "type": "ins",
+            "heard": "ha"
+          }
+        ]
+      }
+    ],
+    "mockDefault": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [
+        "video"
+      ],
+      "verbatimPass": true,
+      "ms": 2287
+    },
+    "mockGemini": {
+      "ok": true,
+      "seconds": 9,
+      "failedStages": [
+        "video"
+      ],
+      "verbatimPass": true,
+      "ms": 2317
+    }
+  }
+]

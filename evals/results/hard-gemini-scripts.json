@@ -1,0 +1,1863 @@
+{
+  "cat-speaker": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00515175,
+        "ms": 11089
+      }
+    ],
+    "raws": [
+      {
+        "title": "Dinner Is Overdue",
+        "logline": "A pampered, overweight cat gives his tardy owner an icy reprimand from his window perch.",
+        "setting": "Sunlit apartment living room beside a dusty wooden windowsill.",
+        "character": {
+          "name": "Barnaby",
+          "look": "Seven-year-old rotund ginger tabby cat with wide green eyes, plush striped fur, a notched left ear, and a faded navy collar.",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "deadpan, raspy, and haughty"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Barnaby sits squarely on the polished wooden windowsill, slowly turning his heavy round head toward the lens.",
+            "motion": "His head turns deliberately in a smooth arc until his unblinking green eyes lock dead center.",
+            "emotion": "Irritated expectation",
+            "line": "",
+            "seconds": 4.5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Tight on Barnaby's chubby feline face as his white whiskers twitch forward in stern judgment.",
+            "motion": "His jowls subtly shift as his mouth delivers the words without breaking intense eye contact.",
+            "emotion": "Condescending disdain",
+            "line": "You're late again, human.",
+            "seconds": 5.5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Dinner Is Overdue",
+      "logline": "A pampered, overweight cat gives his tardy owner an icy reprimand from his window perch.",
+      "setting": "Sunlit apartment living room beside a dusty wooden windowsill.",
+      "character": {
+        "name": "Barnaby",
+        "look": "Seven-year-old rotund ginger tabby cat with wide green eyes, plush striped fur, a notched left ear, and a faded navy collar.",
+        "voice": {
+          "gender": "male",
+          "age": "adult",
+          "tone": "deadpan, raspy, and haughty"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Barnaby sits squarely on the polished wooden windowsill, slowly turning his heavy round head toward the lens.",
+          "motion": "His head turns deliberately in a smooth arc until his unblinking green eyes lock dead center.",
+          "emotion": "Irritated expectation",
+          "line": "",
+          "seconds": 4.5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Tight on Barnaby's chubby feline face as his white whiskers twitch forward in stern judgment.",
+          "motion": "His jowls subtly shift as his mouth delivers the words without breaking intense eye contact.",
+          "emotion": "Condescending disdain",
+          "line": "You're late again, human.",
+          "seconds": 5.5
+        }
+      ],
+      "quotedLines": [
+        "You're late again, human."
+      ]
+    }
+  },
+  "dialogue-two-speakers": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.01587675,
+        "ms": 32448
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Parking Lot",
+        "logline": "At dawn outside a hospital, a grieving mother and her grown son share a bittersweet laugh over the memory of the father they just lost.",
+        "setting": "Inside a parked car outside a hospital at cold blue dawn",
+        "character": {
+          "name": "Martha",
+          "look": "Sixty-year-old woman with tired graying curls pinned back, soft wrinkled features, pale skin, wearing a dark navy wool coat with a silver dragonfly brooch.",
+          "voice": {
+            "gender": "female",
+            "age": "older",
+            "tone": "wistful and grief-softened"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Martha sits in the passenger seat under dim dawn light, gazing out the condensation-fogged car window with a faint, sorrowful smile.",
+            "motion": "She turns her head slowly toward the driver side as she speaks with quiet affection.",
+            "emotion": "wistful grief",
+            "line": "Your father would have hated this parking lot.",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Her thirty-year-old son behind the steering wheel in a dark jacket smiles through exhausted, red-rimmed eyes as dawn light hits his profile.",
+            "motion": "He lets out a quiet breath of laughter, shaking his head slightly as he looks over at her.",
+            "emotion": "tender amusement",
+            "line": "He hated every parking lot, Mom.",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "The Parking Lot",
+      "logline": "At dawn outside a hospital, a grieving mother and her grown son share a bittersweet laugh over the memory of the father they just lost.",
+      "setting": "Inside a parked car outside a hospital at cold blue dawn",
+      "character": {
+        "name": "Martha",
+        "look": "Sixty-year-old woman with tired graying curls pinned back, soft wrinkled features, pale skin, wearing a dark navy wool coat with a silver dragonfly brooch.",
+        "voice": {
+          "gender": "female",
+          "age": "older",
+          "tone": "wistful and grief-softened"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Martha sits in the passenger seat under dim dawn light, gazing out the condensation-fogged car window with a faint, sorrowful smile.",
+          "motion": "She turns her head slowly toward the driver side as she speaks with quiet affection.",
+          "emotion": "wistful grief",
+          "line": "Your father would have hated this parking lot.",
+          "seconds": 5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Her thirty-year-old son behind the steering wheel in a dark jacket smiles through exhausted, red-rimmed eyes as dawn light hits his profile.",
+          "motion": "He lets out a quiet breath of laughter, shaking his head slightly as he looks over at her.",
+          "emotion": "tender amusement",
+          "line": "He hated every parking lot, Mom.",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "Your father would have hated this parking lot.",
+        "He hated every parking lot, Mom."
+      ]
+    }
+  },
+  "three-lines": {
+    "ok": false,
+    "error": "script rejected after 3 attempts:\n- quoted line \"Where were you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"\n- quoted line \"Who saw you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"",
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": false,
+        "reason": "quoted line \"Who saw you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you?\", \"Why are you lying to me?\"",
+        "costUsd": 0.04575,
+        "ms": 77796
+      },
+      {
+        "stage": "script",
+        "n": 2,
+        "provider": "gemini:gemini-flash-latest",
+        "ok": false,
+        "reason": "model gemini-3.8-flash unavailable (503), trying next; model gemini-3.5-flash unavailable (503), trying next; no price for model gemini-flash-latest; cost recorded as 0; a script has 1–2 shots, got 3; shot 3 must have id \"s3\", got \"s2\"",
+        "costUsd": 0,
+        "ms": 93364
+      },
+      {
+        "stage": "script",
+        "n": 3,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": false,
+        "reason": "quoted line \"Where were you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"; quoted line \"Who saw you?\" must be a shot line exactly, character-for-character; shot lines were: \"Where were you? Who saw you?\", \"Why are you lying to me?\"",
+        "costUsd": 0.061341,
+        "ms": 106151
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Tell",
+        "logline": "A weary detective presses a stone-faced suspect across an interrogation table until his aggressive questioning turns chillingly gentle.",
+        "setting": "A dimly lit police interrogation room with bare concrete walls and a scratched metal table.",
+        "character": {
+          "name": "Detective Miller",
+          "look": "Forties, sharp angular jawline, slicked-back salt-and-pepper hair, rumpled charcoal trench coat over an unbuttoned collar, with a jagged scar across his left eyebrow.",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "gravelly and intense"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Detective Miller plants both palms flat on the cold steel table and bears down into the frame, eyes locked on the suspect.",
+            "motion": "Fast push-in as he leans his chest forward over the tabletop.",
+            "emotion": "aggressive suspicion",
+            "line": "Where were you?",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Miller tilts his head slightly lower, his harsh grimace softening into a sorrowful, knowing gaze.",
+            "motion": "Slow, subtle creep-in on his narrowed eyes and scar.",
+            "emotion": "gentle confrontation",
+            "line": "Why are you lying to me?",
+            "seconds": 6
+          }
+        ]
+      },
+      {
+        "title": "The Tell",
+        "logline": "A weary detective presses a stone-faced suspect across an interrogation table until his aggressive questioning turns chillingly gentle.",
+        "setting": "A dimly lit police interrogation room with bare concrete walls and a scratched metal table.",
+        "character": {
+          "name": "Detective Miller",
+          "look": "Forties, sharp angular jawline, slicked-back salt-and-pepper hair, rumpled charcoal trench coat over an unbuttoned collar, with a jagged scar across his left eyebrow.",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "gravelly and intense"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Detective Miller plants both palms flat on the cold steel table and bears down into the frame, eyes locked on the suspect.",
+            "motion": "Fast push-in as he leans his chest forward over the tabletop.",
+            "emotion": "aggressive suspicion",
+            "line": "Where were you?",
+            "seconds": 4
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Miller narrows his eyes and leans in closer, the overhead interrogation bulb casting harsh shadows across his scarred brow.",
+            "motion": "Slight camera tilt down as his gaze intensifies.",
+            "emotion": "probing intensity",
+            "line": "Who saw you?",
+            "seconds": 4
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Miller tilts his head slightly lower, his harsh grimace softening into a sorrowful, knowing gaze.",
+            "motion": "Slow, subtle creep-in on his narrowed eyes and scar.",
+            "emotion": "gentle confrontation",
+            "line": "Why are you lying to me?",
+            "seconds": 5
+          }
+        ]
+      },
+      {
+        "title": "The Tell",
+        "logline": "A weary detective presses a stone-faced suspect across an interrogation table until his aggressive questioning turns chillingly gentle.",
+        "setting": "A dimly lit police interrogation room with bare concrete walls and a scratched metal table.",
+        "character": {
+          "name": "Detective Miller",
+          "look": "Forties, sharp angular jawline, slicked-back salt-and-pepper hair, rumpled charcoal trench coat over an unbuttoned collar, with a jagged scar across his left eyebrow.",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "gravelly and intense"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Detective Miller plants both palms flat on the cold steel table and bears down into the frame, eyes locked on the suspect.",
+            "motion": "Fast push-in as he leans his chest forward over the tabletop.",
+            "emotion": "aggressive suspicion",
+            "line": "Where were you? Who saw you?",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Miller lowers his chin and leans in closer under the harsh bulb, his fierce grimace softening into a sorrowful, knowing gaze.",
+            "motion": "Slow, subtle creep-in on his narrowed eyes and scarred brow.",
+            "emotion": "gentle confrontation",
+            "line": "Why are you lying to me?",
+            "seconds": 5
+          }
+        ]
+      }
+    ]
+  },
+  "long-line-33w": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00490575,
+        "ms": 9681
+      }
+    ],
+    "raws": [
+      {
+        "title": "Every Sunday Since",
+        "logline": "Alone on a shadowy stage, an aging violinist speaks to an empty front-row seat before playing their song one more time.",
+        "setting": "An empty, dimly lit concert hall stage under a single warm overhead spotlight.",
+        "character": {
+          "name": "Eleanor",
+          "look": "A seventy-year-old woman with deep laugh lines, silver hair pulled into an elegant chignon, wearing an ivory silk blouse, with a small dark birthmark on her left cheekbone.",
+          "voice": {
+            "gender": "female",
+            "age": "older",
+            "tone": "tender, weathered, and resolute"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Eleanor rests her vintage violin beneath her chin, looking down past the footlights into the dark auditorium with misty eyes.",
+            "motion": "Slow, steady push-in as she gently tightens her bow and addresses the empty velvet seat.",
+            "emotion": "loving ache",
+            "line": "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes.",
+            "seconds": 13
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Her weathered fingers settle onto the ebony fingerboard as a faint, bittersweet smile touches her lips.",
+            "motion": "Static hold as she closes her eyes and draws the bow across the first silver string.",
+            "emotion": "peaceful resolve",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Every Sunday Since",
+      "logline": "Alone on a shadowy stage, an aging violinist speaks to an empty front-row seat before playing their song one more time.",
+      "setting": "An empty, dimly lit concert hall stage under a single warm overhead spotlight.",
+      "character": {
+        "name": "Eleanor",
+        "look": "A seventy-year-old woman with deep laugh lines, silver hair pulled into an elegant chignon, wearing an ivory silk blouse, with a small dark birthmark on her left cheekbone.",
+        "voice": {
+          "gender": "female",
+          "age": "older",
+          "tone": "tender, weathered, and resolute"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Eleanor rests her vintage violin beneath her chin, looking down past the footlights into the dark auditorium with misty eyes.",
+          "motion": "Slow, steady push-in as she gently tightens her bow and addresses the empty velvet seat.",
+          "emotion": "loving ache",
+          "line": "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes.",
+          "seconds": 13
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Her weathered fingers settle onto the ebony fingerboard as a faint, bittersweet smile touches her lips.",
+          "motion": "Static hold as she closes her eyes and draws the bow across the first silver string.",
+          "emotion": "peaceful resolve",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes."
+      ]
+    }
+  },
+  "numbers-money-time": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": false,
+        "reason": "shot s1: 24 words need 10.0 s to speak (words / 2.6 + 0.8) but the shot has 7 s; shorten the line or lengthen the shot",
+        "costUsd": 0.0082545,
+        "ms": 16275
+      },
+      {
+        "stage": "script",
+        "n": 2,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00590775,
+        "ms": 9289
+      }
+    ],
+    "raws": [
+      {
+        "title": "Graveyard Shift",
+        "logline": "A sleep-deprived convenience store clerk reaches her breaking point when a customer dumps a pile of loose change onto the counter at dawn.",
+        "setting": "A dimly lit 24-hour convenience store checkout counter beneath flickering fluorescent strip lights.",
+        "character": {
+          "name": "Renee",
+          "look": "Mid-thirties woman with hollow dark-circled eyes, messy auburn bun, faded navy uniform vest over a gray hoodie, and a scarred left eyebrow.",
+          "voice": {
+            "gender": "female",
+            "age": "adult",
+            "tone": "deadpan, raspy, exhausted monotone"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Renee glares straight ahead across the counter, neon reflections glinting in her tired eyes as her thumb drags a sticky coin across the scratched laminate.",
+            "motion": "Slight handheld drift as she raises her head and exhales a slow, weary breath.",
+            "emotion": "exhausted exasperation",
+            "line": "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.",
+            "seconds": 7
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Renee rests her cheek heavily against her palm, staring unblinkingly at the customer while the overhead fluorescent tube buzzes loudly.",
+            "motion": "Static framing holding locked onto her cold, hollow stare.",
+            "emotion": "resigned defiance",
+            "line": "",
+            "seconds": 4
+          }
+        ]
+      },
+      {
+        "title": "Graveyard Shift",
+        "logline": "A sleep-deprived convenience store clerk reaches her breaking point when a customer dumps a pile of loose change onto the counter at dawn.",
+        "setting": "A dimly lit 24-hour convenience store checkout counter beneath flickering fluorescent strip lights.",
+        "character": {
+          "name": "Renee",
+          "look": "Mid-thirties woman with hollow dark-circled eyes, messy auburn bun, faded navy uniform vest over a gray hoodie, and a scarred left eyebrow.",
+          "voice": {
+            "gender": "female",
+            "age": "adult",
+            "tone": "deadpan, raspy, exhausted monotone"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Renee glares straight ahead across the counter, neon reflections glinting in her tired eyes as her thumb drags a sticky coin across the scratched laminate.",
+            "motion": "Slight handheld drift as she raises her head and exhales a slow, weary breath.",
+            "emotion": "exhausted exasperation",
+            "line": "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.",
+            "seconds": 11
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Renee rests her cheek heavily against her palm, staring unblinkingly at the customer while the overhead fluorescent tube buzzes loudly.",
+            "motion": "Static framing holding locked onto her cold, hollow stare.",
+            "emotion": "resigned defiance",
+            "line": "",
+            "seconds": 4
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Graveyard Shift",
+      "logline": "A sleep-deprived convenience store clerk reaches her breaking point when a customer dumps a pile of loose change onto the counter at dawn.",
+      "setting": "A dimly lit 24-hour convenience store checkout counter beneath flickering fluorescent strip lights.",
+      "character": {
+        "name": "Renee",
+        "look": "Mid-thirties woman with hollow dark-circled eyes, messy auburn bun, faded navy uniform vest over a gray hoodie, and a scarred left eyebrow.",
+        "voice": {
+          "gender": "female",
+          "age": "adult",
+          "tone": "deadpan, raspy, exhausted monotone"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Renee glares straight ahead across the counter, neon reflections glinting in her tired eyes as her thumb drags a sticky coin across the scratched laminate.",
+          "motion": "Slight handheld drift as she raises her head and exhales a slow, weary breath.",
+          "emotion": "exhausted exasperation",
+          "line": "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.",
+          "seconds": 11
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Renee rests her cheek heavily against her palm, staring unblinkingly at the customer while the overhead fluorescent tube buzzes loudly.",
+          "motion": "Static framing holding locked onto her cold, hollow stare.",
+          "emotion": "resigned defiance",
+          "line": "",
+          "seconds": 4
+        }
+      ],
+      "quotedLines": [
+        "It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987."
+      ]
+    }
+  },
+  "unusual-names": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.0031125,
+        "ms": 6950
+      }
+    ],
+    "raws": [
+      {
+        "title": "VIP in the Lobby",
+        "logline": "A tense hotel receptionist shields the phone receiver to shout an urgent arrival across the crowded lobby.",
+        "setting": "Opulent marble front desk of a luxury boutique hotel, warm chandelier glow in soft focus background.",
+        "character": {
+          "name": "Elena",
+          "look": "Early thirties woman, sleek dark bun, warm olive complexion, crisp navy blazer with gold lapel pin, small mole above left eyebrow.",
+          "voice": {
+            "gender": "female",
+            "age": "adult",
+            "tone": "hushed but urgent"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Elena firmly presses her palm over the desk telephone receiver, leaning forward across the counter while darting her gaze toward the back offices.",
+            "motion": "Leans forward abruptly, lips parting as she calls out with controlled volume across the hall.",
+            "emotion": "urgent",
+            "line": "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs.",
+            "seconds": 5.5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Elena brings the telephone handset back to her ear, fixing a professional smile on her face while her eyes dart nervously toward the grand entrance.",
+            "motion": "Smoothly pulls the phone back to her cheek, blinking rapidly as she forces an unflinching hospitality grin.",
+            "emotion": "nervously composed",
+            "line": "",
+            "seconds": 4.5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "VIP in the Lobby",
+      "logline": "A tense hotel receptionist shields the phone receiver to shout an urgent arrival across the crowded lobby.",
+      "setting": "Opulent marble front desk of a luxury boutique hotel, warm chandelier glow in soft focus background.",
+      "character": {
+        "name": "Elena",
+        "look": "Early thirties woman, sleek dark bun, warm olive complexion, crisp navy blazer with gold lapel pin, small mole above left eyebrow.",
+        "voice": {
+          "gender": "female",
+          "age": "adult",
+          "tone": "hushed but urgent"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Elena firmly presses her palm over the desk telephone receiver, leaning forward across the counter while darting her gaze toward the back offices.",
+          "motion": "Leans forward abruptly, lips parting as she calls out with controlled volume across the hall.",
+          "emotion": "urgent",
+          "line": "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs.",
+          "seconds": 5.5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Elena brings the telephone handset back to her ear, fixing a professional smile on her face while her eyes dart nervously toward the grand entrance.",
+          "motion": "Smoothly pulls the phone back to her cheek, blinking rapidly as she forces an unflinching hospitality grin.",
+          "emotion": "nervously composed",
+          "line": "",
+          "seconds": 4.5
+        }
+      ],
+      "quotedLines": [
+        "Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs."
+      ]
+    }
+  },
+  "ellipsis-emdash-question-exclaim": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00312975,
+        "ms": 8288
+      }
+    ],
+    "raws": [
+      {
+        "title": "Kept Forever",
+        "logline": "A grieving widower uncovers a hidden box in his late wife's closet, realizing she never threw away his old notes.",
+        "setting": "Dimly lit walk-in closet with hanging coats and soft dusty ambient light",
+        "character": {
+          "name": "Julian",
+          "look": "Early forties, stubble on a hollowed jaw, disheveled dark curls, faded charcoal Henley, thin silver wedding band on his left hand",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "trembling, overwhelmed with disbelief"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Julian holds a stack of yellowed handwritten envelopes beneath the faint closet bulb, his eyes wide and brimming with tears as his lips part in disbelief.",
+            "motion": "Slight handheld push toward his trembling face as he stares at the letters in his grip.",
+            "emotion": "Stunned astonishment mixed with surging grief",
+            "line": "Wait... you kept them — all of them? Every single one!",
+            "seconds": 6
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Julian presses one unfolded letter against his chest, shutting his eyes tightly as a tear spills down his cheek.",
+            "motion": "Slow tilt down from his tearful eyes to the handwriting clutched against his shirt.",
+            "emotion": "Heartbroken tenderness and profound relief",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Kept Forever",
+      "logline": "A grieving widower uncovers a hidden box in his late wife's closet, realizing she never threw away his old notes.",
+      "setting": "Dimly lit walk-in closet with hanging coats and soft dusty ambient light",
+      "character": {
+        "name": "Julian",
+        "look": "Early forties, stubble on a hollowed jaw, disheveled dark curls, faded charcoal Henley, thin silver wedding band on his left hand",
+        "voice": {
+          "gender": "male",
+          "age": "adult",
+          "tone": "trembling, overwhelmed with disbelief"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Julian holds a stack of yellowed handwritten envelopes beneath the faint closet bulb, his eyes wide and brimming with tears as his lips part in disbelief.",
+          "motion": "Slight handheld push toward his trembling face as he stares at the letters in his grip.",
+          "emotion": "Stunned astonishment mixed with surging grief",
+          "line": "Wait... you kept them — all of them? Every single one!",
+          "seconds": 6
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Julian presses one unfolded letter against his chest, shutting his eyes tightly as a tear spills down his cheek.",
+          "motion": "Slow tilt down from his tearful eyes to the handwriting clutched against his shirt.",
+          "emotion": "Heartbroken tenderness and profound relief",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "Wait... you kept them — all of them? Every single one!"
+      ]
+    }
+  },
+  "nested-single-quotes": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00608625,
+        "ms": 11556
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Note in the Pocket",
+        "logline": "A teenage girl discovers a heartbreaking message left inside her estranged father's coat.",
+        "setting": "Dimly lit entryway by the front door coat rack",
+        "character": {
+          "name": "Maya",
+          "look": "Seventeen-year-old girl with tired hazel eyes, messy dark brown ponytail, wearing an oversized faded green corduroy jacket, with a faint scar through her left eyebrow.",
+          "voice": {
+            "gender": "female",
+            "age": "young",
+            "tone": "soft and trembling"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Maya stares down at a crumpled scrap of yellow paper clutched in her shaking hand, her tear-filled eyes tracing the scribbled handwriting.",
+            "motion": "Slow handheld push-in toward her trembling lips as she speaks.",
+            "emotion": "Heartbroken realization",
+            "line": "He wrote 'don't wait for me' and then he waited anyway.",
+            "seconds": 6
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Maya presses the crushed paper against the collar of the oversized jacket, her chin quivering as a single tear spills down her cheek.",
+            "motion": "Subtle handheld drift staying tightly framed on her face.",
+            "emotion": "Overwhelming grief",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "The Note in the Pocket",
+      "logline": "A teenage girl discovers a heartbreaking message left inside her estranged father's coat.",
+      "setting": "Dimly lit entryway by the front door coat rack",
+      "character": {
+        "name": "Maya",
+        "look": "Seventeen-year-old girl with tired hazel eyes, messy dark brown ponytail, wearing an oversized faded green corduroy jacket, with a faint scar through her left eyebrow.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "soft and trembling"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Maya stares down at a crumpled scrap of yellow paper clutched in her shaking hand, her tear-filled eyes tracing the scribbled handwriting.",
+          "motion": "Slow handheld push-in toward her trembling lips as she speaks.",
+          "emotion": "Heartbroken realization",
+          "line": "He wrote 'don't wait for me' and then he waited anyway.",
+          "seconds": 6
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Maya presses the crushed paper against the collar of the oversized jacket, her chin quivering as a single tear spills down her cheek.",
+          "motion": "Subtle handheld drift staying tightly framed on her face.",
+          "emotion": "Overwhelming grief",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "He wrote 'don't wait for me' and then he waited anyway."
+      ]
+    }
+  },
+  "nested-double-quotes": {
+    "ok": false,
+    "error": "script rejected after 3 attempts:\n- quoted line \" you stop. Not \" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"\n- quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"",
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": false,
+        "reason": "quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not \"",
+        "costUsd": 0.059238,
+        "ms": 106563
+      },
+      {
+        "stage": "script",
+        "n": 2,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": false,
+        "reason": "a script has 1–2 shots, got 3; shot 3 must have id \"s3\", got \"s2\"",
+        "costUsd": 0.11775225,
+        "ms": 212158
+      },
+      {
+        "stage": "script",
+        "n": 3,
+        "provider": "gemini:gemini-3.5-flash",
+        "ok": false,
+        "reason": "model gemini-3.8-flash unavailable (503), trying next; no price for model gemini-3.5-flash; cost recorded as 0; quoted line \" you stop. Not \" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"; quoted line \" Now.\" must be a shot line exactly, character-for-character; shot lines were: \"When I say \", \" you stop. Not  Now.\"",
+        "costUsd": 0,
+        "ms": 14021
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Director's Cue",
+        "logline": "A demanding drama teacher abruptly halts rehearsal to enforce absolute discipline on stage.",
+        "setting": "Dimly lit rehearsal stage with black acoustic curtains and a harsh white overhead spotlight.",
+        "character": {
+          "name": "Arthur",
+          "look": "Fifty-year-old drama coach with hollow cheeks, slicked-back gray hair, black turtleneck sweater, and a deep scar slicing across his left eyebrow.",
+          "voice": {
+            "gender": "male",
+            "age": "older",
+            "tone": "stern, authoritative, and sharp"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Arthur glares down toward the performers beneath the stark overhead beam, his jaw set in rigid discipline.",
+            "motion": "He raises a sharp open palm to cut the scene, his shoulders stiffening instantly.",
+            "emotion": "cold fury",
+            "line": "When I say ",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Arthur steps directly into the center pool of light, his unblinking stare holding the rehearsal room captive.",
+            "motion": "He drops his hand in a swift, decisive slice through the air and leans forward.",
+            "emotion": "cold fury",
+            "line": " you stop. Not ",
+            "seconds": 5
+          }
+        ]
+      },
+      {
+        "title": "The Director's Cue",
+        "logline": "A demanding drama teacher abruptly halts rehearsal to enforce absolute discipline on stage.",
+        "setting": "Dimly lit rehearsal stage with black acoustic curtains and a harsh white overhead spotlight.",
+        "character": {
+          "name": "Arthur",
+          "look": "Fifty-year-old drama coach with hollow cheeks, slicked-back gray hair, black turtleneck sweater, and a deep scar slicing across his left eyebrow.",
+          "voice": {
+            "gender": "male",
+            "age": "older",
+            "tone": "stern, authoritative, and sharp"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Arthur glares down toward the performers beneath the stark overhead beam, his jaw set in rigid discipline.",
+            "motion": "He raises a sharp open palm to cut the scene, his shoulders stiffening instantly.",
+            "emotion": "cold fury",
+            "line": "When I say ",
+            "seconds": 4
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Arthur steps directly into the center pool of light, his unblinking stare holding the rehearsal room captive.",
+            "motion": "He drops his hand in a swift, decisive slice through the air and leans forward.",
+            "emotion": "cold fury",
+            "line": " you stop. Not ",
+            "seconds": 4
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Arthur leans in closer, eyes blazing with ruthless authority as the theater falls into dead silence.",
+            "motion": "He points one rigid finger toward the stage floor without blinking.",
+            "emotion": "cold fury",
+            "line": " Now.",
+            "seconds": 4
+          }
+        ]
+      },
+      {
+        "title": "The Director's Cue",
+        "logline": "A demanding drama teacher abruptly halts rehearsal to enforce absolute discipline on stage.",
+        "setting": "Dimly lit rehearsal stage with black acoustic curtains and a harsh white overhead spotlight.",
+        "character": {
+          "name": "Arthur",
+          "look": "Fifty-year-old drama coach with hollow cheeks, slicked-back gray hair, black turtleneck sweater, and a deep scar slicing across his left eyebrow.",
+          "voice": {
+            "gender": "male",
+            "age": "older",
+            "tone": "stern, authoritative, and sharp"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Arthur glares directly into the camera lens with cold intensity under the harsh stage lighting.",
+            "motion": "He abruptly holds up a single raised hand, cutting the air to halt the rehearsal.",
+            "emotion": "stern authority",
+            "line": "When I say ",
+            "seconds": 4
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Arthur steps forward into the stark spotlight, his jaw tightly clenched and eyes unblinking.",
+            "motion": "He chops his hand downward in a swift gesture of absolute finality.",
+            "emotion": "stern authority",
+            "line": " you stop. Not  Now.",
+            "seconds": 5
+          }
+        ]
+      }
+    ]
+  },
+  "ukrainian-only": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00563625,
+        "ms": 12566
+      }
+    ],
+    "raws": [
+      {
+        "title": "Winter Vigil",
+        "logline": "An elderly woman stands by a frosted kitchen window, whispering to an arrival on the snowy road after months of waiting.",
+        "setting": "A rustic village kitchen bathed in pale morning light, framed by a frost-patterned window overlooking a snowy road.",
+        "character": {
+          "name": "Halyna",
+          "look": "A seventy-year-old woman with deep-set kind eyes, silver hair braided neatly, wearing a thick wool cardigan over a floral cotton dress, with a small mole above her right lip.",
+          "voice": {
+            "gender": "female",
+            "age": "older",
+            "tone": "soft, trembling with gentle emotion"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Halyna rests her trembling hand on the frosty window frame, gazing intently out at the distant snowy lane.",
+            "motion": "Slow push-in toward her face as her warm breath slightly fogs the glass.",
+            "emotion": "tense longing",
+            "line": "",
+            "seconds": 4.5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Halyna's expression softens with tearful relief as she watches a figure emerge along the path, speaking softly to the glass.",
+            "motion": "Subtle handheld drift locked tightly on her eyes and trembling lips.",
+            "emotion": "relieved vulnerability",
+            "line": "Я чекала на тебе цілу зиму.",
+            "seconds": 5.5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Winter Vigil",
+      "logline": "An elderly woman stands by a frosted kitchen window, whispering to an arrival on the snowy road after months of waiting.",
+      "setting": "A rustic village kitchen bathed in pale morning light, framed by a frost-patterned window overlooking a snowy road.",
+      "character": {
+        "name": "Halyna",
+        "look": "A seventy-year-old woman with deep-set kind eyes, silver hair braided neatly, wearing a thick wool cardigan over a floral cotton dress, with a small mole above her right lip.",
+        "voice": {
+          "gender": "female",
+          "age": "older",
+          "tone": "soft, trembling with gentle emotion"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Halyna rests her trembling hand on the frosty window frame, gazing intently out at the distant snowy lane.",
+          "motion": "Slow push-in toward her face as her warm breath slightly fogs the glass.",
+          "emotion": "tense longing",
+          "line": "",
+          "seconds": 4.5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Halyna's expression softens with tearful relief as she watches a figure emerge along the path, speaking softly to the glass.",
+          "motion": "Subtle handheld drift locked tightly on her eyes and trembling lips.",
+          "emotion": "relieved vulnerability",
+          "line": "Я чекала на тебе цілу зиму.",
+          "seconds": 5.5
+        }
+      ],
+      "quotedLines": [
+        "Я чекала на тебе цілу зиму."
+      ]
+    }
+  },
+  "mixed-en-uk": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.0053925,
+        "ms": 11151
+      }
+    ],
+    "raws": [
+      {
+        "title": "Homecoming at Midnight",
+        "logline": "A weary soldier arrives at a misty Lviv platform and whispers the words he fought months to say.",
+        "setting": "Mist-shrouded night platform of Lviv railway station under warm yellow depot lamps.",
+        "character": {
+          "name": "Andriy",
+          "look": "Late twenties, hollow tired eyes, stubbled square jaw, cropped dark hair, worn olive-drab military jacket, faint scar across his right cheek.",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "soft, trembling, choked with quiet relief"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Andriy presses a scratched smartphone to his ear under the station lights, breath misting in the freezing air as he waits through the ringtone.",
+            "motion": "Slow, tight push-in toward his tense face as his shoulders slowly begin to drop.",
+            "emotion": "anxious anticipation",
+            "line": "",
+            "seconds": 4.5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Tears glisten in Andriy's exhausted eyes as a faint, fragile smile breaks across his stubbled face when the line connects.",
+            "motion": "Subtle handheld drift holding close on his mouth and tearful eyes as he speaks into the receiver.",
+            "emotion": "overwhelming relief",
+            "line": "Мамо, я вдома. I'm home.",
+            "seconds": 5.5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Homecoming at Midnight",
+      "logline": "A weary soldier arrives at a misty Lviv platform and whispers the words he fought months to say.",
+      "setting": "Mist-shrouded night platform of Lviv railway station under warm yellow depot lamps.",
+      "character": {
+        "name": "Andriy",
+        "look": "Late twenties, hollow tired eyes, stubbled square jaw, cropped dark hair, worn olive-drab military jacket, faint scar across his right cheek.",
+        "voice": {
+          "gender": "male",
+          "age": "adult",
+          "tone": "soft, trembling, choked with quiet relief"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Andriy presses a scratched smartphone to his ear under the station lights, breath misting in the freezing air as he waits through the ringtone.",
+          "motion": "Slow, tight push-in toward his tense face as his shoulders slowly begin to drop.",
+          "emotion": "anxious anticipation",
+          "line": "",
+          "seconds": 4.5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Tears glisten in Andriy's exhausted eyes as a faint, fragile smile breaks across his stubbled face when the line connects.",
+          "motion": "Subtle handheld drift holding close on his mouth and tearful eyes as he speaks into the receiver.",
+          "emotion": "overwhelming relief",
+          "line": "Мамо, я вдома. I'm home.",
+          "seconds": 5.5
+        }
+      ],
+      "quotedLines": [
+        "Мамо, я вдома. I'm home."
+      ]
+    }
+  },
+  "robot-percent": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00621525,
+        "ms": 12536
+      }
+    ],
+    "raws": [
+      {
+        "title": "Battery Low",
+        "logline": "Stranded at an empty rainy crosswalk, a dying delivery android whispers its final programmed promise.",
+        "setting": "A neon-lit pedestrian crosswalk in pouring rain at midnight.",
+        "character": {
+          "name": "Unit 404",
+          "look": "A twenty-year-old humanoid courier android with cracked porcelain skin, plastered wet black hair, a battered orange insulated delivery vest, and a blinking rusted brass collar.",
+          "voice": {
+            "gender": "female",
+            "age": "young",
+            "tone": "glitching, soft, and forlorn"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Unit 404's rain-streaked synthetic face fills the vertical frame, neon streetlights reflecting in her flickering optical sensor eyes as water drips from her chin.",
+            "motion": "Her mechanical lips twitch faintly as she speaks, her glowing ocular iris pulsing weakly before dimming.",
+            "emotion": "melancholic longing",
+            "line": "Battery at 3%. Still waiting for you.",
+            "seconds": 6
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Water pours over Unit 404's battered courier vest and rusted collar as the crosswalk signal turns red across her face.",
+            "motion": "Her head slowly tilts downward, eyelids half-closing as the faint amber power light on her neck dies out completely.",
+            "emotion": "resigned surrender",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Battery Low",
+      "logline": "Stranded at an empty rainy crosswalk, a dying delivery android whispers its final programmed promise.",
+      "setting": "A neon-lit pedestrian crosswalk in pouring rain at midnight.",
+      "character": {
+        "name": "Unit 404",
+        "look": "A twenty-year-old humanoid courier android with cracked porcelain skin, plastered wet black hair, a battered orange insulated delivery vest, and a blinking rusted brass collar.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "glitching, soft, and forlorn"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Unit 404's rain-streaked synthetic face fills the vertical frame, neon streetlights reflecting in her flickering optical sensor eyes as water drips from her chin.",
+          "motion": "Her mechanical lips twitch faintly as she speaks, her glowing ocular iris pulsing weakly before dimming.",
+          "emotion": "melancholic longing",
+          "line": "Battery at 3%. Still waiting for you.",
+          "seconds": 6
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Water pours over Unit 404's battered courier vest and rusted collar as the crosswalk signal turns red across her face.",
+          "motion": "Her head slowly tilts downward, eyelids half-closing as the faint amber power light on her neck dies out completely.",
+          "emotion": "resigned surrender",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "Battery at 3%. Still waiting for you."
+      ]
+    }
+  },
+  "child-question": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.004659,
+        "ms": 10028
+      }
+    ],
+    "raws": [
+      {
+        "title": "Why Stars Blink",
+        "logline": "On a quiet tin farmhouse roof, a little girl watches the night sky and whispers a question of wonder to her grandfather.",
+        "setting": "Sloped tin roof of an old farmhouse under a dense canopy of twinkling country stars at midnight.",
+        "character": {
+          "name": "Lily",
+          "look": "Seven-year-old girl with round rosy cheeks, messy twin chestnut braids, faded navy flannel pajamas covered in yellow stars, and a small butterfly bandage on her left cheek.",
+          "voice": {
+            "gender": "female",
+            "age": "young",
+            "tone": "whispering and wide-eyed with innocent curiosity"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Lily lies back against the cool tin roof, starlight reflecting faintly in her wide dark eyes as she peers upward into the night.",
+            "motion": "Her chin tilts up slightly toward the sky as her lips part to whisper.",
+            "emotion": "wonder",
+            "line": "Grandpa, why do the stars blink?",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Lily rolls her cheek against her folded pajama arm, waiting expectantly while searching the darkness beside her.",
+            "motion": "A soft breath escapes her lips as her eyes blink slowly, waiting for an answer.",
+            "emotion": "affectionate anticipation",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Why Stars Blink",
+      "logline": "On a quiet tin farmhouse roof, a little girl watches the night sky and whispers a question of wonder to her grandfather.",
+      "setting": "Sloped tin roof of an old farmhouse under a dense canopy of twinkling country stars at midnight.",
+      "character": {
+        "name": "Lily",
+        "look": "Seven-year-old girl with round rosy cheeks, messy twin chestnut braids, faded navy flannel pajamas covered in yellow stars, and a small butterfly bandage on her left cheek.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "whispering and wide-eyed with innocent curiosity"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Lily lies back against the cool tin roof, starlight reflecting faintly in her wide dark eyes as she peers upward into the night.",
+          "motion": "Her chin tilts up slightly toward the sky as her lips part to whisper.",
+          "emotion": "wonder",
+          "line": "Grandpa, why do the stars blink?",
+          "seconds": 5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Lily rolls her cheek against her folded pajama arm, waiting expectantly while searching the darkness beside her.",
+          "motion": "A soft breath escapes her lips as her eyes blink slowly, waiting for an answer.",
+          "emotion": "affectionate anticipation",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "Grandpa, why do the stars blink?"
+      ]
+    }
+  },
+  "dark-grave": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.8-flash",
+        "ok": true,
+        "costUsd": 0.00504975,
+        "ms": 10439
+      }
+    ],
+    "raws": [
+      {
+        "title": "Buried Deep",
+        "logline": "Drenched in rain beside a freshly dug forest grave, a woman delivers a chilling farewell to what lies beneath.",
+        "setting": "A sodden forest clearing at dusk during a torrential downpour, edge of pine woods with freshly turned black mud.",
+        "character": {
+          "name": "Elena",
+          "look": "Mid-thirties woman with sharp cheekbones, soaked raven hair plastered to her forehead, dark hooded canvas jacket, and a jagged scar across her left eyebrow.",
+          "voice": {
+            "gender": "female",
+            "age": "adult",
+            "tone": "hushed and remorseless"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Elena leans heavily on the wooden handle of a mud-caked shovel in the lashing rain, breathing raggedly as she drags a sodden sleeve across her wet forehead.",
+            "motion": "Camera shivers slightly handheld, holding Elena's heaving chest and intense downward gaze before she slowly lifts her head.",
+            "emotion": "exhausted adrenaline",
+            "line": "",
+            "seconds": 4.5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Elena's drenched face fills the vertical frame, rain running in pale tracks through mud splatters on her cheeks as her expression turns ice-cold.",
+            "motion": "Slow micro-push into her dark, unblinking eyes as water drips from the tip of her nose.",
+            "emotion": "cold finality",
+            "line": "Nobody will ever find you here.",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Buried Deep",
+      "logline": "Drenched in rain beside a freshly dug forest grave, a woman delivers a chilling farewell to what lies beneath.",
+      "setting": "A sodden forest clearing at dusk during a torrential downpour, edge of pine woods with freshly turned black mud.",
+      "character": {
+        "name": "Elena",
+        "look": "Mid-thirties woman with sharp cheekbones, soaked raven hair plastered to her forehead, dark hooded canvas jacket, and a jagged scar across her left eyebrow.",
+        "voice": {
+          "gender": "female",
+          "age": "adult",
+          "tone": "hushed and remorseless"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Elena leans heavily on the wooden handle of a mud-caked shovel in the lashing rain, breathing raggedly as she drags a sodden sleeve across her wet forehead.",
+          "motion": "Camera shivers slightly handheld, holding Elena's heaving chest and intense downward gaze before she slowly lifts her head.",
+          "emotion": "exhausted adrenaline",
+          "line": "",
+          "seconds": 4.5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Elena's drenched face fills the vertical frame, rain running in pale tracks through mud splatters on her cheeks as her expression turns ice-cold.",
+          "motion": "Slow micro-push into her dark, unblinking eyes as water drips from the tip of her nose.",
+          "emotion": "cold finality",
+          "line": "Nobody will ever find you here.",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "Nobody will ever find you here."
+      ]
+    }
+  },
+  "abstract-no-quote": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.5-flash",
+        "ok": false,
+        "reason": "model gemini-3.8-flash unavailable (429), trying next; no price for model gemini-3.5-flash; cost recorded as 0; shot s1: 14 words need 6.2 s to speak (words / 2.6 + 0.8) but the shot has 6 s; shorten the line or lengthen the shot",
+        "costUsd": 0,
+        "ms": 9365
+      },
+      {
+        "stage": "script",
+        "n": 2,
+        "provider": "gemini:gemini-3.5-flash-lite",
+        "ok": true,
+        "reason": "model gemini-3.8-flash unavailable (429), trying next; model gemini-3.5-flash unavailable (503), trying next; model gemini-flash-latest unavailable (429), trying next",
+        "costUsd": 0.0011275,
+        "ms": 4186
+      }
+    ],
+    "raws": [
+      {
+        "title": "Silent City Nights",
+        "logline": "A lonely woman staring at a glowing metropolis feels completely invisible amidst the crowds.",
+        "setting": "High-rise apartment balcony window at night overlooking neon city lights",
+        "character": {
+          "name": "Maya",
+          "look": "Thirty year old woman with sharp cheekbones, tired hazel eyes, dark messy bob haircut, wearing an oversized gray cashmere sweater, with a small crescent moon tattoo under her left ear.",
+          "voice": {
+            "gender": "female",
+            "age": "adult",
+            "tone": "whispery and heavy with longing"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Maya presses her forehead against the cold window glass as neon traffic lights reflect across her pale cheek.",
+            "motion": "Slow push in on her eyes reflecting glowing red and blue light streaks from below.",
+            "emotion": "desolation",
+            "line": "Eight million people in this city, and not one of them knows my name.",
+            "seconds": 6
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Maya wraps her arms tightly around her chest as rain streaks down the windowpane outside.",
+            "motion": "She exhales gently against the cold glass, blurring her reflection into the background lights.",
+            "emotion": "heartbreak",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      },
+      {
+        "title": "Silent City Nights",
+        "logline": "A lonely woman staring at a glowing metropolis feels completely invisible amidst the crowds.",
+        "setting": "High-rise apartment balcony window at night overlooking neon city lights",
+        "character": {
+          "name": "Maya",
+          "look": "Thirty year old woman with sharp cheekbones, tired hazel eyes, dark messy bob haircut, wearing an oversized gray cashmere sweater, with a small crescent moon tattoo under her left ear.",
+          "voice": {
+            "gender": "female",
+            "age": "adult",
+            "tone": "whispery and heavy with longing"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Maya presses her forehead against the cold window glass as neon traffic lights reflect across her pale cheek.",
+            "motion": "Slow push in on her eyes reflecting glowing red and blue light streaks from below.",
+            "emotion": "desolation",
+            "line": "Millions here, yet no one knows me.",
+            "seconds": 6
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Maya wraps her arms tightly around her chest as rain streaks down the windowpane outside.",
+            "motion": "She exhales gently against the cold glass, blurring her reflection into the background lights.",
+            "emotion": "heartbreak",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Silent City Nights",
+      "logline": "A lonely woman staring at a glowing metropolis feels completely invisible amidst the crowds.",
+      "setting": "High-rise apartment balcony window at night overlooking neon city lights",
+      "character": {
+        "name": "Maya",
+        "look": "Thirty year old woman with sharp cheekbones, tired hazel eyes, dark messy bob haircut, wearing an oversized gray cashmere sweater, with a small crescent moon tattoo under her left ear.",
+        "voice": {
+          "gender": "female",
+          "age": "adult",
+          "tone": "whispery and heavy with longing"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Maya presses her forehead against the cold window glass as neon traffic lights reflect across her pale cheek.",
+          "motion": "Slow push in on her eyes reflecting glowing red and blue light streaks from below.",
+          "emotion": "desolation",
+          "line": "Millions here, yet no one knows me.",
+          "seconds": 6
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Maya wraps her arms tightly around her chest as rain streaks down the windowpane outside.",
+          "motion": "She exhales gently against the cold glass, blurring her reflection into the background lights.",
+          "emotion": "heartbreak",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": []
+    }
+  },
+  "whisper-tag": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.5-flash-lite",
+        "ok": true,
+        "reason": "model gemini-3.8-flash unavailable (429), trying next; model gemini-3.5-flash unavailable (503), trying next; model gemini-flash-latest unavailable (429), trying next",
+        "costUsd": 0.0009602,
+        "ms": 8284
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Pantry",
+        "logline": "A terrified babysitter hides in the dark, whispering an urgent warning over the phone.",
+        "setting": "A cramped, dark pantry filled with canned goods and wire shelves.",
+        "character": {
+          "name": "Chloe",
+          "look": "A nineteen year old female with pale skin, messy brown hair tied back, wearing a blue denim jacket, and a small faint scar on her left cheek.",
+          "voice": {
+            "gender": "female",
+            "age": "young",
+            "tone": "terrified and urgent"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Chloe pressing a glowing smartphone to her ear inside a pitch black pantry, shelves blurred in the background.",
+            "motion": "slight handheld camera shake, trembling breath",
+            "emotion": "fear",
+            "line": "[whispers] They're still in the house.",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Chloe glancing sideways at the louvered pantry door as a floorboard creaks outside.",
+            "motion": "slow push in, holding her breath",
+            "emotion": "dread",
+            "line": "",
+            "seconds": 4
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "The Pantry",
+      "logline": "A terrified babysitter hides in the dark, whispering an urgent warning over the phone.",
+      "setting": "A cramped, dark pantry filled with canned goods and wire shelves.",
+      "character": {
+        "name": "Chloe",
+        "look": "A nineteen year old female with pale skin, messy brown hair tied back, wearing a blue denim jacket, and a small faint scar on her left cheek.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "terrified and urgent"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Chloe pressing a glowing smartphone to her ear inside a pitch black pantry, shelves blurred in the background.",
+          "motion": "slight handheld camera shake, trembling breath",
+          "emotion": "fear",
+          "line": "[whispers] They're still in the house.",
+          "seconds": 5
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Chloe glancing sideways at the louvered pantry door as a floorboard creaks outside.",
+          "motion": "slow push in, holding her breath",
+          "emotion": "dread",
+          "line": "",
+          "seconds": 4
+        }
+      ],
+      "quotedLines": [
+        "[whispers] They're still in the house."
+      ]
+    }
+  },
+  "abbrev-emoji": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.5-flash",
+        "ok": true,
+        "reason": "model gemini-3.8-flash unavailable (429), trying next; no price for model gemini-3.5-flash; cost recorded as 0",
+        "costUsd": 0,
+        "ms": 10691
+      }
+    ],
+    "raws": [
+      {
+        "title": "Line Two",
+        "logline": "A panicked research intern delivers shocking news that changes everything.",
+        "setting": "A high-tech optics laboratory with glowing monitors and sleek workstations.",
+        "character": {
+          "name": "Toby",
+          "look": "A nervous twenty-two-year-old male intern with messy brown curls, round silver-rimmed glasses, a smudge of black ink on his left cheek, wearing a rumpled white lab coat over a blue plaid shirt.",
+          "voice": {
+            "gender": "male",
+            "age": "young",
+            "tone": "panicked and breathless"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "medium close-up",
+            "visual": "Toby bursts into the dark laboratory holding up a ringing smartphone with wide, terrified eyes.",
+            "motion": "Camera tracks rapidly with Toby as he stumbles forward, raising the glowing smartphone screen.",
+            "emotion": "panicked",
+            "line": "Dr. Patel, NASA and the FBI are on line two 🚀",
+            "seconds": 6
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Toby trembles violently, eyes darting frantically off-camera while awaiting a response.",
+            "motion": "Slow push-in on Toby's pale face as his chest heaves with rapid breaths.",
+            "emotion": "shocked",
+            "line": "",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "Line Two",
+      "logline": "A panicked research intern delivers shocking news that changes everything.",
+      "setting": "A high-tech optics laboratory with glowing monitors and sleek workstations.",
+      "character": {
+        "name": "Toby",
+        "look": "A nervous twenty-two-year-old male intern with messy brown curls, round silver-rimmed glasses, a smudge of black ink on his left cheek, wearing a rumpled white lab coat over a blue plaid shirt.",
+        "voice": {
+          "gender": "male",
+          "age": "young",
+          "tone": "panicked and breathless"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "medium close-up",
+          "visual": "Toby bursts into the dark laboratory holding up a ringing smartphone with wide, terrified eyes.",
+          "motion": "Camera tracks rapidly with Toby as he stumbles forward, raising the glowing smartphone screen.",
+          "emotion": "panicked",
+          "line": "Dr. Patel, NASA and the FBI are on line two 🚀",
+          "seconds": 6
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Toby trembles violently, eyes darting frantically off-camera while awaiting a response.",
+          "motion": "Slow push-in on Toby's pale face as his chest heaves with rapid breaths.",
+          "emotion": "shocked",
+          "line": "",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "Dr. Patel, NASA and the FBI are on line two 🚀"
+      ]
+    }
+  },
+  "very-short-no": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.5-flash-lite",
+        "ok": true,
+        "reason": "model gemini-3.8-flash unavailable (429), trying next; model gemini-3.5-flash unavailable (503), trying next; model gemini-flash-latest unavailable (429), trying next",
+        "costUsd": 0.0009882,
+        "ms": 7530
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Left Word",
+        "logline": "A reluctant bride halts her wedding at the very last second with a single word.",
+        "setting": "A brightly lit rustic chapel adorned with white roses and fairy lights.",
+        "character": {
+          "name": "Clara",
+          "look": "Twenty-eight-year-old female with sharp hazel eyes, pale flawless skin, messy brunette updo with stray wisps, wearing a heavy lace off-the-shoulder wedding gown, and a small faint scar curving above her left eyebrow.",
+          "voice": {
+            "gender": "female",
+            "age": "young",
+            "tone": "firm and resolute"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Clara staring forward with intense hesitation, chest rising and falling beneath the lace gown.",
+            "motion": "Slow push in on her face as she exhales a shaky breath.",
+            "emotion": "fearful realization",
+            "line": "",
+            "seconds": 5
+          },
+          {
+            "id": "s2",
+            "camera": "close-up",
+            "visual": "Clara tilting her chin up defiantly, eyes locked forward off-screen.",
+            "motion": "Static hold framing her mouth as she speaks.",
+            "emotion": "unwavering resolve",
+            "line": "No.",
+            "seconds": 4
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "The Left Word",
+      "logline": "A reluctant bride halts her wedding at the very last second with a single word.",
+      "setting": "A brightly lit rustic chapel adorned with white roses and fairy lights.",
+      "character": {
+        "name": "Clara",
+        "look": "Twenty-eight-year-old female with sharp hazel eyes, pale flawless skin, messy brunette updo with stray wisps, wearing a heavy lace off-the-shoulder wedding gown, and a small faint scar curving above her left eyebrow.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "firm and resolute"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Clara staring forward with intense hesitation, chest rising and falling beneath the lace gown.",
+          "motion": "Slow push in on her face as she exhales a shaky breath.",
+          "emotion": "fearful realization",
+          "line": "",
+          "seconds": 5
+        },
+        {
+          "id": "s2",
+          "camera": "close-up",
+          "visual": "Clara tilting her chin up defiantly, eyes locked forward off-screen.",
+          "motion": "Static hold framing her mouth as she speaks.",
+          "emotion": "unwavering resolve",
+          "line": "No.",
+          "seconds": 4
+        }
+      ],
+      "quotedLines": [
+        "No."
+      ]
+    }
+  },
+  "ends-laughs-tag": {
+    "ok": true,
+    "attempts": [
+      {
+        "stage": "script",
+        "n": 1,
+        "provider": "gemini:gemini-3.5-flash",
+        "ok": true,
+        "reason": "model gemini-3.8-flash unavailable (429), trying next; no price for model gemini-3.5-flash; cost recorded as 0",
+        "costUsd": 0,
+        "ms": 7548
+      }
+    ],
+    "raws": [
+      {
+        "title": "The Ultimate Bluff",
+        "logline": "A high-stakes poker player reveals his terrible hand and mocks the dealer after successfully pulling off a brazen bluff.",
+        "setting": "A dimly lit high-stakes poker room with green felt and smoky air.",
+        "character": {
+          "name": "Marcus",
+          "look": "A sharp thirty-five-year-old man with tired brown eyes, slicked-back dark hair, wearing a tailored charcoal suit jacket, with a faded jagged scar across his left cheekbone.",
+          "voice": {
+            "gender": "male",
+            "age": "adult",
+            "tone": "arrogant and amused"
+          }
+        },
+        "shots": [
+          {
+            "id": "s1",
+            "camera": "close-up",
+            "visual": "Marcus flips his cards face up onto the green felt, revealing a worthless low-card combination.",
+            "motion": "Camera tilts up quickly from the cards to catch the sudden grin spreading across his face.",
+            "emotion": "triumphant smirking",
+            "line": "",
+            "seconds": 4
+          },
+          {
+            "id": "s2",
+            "camera": "medium close-up",
+            "visual": "Marcus leans back slowly into his leather chair, steepling his fingers while staring straight ahead at the dealer.",
+            "motion": "Camera holds steady on his face in tight vertical composition.",
+            "emotion": "mocking delight",
+            "line": "You actually believed me? [laughs]",
+            "seconds": 5
+          }
+        ]
+      }
+    ],
+    "script": {
+      "promptVersion": "script-v2",
+      "title": "The Ultimate Bluff",
+      "logline": "A high-stakes poker player reveals his terrible hand and mocks the dealer after successfully pulling off a brazen bluff.",
+      "setting": "A dimly lit high-stakes poker room with green felt and smoky air.",
+      "character": {
+        "name": "Marcus",
+        "look": "A sharp thirty-five-year-old man with tired brown eyes, slicked-back dark hair, wearing a tailored charcoal suit jacket, with a faded jagged scar across his left cheekbone.",
+        "voice": {
+          "gender": "male",
+          "age": "adult",
+          "tone": "arrogant and amused"
+        }
+      },
+      "shots": [
+        {
+          "id": "s1",
+          "camera": "close-up",
+          "visual": "Marcus flips his cards face up onto the green felt, revealing a worthless low-card combination.",
+          "motion": "Camera tilts up quickly from the cards to catch the sudden grin spreading across his face.",
+          "emotion": "triumphant smirking",
+          "line": "",
+          "seconds": 4
+        },
+        {
+          "id": "s2",
+          "camera": "medium close-up",
+          "visual": "Marcus leans back slowly into his leather chair, steepling his fingers while staring straight ahead at the dealer.",
+          "motion": "Camera holds steady on his face in tight vertical composition.",
+          "emotion": "mocking delight",
+          "line": "You actually believed me? [laughs]",
+          "seconds": 5
+        }
+      ],
+      "quotedLines": [
+        "You actually believed me? [laughs]"
+      ]
+    }
+  }
+}
