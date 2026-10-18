@@ -5,7 +5,8 @@
 import { SCRIPT_SECONDS, SHOT_SECONDS } from "../schemas.ts";
 
 // v2: shot range widened to the Seedance 2.0 clip range (F05), read from the schema so the two can't drift.
-export const SCRIPT_PROMPT_VERSION = "script-v2";
+// v3: several quoted lines may share one shot line, in order (F10).
+export const SCRIPT_PROMPT_VERSION = "script-v3";
 
 export const SCRIPT_SYSTEM = `You write a single beat of a vertical (9:16) micro-drama: 8–30 seconds, 1 or 2 shots.
 
@@ -20,6 +21,8 @@ Craft:
 The spoken line:
 - If the idea contains quoted text, that text IS the line, character-for-character: same words, case, punctuation.
   Do not shorten, fix, or "improve" it. Put each quoted line in a shot's "line" exactly as given.
+  With more quoted lines than shots, one shot's "line" holds several of them in the idea's order, joined by a
+  space, with no other words added.
 - Otherwise write one short line, 16 words or fewer, with numbers spelled out as words (no digits).
 - A shot without speech has "line": "".
 

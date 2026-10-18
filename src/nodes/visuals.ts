@@ -21,7 +21,7 @@ import { withIssues } from "../prompts/judge.ts";
 import type { Attempt, Script, Shot, VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { splitDelivery } from "../verbatim.ts";
-import { describeOps, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
+import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
 import { verifiedVoice } from "./voice.ts";
 
 export { keyframePrompt, portraitPrompt, talkingPrompt, textToVideoPrompt } from "../prompts/visuals.ts";
@@ -367,7 +367,11 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       const reason = `asr error on native clip: ${errMsg(e)}`;
       return fail({ stage: "video", n, provider: `${video.name}+${asr.name}`, costUsd: clip.costUsd, ms: ms(t0) }, reason, reason, e);
     }
-    const reason = [...(clip.cached ? ["reused cached clip"] : []), ...(heard.pass ? [] : [describeOps(heard.ops) || "no speech heard"])];
+    const reason = [
+      ...(clip.cached ? ["reused cached clip"] : []),
+      ...(heard.pass ? [] : [describeOps(heard.ops) || "no speech heard"]),
+      ...describeIgnored(heard),
+    ];
     record({
       stage: "video",
       n,
@@ -432,12 +436,16 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     const reason = `asr error on lip-synced clip: ${errMsg(e)}`;
     return fail({ stage: "lipsync", n: 1, provider: lsProvider, costUsd: syncCost, ms: ms(t2) }, reason, reason, e);
   }
+  const syncReason = [
+    ...(heard.pass ? (synced.cached ? ["reused cached lip-sync"] : []) : [describeOps(heard.ops) || "no speech heard"]),
+    ...describeIgnored(heard),
+  ];
   record({
     stage: "lipsync",
     n: 1,
     provider: lsProvider,
     ok: heard.pass,
-    ...(heard.pass ? (synced.cached ? { reason: "reused cached lip-sync" } : {}) : { reason: describeOps(heard.ops) || "no speech heard" }),
+    ...(syncReason.length ? { reason: syncReason.join("; ") } : {}),
     costUsd: syncCost + heard.costUsd,
     ms: ms(t2),
   });

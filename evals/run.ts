@@ -1,6 +1,7 @@
 /**
- * npx tsx evals/run.ts --mock|--live [--limit N] [--ids a,b] [--label text]
- * Runs every eval idea through the graph, one at a time, and writes evals/results/<date>-<label>-<mode>.json.
+ * npx tsx evals/run.ts --mock|--live [--set ideas|hard] [--limit N] [--ids a,b] [--label text]
+ * Runs every eval idea of evals/<set>.jsonl (default ideas.jsonl) through the graph, one at a time, and writes
+ * evals/results/<date>-<label>-<mode>.json.
  * Exit 0 when the results file was written (failed ideas are data, not a crash); 2 on bad arguments.
  */
 import { existsSync } from "node:fs";
@@ -12,7 +13,7 @@ import { qualityFromEnv } from "../src/nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type Providers } from "../src/providers/index.ts";
 import { failedIdea, parseIdeas, resultsTable, summarize, withAggregates, type EvalIdea, type EvalResults, type IdeaResult } from "./metrics.ts";
 
-export const USAGE = "usage: npx tsx evals/run.ts --mock|--live [--limit N] [--ids a,b] [--label text]";
+export const USAGE = "usage: npx tsx evals/run.ts --mock|--live [--set ideas|hard] [--limit N] [--ids a,b] [--label text]";
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 export interface EvalArgs {
@@ -20,6 +21,8 @@ export interface EvalArgs {
   limit?: number;
   ids?: string[];
   label: string;
+  /** Idea set: evals/<set>.jsonl. Absent = "ideas" (the regular set); "hard" = the F10 stress ideas. */
+  set?: string;
 }
 
 export function parseEvalArgs(argv: string[]): EvalArgs {
@@ -42,12 +45,24 @@ export function parseEvalArgs(argv: string[]): EvalArgs {
       out.limit = n;
     } else if (a === "--ids") out.ids = value(++i, a).split(",").map((s) => s.trim()).filter(Boolean);
     else if (a === "--label") out.label = value(++i, a);
+    else if (a === "--set") {
+      const s = value(++i, a);
+      // A file name, not a path: only sets that live in evals/.
+      if (!/^[a-z0-9-]+$/.test(s)) throw new Error(`--set must be a set name like "hard", got "${s}"`);
+      out.set = s;
+    }
     else throw new Error(`unknown argument ${a}`);
   }
   // No default mode: an eval of 10 ideas live is real money, so the caller must say which.
   if (!mode) throw new Error("say --mock or --live");
   const label = (out.label ?? "run").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "run";
-  return { mode, label, ...(out.limit ? { limit: out.limit } : {}), ...(out.ids ? { ids: out.ids } : {}) };
+  return {
+    mode,
+    label,
+    ...(out.limit ? { limit: out.limit } : {}),
+    ...(out.ids ? { ids: out.ids } : {}),
+    ...(out.set ? { set: out.set } : {}),
+  };
 }
 
 /** --ids picks (and errors on unknown ids), then --limit truncates. */
@@ -88,7 +103,9 @@ export async function main(argv: string[], deps: EvalDeps = {}): Promise<number>
   let ideas: EvalIdea[];
   try {
     args = parseEvalArgs(argv);
-    ideas = selectIdeas(parseIdeas(await readFile(deps.ideasPath ?? join(HERE, "ideas.jsonl"), "utf8")), args);
+    const path = deps.ideasPath ?? join(HERE, `${args.set ?? "ideas"}.jsonl`);
+    if (!existsSync(path)) throw new Error(`no idea set ${args.set ?? "ideas"}: ${path} does not exist`);
+    ideas = selectIdeas(parseIdeas(await readFile(path, "utf8")), args);
   } catch (e) {
     err(`${(e as Error).message}\n${USAGE}`);
     return 2;
@@ -112,7 +129,8 @@ export async function main(argv: string[], deps: EvalDeps = {}): Promise<number>
       rows.push(failedIdea(spec, (e as Error).message, performance.now() - t0));
     }
     const r = rows.at(-1)!;
-    err(`  ${r.ok ? "ok" : `FAILED: ${r.error ?? "unknown"}`} (${(r.wallMs / 1000).toFixed(1)} s)`);
+    const status = r.ok ? "ok" : r.rejected ? `rejected before spending: ${r.error ?? ""}` : `FAILED: ${r.error ?? "unknown"}`;
+    err(`  ${status} (${(r.wallMs / 1000).toFixed(1)} s)`);
   }
 
   const now = (deps.now ?? (() => new Date()))();

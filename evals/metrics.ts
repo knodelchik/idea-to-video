@@ -35,6 +35,11 @@ export const IdeaResult = z.object({
   manifest: z.string().nullable(),
   ok: z.boolean(),
   error: z.string().optional(),
+  /**
+   * The PoC deliberately refused the idea before any paid call (F10 pre-spend check: non-English line, nested
+   * quotes, a line no shot can hold). A clean, $0 rejection — not a crash and not a pipeline failure.
+   */
+  rejected: z.boolean().optional(),
   /** Every spoken shot passed the verbatim gate on its first native take (no failed take, no TTS fallback). */
   verbatimFirstTry: z.boolean(),
   /** The final file passed the verbatim gate (manifest.verbatim.pass). */
@@ -85,6 +90,8 @@ export const EvalResults = z.object({
 export type EvalResults = z.infer<typeof EvalResults>;
 
 const VERBATIM_STAGES = new Set(["video", "voice", "lipsync"]);
+/** Attempt provider of the script node's pre-spend rejection (src/nodes/script.ts). */
+export const PRE_SPEND_PROVIDER = "pre-spend-check";
 
 /** One finished (or failed) run → the numbers we track. */
 export function summarize(spec: EvalIdea, m: RunManifest, extra: { manifest: string; wallMs: number }): IdeaResult {
@@ -110,6 +117,7 @@ export function summarize(spec: EvalIdea, m: RunManifest, extra: { manifest: str
     manifest: extra.manifest,
     ok: m.ok,
     ...(m.error !== undefined ? { error: m.error } : {}),
+    ...(m.attempts.some((a) => a.provider === PRE_SPEND_PROVIDER) ? { rejected: true } : {}),
     verbatimFirstTry: firstTry && m.verbatim?.pass === true,
     verbatimFinal: m.verbatim?.pass === true,
     wer: m.verbatim?.wer ?? null,
@@ -265,7 +273,7 @@ export function resultsTable(r: EvalResults): string {
     ["id", "ok", "verb 1st", "verb final", "attempts", "judge min", "sec", "usd", "wall s"],
     r.ideas.map((i) => [
       i.id,
-      yn(i.ok),
+      i.rejected ? "rejected" : yn(i.ok),
       yn(i.verbatimFirstTry),
       yn(i.verbatimFinal),
       String(Object.values(i.attemptsByStage).reduce((s, x) => s + x, 0)),

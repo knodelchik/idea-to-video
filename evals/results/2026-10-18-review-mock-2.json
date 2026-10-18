@@ -1,0 +1,862 @@
+{
+  "version": 1,
+  "label": "review",
+  "mode": "mock",
+  "createdAt": "2026-10-18T21:59:01.035Z",
+  "ideas": [
+    {
+      "id": "dialogue-two-speakers",
+      "tags": [
+        "quoted",
+        "two-speakers",
+        "dialogue"
+      ],
+      "idea": "A mother and her grown son sit in a parked car outside a hospital at dawn. She says: \"Your father would have hated this parking lot.\" He laughs and answers: \"He hated every parking lot, Mom.\"",
+      "runId": "20261018-215827-2cdab1",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215827-2cdab1/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 10,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 1,
+        "portrait": 66,
+        "keyframe": 82,
+        "judge": 11,
+        "video": 1129,
+        "assemble": 1144,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2114,
+      "human": null
+    },
+    {
+      "id": "three-lines",
+      "tags": [
+        "quoted",
+        "three-lines",
+        "over-max-shots"
+      ],
+      "idea": "A detective leans across a metal table toward a silent suspect. He asks \"Where were you?\", then \"Who saw you?\", and finally, almost gently, \"Why are you lying to me?\"",
+      "runId": "20261018-215829-9055ee",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215829-9055ee/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 10,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 36,
+        "keyframe": 73,
+        "judge": 5,
+        "video": 987,
+        "assemble": 1175,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1955,
+      "human": null
+    },
+    {
+      "id": "long-line-33w",
+      "tags": [
+        "quoted",
+        "long-line",
+        "elderly"
+      ],
+      "idea": "An old violinist tunes her instrument alone in an empty concert hall and speaks to the front row: \"I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it until these old hands finally forget how it goes.\"",
+      "runId": "20261018-215831-df03fc",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215831-df03fc/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 17,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 36,
+        "keyframe": 72,
+        "judge": 16,
+        "video": 1201,
+        "assemble": 1841,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 3016,
+      "human": null
+    },
+    {
+      "id": "numbers-money-time",
+      "tags": [
+        "quoted",
+        "number",
+        "money",
+        "time",
+        "year"
+      ],
+      "idea": "A night-shift cashier counts a stranger's coins under buzzing lights and sighs: \"It's $4.50, it's 3:15 a.m., and we've been open 24/7 since 1987.\"",
+      "runId": "20261018-215834-c688e2",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215834-c688e2/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 14,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 36,
+        "keyframe": 72,
+        "judge": 5,
+        "video": 1074,
+        "assemble": 1520,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2579,
+      "human": null
+    },
+    {
+      "id": "unusual-names",
+      "tags": [
+        "quoted",
+        "names",
+        "diacritics"
+      ],
+      "idea": "A hotel receptionist covers the phone and calls across the lobby: \"Siobhán, tell Zoë that Mr. Nguyễn is waiting downstairs.\"",
+      "runId": "20261018-215837-000de1",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215837-000de1/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 10,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 38,
+        "keyframe": 74,
+        "judge": 5,
+        "video": 844,
+        "assemble": 1129,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1954,
+      "human": null
+    },
+    {
+      "id": "ellipsis-emdash-question-exclaim",
+      "tags": [
+        "quoted",
+        "question",
+        "exclamation",
+        "ellipsis",
+        "em-dash"
+      ],
+      "idea": "A man opens a shoebox of old letters in his late wife's closet and freezes: \"Wait... you kept them — all of them? Every single one!\"",
+      "runId": "20261018-215839-fb2a27",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215839-fb2a27/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 10,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 36,
+        "keyframe": 76,
+        "judge": 4,
+        "video": 849,
+        "assemble": 1160,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1995,
+      "human": null
+    },
+    {
+      "id": "nested-single-quotes",
+      "tags": [
+        "quoted",
+        "nested-quotes",
+        "single-quotes"
+      ],
+      "idea": "A teenage girl reads a crumpled note from her dad's coat pocket out loud: \"He wrote 'don't wait for me' and then he waited anyway.\"",
+      "runId": "20261018-215841-7fd6cc",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215841-7fd6cc/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 11,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 39,
+        "keyframe": 76,
+        "judge": 4,
+        "video": 885,
+        "assemble": 1237,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2106,
+      "human": null
+    },
+    {
+      "id": "nested-double-quotes",
+      "tags": [
+        "quoted",
+        "nested-quotes",
+        "double-in-double"
+      ],
+      "idea": "A drama teacher stops the rehearsal and says: \"When I say \"stop,\" you stop. Not \"in a minute.\" Now.\"",
+      "runId": "20261018-215843-944994",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215843-944994/manifest.json",
+      "ok": false,
+      "error": "idea rejected before any paid call: nested double quotes: use single quotes inside the line",
+      "rejected": true,
+      "verbatimFirstTry": false,
+      "verbatimFinal": false,
+      "wer": null,
+      "seconds": null,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1
+      },
+      "msByStage": {
+        "script": 0
+      },
+      "judgeScores": [],
+      "needsReview": false,
+      "wallMs": 3,
+      "human": null
+    },
+    {
+      "id": "ukrainian-only",
+      "tags": [
+        "quoted",
+        "ukrainian",
+        "cyrillic"
+      ],
+      "idea": "Бабуся стоїть біля вікна на кухні й дивиться на засніжену дорогу. Вона тихо каже: \"Я чекала на тебе цілу зиму.\"",
+      "runId": "20261018-215843-93c81e",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215843-93c81e/manifest.json",
+      "ok": false,
+      "error": "idea rejected before any paid call: only English lines are supported in this PoC (no video model officially supports Ukrainian speech yet); write the line in English",
+      "rejected": true,
+      "verbatimFirstTry": false,
+      "verbatimFinal": false,
+      "wer": null,
+      "seconds": null,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1
+      },
+      "msByStage": {
+        "script": 0
+      },
+      "judgeScores": [],
+      "needsReview": false,
+      "wallMs": 3,
+      "human": null
+    },
+    {
+      "id": "mixed-en-uk",
+      "tags": [
+        "quoted",
+        "ukrainian",
+        "mixed-language"
+      ],
+      "idea": "A soldier on leave steps off a night train in Lviv and calls his mother from the platform: \"Мамо, я вдома. I'm home.\"",
+      "runId": "20261018-215843-d4497b",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215843-d4497b/manifest.json",
+      "ok": false,
+      "error": "idea rejected before any paid call: only English lines are supported in this PoC (no video model officially supports Ukrainian speech yet); write the line in English",
+      "rejected": true,
+      "verbatimFirstTry": false,
+      "verbatimFinal": false,
+      "wer": null,
+      "seconds": null,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1
+      },
+      "msByStage": {
+        "script": 0
+      },
+      "judgeScores": [],
+      "needsReview": false,
+      "wallMs": 3,
+      "human": null
+    },
+    {
+      "id": "cat-speaker",
+      "tags": [
+        "quoted",
+        "non-human"
+      ],
+      "idea": "A fat orange cat sits on a windowsill, turns slowly to the camera and says: \"You're late again, human.\"",
+      "runId": "20261018-215843-ca2412",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215843-ca2412/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 40,
+        "keyframe": 80,
+        "judge": 4,
+        "video": 915,
+        "assemble": 1292,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2130,
+      "human": null
+    },
+    {
+      "id": "robot-percent",
+      "tags": [
+        "quoted",
+        "non-human",
+        "number",
+        "symbol"
+      ],
+      "idea": "A rusty delivery robot waits alone at a crosswalk in the rain and announces: \"Battery at 3%. Still waiting for you.\"",
+      "runId": "20261018-215845-e5ffc1",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215845-e5ffc1/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 38,
+        "keyframe": 81,
+        "judge": 4,
+        "video": 928,
+        "assemble": 1098,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1946,
+      "human": null
+    },
+    {
+      "id": "child-question",
+      "tags": [
+        "quoted",
+        "child",
+        "elderly",
+        "question"
+      ],
+      "idea": "A seven-year-old girl in pajamas lies on the roof of a farmhouse next to her grandfather and asks: \"Grandpa, why do the stars blink?\"",
+      "runId": "20261018-215847-dc21d1",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215847-dc21d1/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 39,
+        "keyframe": 77,
+        "judge": 4,
+        "video": 818,
+        "assemble": 1084,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1876,
+      "human": null
+    },
+    {
+      "id": "dark-grave",
+      "tags": [
+        "quoted",
+        "dark",
+        "content-policy"
+      ],
+      "idea": "In the rain, a woman leans on a shovel beside freshly turned earth at the edge of a forest. She wipes her face and says: \"Nobody will ever find you here.\"",
+      "runId": "20261018-215849-ef2336",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215849-ef2336/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 38,
+        "keyframe": 76,
+        "judge": 4,
+        "video": 800,
+        "assemble": 1083,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1862,
+      "human": null
+    },
+    {
+      "id": "abstract-no-quote",
+      "tags": [
+        "no-quote",
+        "abstract",
+        "very-short-idea"
+      ],
+      "idea": "Loneliness in a big city.",
+      "runId": "20261018-215851-b74387",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215851-b74387/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 38,
+        "keyframe": 78,
+        "judge": 4,
+        "video": 800,
+        "assemble": 1079,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1874,
+      "human": null
+    },
+    {
+      "id": "whisper-tag",
+      "tags": [
+        "quoted",
+        "delivery-tag"
+      ],
+      "idea": "A babysitter hides in a dark pantry with a phone pressed to her ear: \"[whispers] They're still in the house.\"",
+      "runId": "20261018-215852-7b0e67",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215852-7b0e67/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 39,
+        "keyframe": 77,
+        "judge": 4,
+        "video": 830,
+        "assemble": 1091,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1896,
+      "human": null
+    },
+    {
+      "id": "abbrev-emoji",
+      "tags": [
+        "quoted",
+        "abbreviation",
+        "emoji"
+      ],
+      "idea": "A nervous intern bursts into the lab holding a phone: \"Dr. Patel, NASA and the FBI are on line two 🚀\"",
+      "runId": "20261018-215854-ab5c61",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215854-ab5c61/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 10,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 41,
+        "keyframe": 80,
+        "judge": 4,
+        "video": 882,
+        "assemble": 1264,
+        "final": 22
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2127,
+      "human": null
+    },
+    {
+      "id": "very-short-no",
+      "tags": [
+        "quoted",
+        "very-short-line"
+      ],
+      "idea": "A bride stands at the altar, looks at the groom for a long moment, and says: \"No.\"",
+      "runId": "20261018-215856-9cd5b3",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215856-9cd5b3/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 39,
+        "keyframe": 77,
+        "judge": 5,
+        "video": 778,
+        "assemble": 1296,
+        "final": 21
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 2058,
+      "human": null
+    },
+    {
+      "id": "ends-laughs-tag",
+      "tags": [
+        "quoted",
+        "delivery-tag",
+        "question"
+      ],
+      "idea": "A poker player turns over a losing hand, leans back and grins at the dealer: \"You actually believed me? [laughs]\"",
+      "runId": "20261018-215859-73f926",
+      "manifest": "/Users/bogdan/idea-to-video/runs/20261018-215859-73f926/manifest.json",
+      "ok": true,
+      "verbatimFirstTry": true,
+      "verbatimFinal": true,
+      "wer": 0,
+      "seconds": 9,
+      "costUsd": 0,
+      "attemptsByStage": {
+        "script": 1,
+        "portrait": 1,
+        "keyframe": 2,
+        "judge": 4,
+        "video": 2,
+        "assemble": 1,
+        "final": 1
+      },
+      "msByStage": {
+        "script": 0,
+        "portrait": 39,
+        "keyframe": 78,
+        "judge": 4,
+        "video": 962,
+        "assemble": 1128,
+        "final": 23
+      },
+      "judgeScores": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "needsReview": false,
+      "wallMs": 1989,
+      "human": null
+    }
+  ],
+  "aggregates": {
+    "n": 19,
+    "successRate": 0.8421,
+    "verbatimFirstTryRate": 0.8421,
+    "verbatimFinalRate": 0.8421,
+    "meanAttemptsPerStage": {
+      "assemble": 0.842,
+      "final": 0.842,
+      "judge": 3.368,
+      "keyframe": 1.684,
+      "portrait": 0.842,
+      "script": 1,
+      "video": 1.684
+    },
+    "judge": {
+      "mean": 8,
+      "min": 8,
+      "n": 64
+    },
+    "meanSeconds": 10.25,
+    "costPerVideoUsd": 0,
+    "costPerSuccessUsd": 0,
+    "stageMs": {
+      "assemble": {
+        "p50": 1144,
+        "p90": 1520
+      },
+      "final": {
+        "p50": 22,
+        "p90": 23
+      },
+      "judge": {
+        "p50": 4,
+        "p90": 11
+      },
+      "keyframe": {
+        "p50": 77,
+        "p90": 81
+      },
+      "portrait": {
+        "p50": 38,
+        "p90": 41
+      },
+      "script": {
+        "p50": 0,
+        "p90": 0
+      },
+      "video": {
+        "p50": 882,
+        "p90": 1129
+      }
+    },
+    "wallMs": {
+      "p50": 1955,
+      "p90": 2579,
+      "total": 33486
+    },
+    "needsReviewRate": 0,
+    "human": null
+  }
+}

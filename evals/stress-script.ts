@@ -169,7 +169,14 @@ async function main(argv: string[]) {
   const rows = [];
   for (const [k, spec] of ideas.entries()) {
     process.stderr.write(`[${k + 1}/${ideas.length}] ${spec.id}\n`);
-    const quoted = extractQuotedLines(spec.idea);
+    // Nested double quotes now throw (F10); the harness records them as "no quotes" instead of crashing.
+    const quoted = (() => {
+      try {
+        return extractQuotedLines(spec.idea);
+      } catch {
+        return [];
+      }
+    })();
 
     let live = cache[spec.id];
     if ((!live || fresh) && llm) {

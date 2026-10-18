@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -227,6 +227,37 @@ describe("run.ts", () => {
     expect(() => parseEvalArgs(["--mock", "--live"])).toThrow(/exclusive/);
     expect(() => parseEvalArgs(["--mock", "--limit", "0"])).toThrow(/positive/);
     expect(() => parseEvalArgs(["--mock", "--label"])).toThrow(/needs a value/);
+  });
+
+  it("F10: --set picks evals/<set>.jsonl; only plain set names", () => {
+    expect(parseEvalArgs(["--mock", "--set", "hard"])).toEqual({ mode: "mock", label: "run", set: "hard" });
+    expect(() => parseEvalArgs(["--mock", "--set", "../x"])).toThrow(/set name/);
+    expect(() => parseEvalArgs(["--mock", "--set"])).toThrow(/needs a value/);
+  });
+
+  it("F10: hard.jsonl parses; a mock run records Ukrainian as a clean rejection and three lines as ok", { timeout: 120_000 }, async () => {
+    const hard = parseIdeas(await readFile(new URL("../evals/hard.jsonl", import.meta.url), "utf8"));
+    expect(hard.length).toBeGreaterThanOrEqual(19);
+    const dir = await mkdtemp(join(tmpdir(), "evals-hard-"));
+    const code = await runMain(["--mock", "--set", "hard", "--ids", "ukrainian-only,nested-double-quotes,three-lines", "--label", "t"], {
+      env: {},
+      resultsDir: join(dir, "results"),
+      runsDir: join(dir, "runs"),
+      now: () => new Date("2026-10-19T12:00:00Z"),
+      stdout: () => {},
+      stderr: () => {},
+    });
+    expect(code).toBe(0);
+    const r = EvalResults.parse(JSON.parse(await readFile(join(dir, "results", "2026-10-19-t-mock.json"), "utf8")));
+    const byId = Object.fromEntries(r.ideas.map((i) => [i.id, i]));
+    for (const id of ["ukrainian-only", "nested-double-quotes"]) {
+      expect(byId[id]).toMatchObject({ ok: false, rejected: true, costUsd: 0 });
+      expect(byId[id]!.runId).not.toBeNull(); // went through the pipeline and has a manifest: not a crash
+    }
+    expect(byId["ukrainian-only"]!.error).toMatch(/only English lines are supported/);
+    expect(byId["three-lines"]).toMatchObject({ ok: true, verbatimFinal: true });
+    expect(byId["three-lines"]!.rejected).toBeUndefined();
+    await rm(dir, { recursive: true, force: true });
   });
 
   it("selects by id then limit; unknown ids are an error", () => {

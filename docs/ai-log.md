@@ -132,3 +132,26 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   `input_references` image, and the face matched the portrait. → the fallback is now a ladder: first frame →
   references (portrait + keyframe) → text only. Also: notes in frame came out as gibberish handwriting, so every image
   and video prompt now asks for no legible writing (prompt version visuals-v2).
+- [F10] I routed the gate through a new `compareLine` helper that calls `compareWords` inside `verbatim.ts`. The
+  existing `voice.test.ts` spy (vi.mock on the module export) saw zero calls, because a same-module call bypasses the
+  mocked export → caught by the two failing spy tests → `gate.listen` now calls `splitDelivery` + `compareWords`
+  itself, and the tests are unchanged.
+- [F10] My first out-of-order test expected the error to name the *first* quote. Greedy in-order placement finds the
+  first quote and reports the *second* one as misplaced → caught when the test failed on its message → the test now
+  asserts the quote that is actually unplaceable.
+- [F10] A gate test fed MockAsr a transcript longer than the mock tone ("(laughs) … Ha ha."). The speech window then
+  ran past the track and `VoiceTrack` refused it → caught by a ZodError → the voice-path test uses one extra laugh
+  token, and the bracket case is checked through `listen` alone.
+- [F10] I collapsed every run of single letters after punctuation was dropped, and claimed the side effect was
+  harmless because "both sides do the same". It isn't: `a.m. I` became `ami` while the ASR's `AM I` stayed `am i`, so
+  the same spoken words failed. Same for `F.B.I. I` vs `FBI I` → caught by the reviewer with compareLine → only dotted
+  or hyphenated initialisms are joined now. Spaced letters become a span with readings, and the reviewer's pairs are
+  must-pass tests.
+- [F10] The spec Decisions said the reading cap was sticky ("that span and every later one"). The code checked each
+  span on its own → caught by the reviewer → the doc now describes the per-span rule, and a test pins it.
+- [F10] Attempt 2 made `splitDelivery` treat every `*word*` as a delivery tag, so `I *really* mean it.` lost
+  "really" from the expected text and the TTS input, and the gate passed → caught by the reviewer → only a list of
+  known non-speech actions counts as `*…*` tags, and a must-fail test covers emphasis.
+- [F10] Span placeholders used U+E000–U+F8FF, but private-use characters already in the input were not removed.
+  `wordCount("Hi ")` (Apple logo) crashed, and a literal U+E000 was read as span #0 → caught by the reviewer →
+  `fold()` turns `\p{Co}` into spaces before span marking. Tests added.

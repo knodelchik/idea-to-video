@@ -160,6 +160,30 @@ describe("verifiedVoice", () => {
     expect(vi.mocked(compareWords).mock.calls.at(-1)![0]).toBe(LINE);
   });
 
+  it("F10: a laugh tag lets heard laughter through, and the voice attempt logs what was ignored", async () => {
+    const d = await sub("laugh");
+    // One extra mock word only: the mock tone is sized for the line, and the speech window must stay inside it.
+    const asr = new MockAsr({ faults: [{ call: 0, text: `${LINE} Haha.` }] });
+    const v = await verifiedVoice(`${LINE} [laughs]`, CHARACTER, { tts: new MockTts(), asr, dir: d });
+    expect(v.verbatim.pass).toBe(true);
+    expect(v.verbatim.ignored).toEqual(["haha"]);
+    expect(v.attempts[0]!.reason).toMatch(/ignored non-speech: haha/);
+    const tagged = await listen(v.path, `${LINE} [laughs]`, { asr: new MockAsr({ faults: [{ call: 0, text: `(laughs) ${LINE} Ha ha.` }] }) });
+    expect([tagged.pass, tagged.ignored]).toEqual([true, ["(laughs)", "ha", "ha"]]);
+    // Without the tag the same audio fails: laughter is then an inserted word.
+    const strict = await listen(v.path, LINE, { asr: new MockAsr({ faults: [{ call: 0, text: `${LINE} Ha ha.` }] }) });
+    expect(strict.pass).toBe(false);
+  });
+
+  it("F10: mock ASR hears only speakable words, so an emoji left in expected text fails like a live run", async () => {
+    const d = await sub("emoji");
+    const take = await new MockTts().speak({ text: "Go now 🚀 ♥", voice: "x", out: join(d, "a.wav") });
+    const heard = await new MockAsr().transcribe({ path: take.path });
+    expect(heard.text).toBe("Go now");
+    expect(compareWords("Go now 🚀", heard.text).pass).toBe(false);
+    expect((await listen(take.path, "Go now 🚀", { asr: new MockAsr() })).pass).toBe(true); // the gate drops emoji
+  });
+
   it("is idempotent: a second run reuses the take and calls TTS again for nothing", async () => {
     const d = await sub("resume");
     const tts = new CountingTts();

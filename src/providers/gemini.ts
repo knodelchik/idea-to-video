@@ -17,9 +17,18 @@ export interface GenAiClient {
   };
 }
 
-/** USD per 1M tokens, paid tier, prompts ≤200k (ai.google.dev/gemini-api/docs/pricing, checked 2026-10-16). */
+/**
+ * USD per 1M tokens, paid tier, prompts ≤200k (ai.google.dev/gemini-api/docs/pricing, checked 2026-10-19; 3.8/3.6
+ * Flash double on 2027-01-01). Every model in DEFAULT_SCRIPT_MODELS and DEFAULT_JUDGE_MODELS must be here (tested),
+ * or a paid call is recorded as $0. The pricing page lists no gemini-3.5-flash and no `*-latest` alias (the models
+ * page only says an alias "points to the latest release" of a variation), so those are priced at the current
+ * top of their family — an over-estimate is safe for the budget, an under-estimate is not.
+ */
 export const GEMINI_PRICES: Record<string, { input: number; output: number }> = {
   "gemini-3.8-flash": { input: 0.75, output: 3.75 },
+  "gemini-3.5-flash": { input: 0.75, output: 3.75 }, // not on the pricing page: priced as the current Flash tier
+  "gemini-flash-latest": { input: 0.75, output: 3.75 }, // alias → latest Flash (3.8 Flash price)
+  "gemini-flash-lite-latest": { input: 0.3, output: 2.5 }, // alias → latest Flash-Lite (3.5 Flash-Lite price)
   "gemini-3.6-flash": { input: 0.75, output: 3.75 },
   "gemini-3-flash-preview": { input: 0.5, output: 3.0 },
   "gemini-3.1-pro-preview": { input: 2.0, output: 12.0 },

@@ -231,7 +231,7 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
       // Node names can't equal state keys in LangGraph, hence writeScript / drawKeyframes.
       "writeScript",
       node("writeScript", async (s: RunStateValues) => {
-        const { script, attempts } = await writeScript(s.idea, { llm: p().llm });
+        const { script, attempts } = await writeScript(s.idea, { llm: p().llm, lipsyncMaxSeconds: p().lipsync.maxSeconds });
         return { script, attempts };
       }),
       { retryPolicy },
@@ -394,7 +394,15 @@ export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; err
 
 /** Rough cost of a typical run (2 shots of 8 s, one native take each, no fallback, no regeneration), printed before a live run. */
 export function estimateRunUsd(p: Providers, idea: string): number {
-  const llm = p.llm.estimateUsd?.({ system: SCRIPT_SYSTEM, prompt: firstPrompt(idea, extractQuotedLines(idea)) }) ?? 0;
+  // An idea with unreadable quotes is rejected by the script node for $0; the estimate must not crash first.
+  const quoted = (() => {
+    try {
+      return extractQuotedLines(idea);
+    } catch {
+      return [];
+    }
+  })();
+  const llm = p.llm.estimateUsd?.({ system: SCRIPT_SYSTEM, prompt: firstPrompt(idea, quoted) }) ?? 0;
   const image = p.image.estimateUsd?.({ prompt: "", out: "" }) ?? 0;
   const video = p.video.estimateUsd?.({ image: "", prompt: "", seconds: 8, out: "" }) ?? 0;
   const asr = p.asr.estimateUsd?.({ path: "" }) ?? 0;

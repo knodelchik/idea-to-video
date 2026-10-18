@@ -9,7 +9,7 @@ import type { AsrProvider, TtsProvider } from "../providers/index.ts";
 import { VoiceTrack, type Attempt, type Character, type VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { splitDelivery } from "../verbatim.ts";
-import { describeOps, listen, VerbatimError, verbatimOf } from "./gate.ts";
+import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf } from "./gate.ts";
 
 /** Provider-neutral voice key; each TTS adapter maps it to its own voice (and lets env override the table). */
 export const voiceKey = (c: Character): string => `${c.voice.gender}-${c.voice.age}`;
@@ -47,13 +47,15 @@ export async function verifiedVoice(line: string, character: Character, opts: Ve
       tts.speak({ text: spoken, voice, out: tmp, variant, ...(emotion ? { emotion } : {}) }),
     );
     const seconds = made.result?.seconds ?? (await probe(made.path)).seconds;
-    const heard = await listen(made.path, spoken, { asr });
+    // The full line: the gate strips tags itself, and a laugh tag must reach it to excuse heard laughter.
+    const heard = await listen(made.path, line, { asr });
     last = verbatimOf(heard);
 
     const reason = [
       ...(made.cached ? ["reused cached take"] : []),
       ...(made.result?.notes ?? []),
       ...(heard.pass ? [] : [describeOps(heard.ops)]),
+      ...describeIgnored(heard),
     ].join("; ");
     attempts.push({
       stage: "voice",

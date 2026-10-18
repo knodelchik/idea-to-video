@@ -11,6 +11,7 @@ import { formatIssues, type Transcript } from "../schemas.ts";
 import { colorImageArgs, muxArgs, stillVideoArgs, toneArgs } from "../media/args.ts";
 import { probe, run } from "../media/ffmpeg.ts";
 import { readTranscript, writeTranscript } from "../util/sidecar.ts";
+import { splitDelivery, wordCount } from "../verbatim.ts";
 import { parseVerdict, PolicyRejectedError } from "./errors.ts";
 import type {
   AnimateRequest,
@@ -98,6 +99,23 @@ export class MockLlm implements LlmProvider {
   }
 }
 
+const spokenWords = (line: string) => wordCount(splitDelivery(line).spoken);
+
+/**
+ * More than two quotes share shots, in order (F10): split them into two groups with the most even word counts,
+ * each group one shot line with its quotes joined by a space.
+ */
+function packLines(quoted: string[]): string[] {
+  if (quoted.length <= 2) return quoted;
+  const w = quoted.map(spokenWords);
+  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  let k = 1;
+  for (let i = 2; i < quoted.length; i++) {
+    if (Math.max(sum(w.slice(0, i)), sum(w.slice(i))) < Math.max(sum(w.slice(0, k)), sum(w.slice(k)))) k = i;
+  }
+  return [quoted.slice(0, k).join(" "), quoted.slice(k).join(" ")];
+}
+
 /** Line the mock writer uses when the idea quotes none. Plain words, no digits (passes scriptProblems). */
 export const MOCK_DEFAULT_LINE = "I never stopped looking for you.";
 
@@ -108,9 +126,10 @@ export const MOCK_DEFAULT_LINE = "I never stopped looking for you.";
  */
 export const mockScriptResponder: Responder = (prompt) => {
   const idea = /Idea:\n([\s\S]*?)\n\n/.exec(prompt)?.[1]?.trim() || "a quiet moment";
-  const quoted = [...prompt.matchAll(/^- (".*")$/gm)].map((m) => JSON.parse(m[1]!) as string).slice(0, 2);
-  const lines = quoted.length ? quoted : [MOCK_DEFAULT_LINE];
-  const secondsFor = (line: string) => Math.min(15, Math.max(5, Math.ceil(words(line).length / 2.6 + 0.8) + 1));
+  const quoted = [...prompt.matchAll(/^- (".*")$/gm)].map((m) => JSON.parse(m[1]!) as string);
+  const lines = quoted.length ? packLines(quoted) : [MOCK_DEFAULT_LINE];
+  // Sized by *spoken* words (wordCount), like scriptProblems: "1987" is three words, "[whispers]" none.
+  const secondsFor = (line: string) => Math.min(15, Math.max(5, Math.ceil(spokenWords(line) / 2.6 + 0.8) + 1));
   const shot = (id: "s1" | "s2", line: string, seconds: number) => ({
     id,
     camera: "close-up",
@@ -189,9 +208,14 @@ export class MockAsr implements AsrProvider {
     await access(path); // a missing file is a bug upstream, not silence
     let t = (await readTranscript(path)) ?? { text: "", words: [] };
     for (const f of this.faults.filter((f) => f.call === call)) t = applyAsrFault(t, f);
-    return { ...t, costUsd: 0 };
+    // Hear like a real ASR: an emoji or a bare "♥" is never transcribed, so mock mode can't hide an unspeakable line.
+    const ws = t.words.filter((w) => speakable(w.word));
+    return { text: ws.map((w) => w.word).join(" "), words: ws, costUsd: 0 };
   }
 }
+
+/** A written token a speaker could say: has a letter or digit, or a symbol that is read aloud. */
+export const speakable = (word: string): boolean => /[\p{L}\p{N}&%+=@°$€£#§‰]/u.test(word);
 
 // --- Image ---
 

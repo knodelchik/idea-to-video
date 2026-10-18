@@ -4,7 +4,7 @@
  */
 import type { AsrProvider } from "../providers/index.ts";
 import type { Attempt, SpeechWindow, Transcript, TranscriptWord, VerbatimOp, VerbatimResult } from "../schemas.ts";
-import { compareWords, splitDelivery } from "../verbatim.ts";
+import { compareWords, hasLaughTag, splitDelivery } from "../verbatim.ts";
 
 export type ListenResult = VerbatimResult &
   SpeechWindow & {
@@ -22,13 +22,16 @@ export function speechWindow(words: TranscriptWord[]): SpeechWindow {
 }
 
 /**
- * Transcribe `path` and compare against `expected`. Delivery tags in `expected` ("[whispers]") are stripped
- * first: they are directions, not words, and must never be compared.
+ * Transcribe `path` and compare against `expected` (a script line, or several joined). Delivery tags and emoji in
+ * `expected` ("[whispers]", "🚀") are stripped first: they are not words and must never be compared. A laugh tag
+ * lets heard laughter through; whatever was not counted is listed in `ignored`.
  */
 export async function listen(path: string, expected: string, { asr }: { asr: AsrProvider }): Promise<ListenResult> {
   const t = await asr.transcribe({ path });
   const transcript = { text: t.text, words: t.words };
-  const verbatim = compareWords(splitDelivery(expected).spoken, transcript.text);
+  // Same as compareLine, spelled out so compareWords only ever sees spoken words (tests spy on it).
+  const { spoken, tags } = splitDelivery(expected);
+  const verbatim = compareWords(spoken, transcript.text, { laughter: hasLaughTag(tags) });
   return { ...verbatim, ...speechWindow(transcript.words), transcript, costUsd: t.costUsd };
 }
 
@@ -47,7 +50,12 @@ export function describeOps(ops: VerbatimOp[]): string {
 
 /** Only the VerbatimResult fields (drops transcript/window/cost), so it parses against the contract. */
 export function verbatimOf(r: VerbatimResult): VerbatimResult {
-  return { expected: r.expected, heard: r.heard, wer: r.wer, ops: r.ops, pass: r.pass };
+  return { expected: r.expected, heard: r.heard, wer: r.wer, ops: r.ops, pass: r.pass, ...(r.ignored ? { ignored: r.ignored } : {}) };
+}
+
+/** ["ignored non-speech: (laughs), ha"] for an attempt reason, or []. Leniency is never silent (hard rule 6). */
+export function describeIgnored(r: Pick<VerbatimResult, "ignored">): string[] {
+  return r.ignored?.length ? [`ignored non-speech: ${r.ignored.join(", ")}`] : [];
 }
 
 export class VerbatimError extends Error {

@@ -115,6 +115,11 @@ export const VerbatimResult = z
     wer: z.number().min(0),
     ops: z.array(VerbatimOp),
     pass: z.boolean(),
+    /**
+     * Heard tokens the gate did not count, with why visible in the token itself: bracketed non-speech ("(laughs)")
+     * and, when the line carries a laugh tag, laughter ("ha"). Reported so the attempt can log them (F10).
+     */
+    ignored: z.array(z.string()).optional(),
   })
   // The gate must not be forgeable by a hand-built result.
   .refine((r) => r.pass === (r.wer === 0) && r.pass === (r.ops.length === 0), {

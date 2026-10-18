@@ -9,7 +9,7 @@ import { probe as ffprobe, type ProbeResult } from "../media/ffmpeg.ts";
 import type { AsrProvider } from "../providers/index.ts";
 import { SCRIPT_SECONDS, type Attempt, type FinalVideo, type Script, type SpokenText, type VerbatimResult } from "../schemas.ts";
 import { compareWords, splitDelivery } from "../verbatim.ts";
-import { describeOps, listen, verbatimOf } from "./gate.ts";
+import { describeIgnored, describeOps, listen, verbatimOf } from "./gate.ts";
 
 export interface FinalGateResult {
   ok: boolean;
@@ -49,12 +49,15 @@ export async function finalGate(
   const media = await (opts.probe ?? ffprobe)(path);
   const problems = probeProblems(media);
   const expected = expectedSpeech(script);
+  // The raw lines (tags kept) go to the gate, so a "[laughs]" still excuses heard laughter; it strips them itself.
+  const lines = script.shots.map((s) => s.line).filter((l) => splitDelivery(l).spoken !== "").join(" ");
   // A file with no audio can't be listened to (live ASR extracts the audio stream and would throw).
   const heard = media.hasAudio
-    ? await listen(path, expected, { asr: opts.asr })
+    ? await listen(path, lines, { asr: opts.asr })
     : { ...compareWords(expected, ""), transcript: { text: "", words: [] }, costUsd: 0 };
   if (!heard.pass) problems.push(`not verbatim (wer ${heard.wer.toFixed(2)}): ${describeOps(heard.ops) || "no speech heard"}`);
   const ok = problems.length === 0;
+  const notes = describeIgnored(heard);
   return {
     ok,
     final: { path, seconds: media.seconds, width: media.width, height: media.height, hasAudio: media.hasAudio },
@@ -67,7 +70,7 @@ export async function finalGate(
         n: 1,
         provider: `ffprobe+${opts.asr.name}`,
         ok,
-        ...(ok ? {} : { reason: problems.join("; ") }),
+        ...(problems.length || notes.length ? { reason: [...problems, ...notes].join("; ") } : {}),
         costUsd: heard.costUsd,
         ms: Math.round(performance.now() - t0),
       },

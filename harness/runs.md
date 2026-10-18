@@ -81,3 +81,20 @@
 2026-10-16 18:08:58 F09-bench attempt 1: reviewer
 2026-10-16 18:12:41 F09-bench PASSED on attempt 1 -> 0ff6c32
 2026-10-16 18:12:41 all requested features passing
+2026-10-19 00:29:06 ### F10-hard-lines start (specs/F10-hard-lines.md)
+2026-10-19 00:29:06 F10-hard-lines attempt 1: implementer
+2026-10-19 00:44:38 F10-hard-lines attempt 1: gate
+2026-10-19 00:45:48 F10-hard-lines attempt 1: reviewer
+2026-10-19 00:51:23 F10-hard-lines attempt 1: REVIEW FAIL
+    - src/verbatim.ts:214-219 — single-letter-run collapse merges a following 'I'/'a' into the run, so the same spoken words fail. Verified with compareLine: 'At 3 a.m. I left.' heard as 'At 3 AM I left.' FAILS (at three ami left vs at three am i left); 'The F.B.I. I trust.' heard as 'The FBI I trust.' FAILS (fbii vs fbi i). This breaks spec rule 1 for its own examples (a.m./AM, F.B.I./FBI) followed by the common word 'I'. Fix: collapse only known patterns (a.m./p.m., dotted initialisms) and add these pairs as must-pass tests.
+    - specs/F10-hard-lines.md Decisions (Abbreviations bullet) — says the 'am ia fool' side effect is harmless because the same happens on both sides. That is false when the ASR writes the initialism as one token ('AM', 'FBI'). Correct the decision once the code is fixed.
+    - specs/F10-hard-lines.md:77 vs src/verbatim.ts:230 — Decisions say that once the 32-reading cap is hit, that span 'and every later one' keep only the canonical reading. The code checks each span on its own (out.length * seg.length <= MAX_READINGS), so a later span with fewer readings can still expand after an earlier one was capped. Make the doc and code agree.
+2026-10-19 00:51:23 F10-hard-lines attempt 2: implementer
+2026-10-19 00:55:14 F10-hard-lines attempt 2: gate
+2026-10-19 00:56:28 F10-hard-lines attempt 2: reviewer
+2026-10-19 01:00:55 F10-hard-lines attempt 2: REVIEW FAIL
+    - src/verbatim.ts:386 — splitDelivery now treats any `*word*` span as a delivery tag, so emphasis inside a user quote ('I *really* mean it.') is silently removed from the expected and spoken text; TTS and video omit 'really', the gate passes, and nothing records it. This weakens the verbatim gate and breaks the no-silent-fallback rule. Fix: limit `*…*` to known non-speech actions (sighs/laughs/coughs…) or reject the line with a clear message, and add a must-fail test.
+    - src/verbatim.ts:135/211 — span placeholders use U+E000–U+F8FF, but private-use characters already in the text are not stripped or escaped. compareLine('I love my ', …) and wordCount('Hi ') throw TypeError 'Cannot read properties of undefined (reading map)'; U+F8FF is the Apple logo, typed with Opt+Shift+K on macOS. A literal U+E000 is read as span #0 ('Since 1987 ' expects 'nineteen eighty seven' twice). Fix: strip or escape private-use characters in fold() before markAlternatives, and add a test.
+2026-10-19 01:00:55 F10-hard-lines attempt 3: implementer
+2026-10-19 01:06:25 F10-hard-lines attempt 3: gate
+2026-10-19 01:07:40 F10-hard-lines attempt 3: reviewer

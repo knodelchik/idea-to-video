@@ -198,3 +198,31 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - Tests: `tests/bench.test.ts` (20) covers args, the cost plan, the grid args, the report, the live gate, mock end to
   end with a failing model and a mishearing ASR, and the avatar adapter with a fake fal. `pnpm verify` passes 250
   tests.
+
+## F10 — Hard lines: fair verbatim gate, fail before paying
+- The gate accepts the same spoken words in any spelling and still fails a missing, added or changed word:
+  - numbers, times and money have several readings (`1987` = "nineteen eighty seven" | cardinal; `$4.50` =
+    "four fifty" | "four dollars (and) fifty cents"; `3.15 AM` = `3:15 a.m.`; `24/7`);
+  - diacritics are folded and `Dr./Mr./Mrs./Ms.` are spelled out;
+  - dotted/hyphenated initialisms are joined (`F.B.I.`/`F-B-I` → `fbi`, `a.m.` → `am`). Spaced letters (`f b i`)
+    are never merged, but `fbi` is one of their readings, so `a.m. I` = `AM I` and `F.B.I. I` = `FBI I`;
+  - `compareWords` passes iff some pair of readings is identical (cap `MAX_READINGS = 32` per side).
+- `compareLine(line, heard)` is the gate's view of a script line:
+  - delivery tags and emoji (`splitDelivery(...).emoji`) are not expected words;
+  - heard `[…]`/`(…)` and `*action*` are dropped. Only known non-speech actions (`*sighs*`, `*laughs softly*`)
+    count as `*…*` tags; `I *really* mean it.` keeps "really" as a spoken word;
+  - private-use characters (e.g. the Apple logo) are never words and can't collide with span placeholders;
+  - a `[laughs]` line ignores inserted `ha/haha/heh`;
+  - everything dropped goes to `VerbatimResult.ignored` and into the attempt reason.
+- Pre-spend checks (`preSpendProblems`, `IdeaRejectedError`) reject an idea before any model call, with a $0
+  `pre-spend-check` attempt in the manifest:
+  - non-English (non-Latin) lines;
+  - nested double quotes (`QuoteError`);
+  - a quote over 15 s;
+  - quotes that can't fit 2 × 15 s.
+- One shot line may hold several quotes in idea order with nothing added (prompt `script-v3`), so three short lines
+  fit in two shots. Lines longer than the lip-sync limit are noted on the script attempt ("no lip-sync fallback for
+  this line").
+- Mocks: the mock writer sizes shots by spoken words, and MockAsr hears only speakable tokens.
+- `npx tsx evals/run.ts --mock --set hard` runs `evals/hard.jsonl`. Rejected ideas show as `rejected: true`.
+- Every model in both Gemini default chains has a price (tested).

@@ -1,10 +1,23 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createProviders, MockLlm } from "../src/providers/index.ts";
-import { GeminiLlm, toGeminiSchema, type GenAiClient } from "../src/providers/gemini.ts";
-import { SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../src/prompts/script.ts";
-import { ScriptError, scriptProblems, writeScript } from "../src/nodes/script.ts";
+import { runPipeline } from "../src/graph.ts";
+import {
+  createProviders,
+  MockImage,
+  MockLlm,
+  mockScriptResponder,
+  MockTts,
+  MockVideo,
+} from "../src/providers/index.ts";
+import { DEFAULT_SCRIPT_MODELS, GEMINI_PRICES, GeminiLlm, toGeminiSchema, type GenAiClient } from "../src/providers/gemini.ts";
+import { DEFAULT_JUDGE_MODELS } from "../src/providers/gemini-judge.ts";
+import { firstPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../src/prompts/script.ts";
+import { IdeaRejectedError, preSpendProblems, ScriptError, scriptProblems, writeScript } from "../src/nodes/script.ts";
 import { Script, ScriptDraft, type Shot } from "../src/schemas.ts";
+import { extractQuotedLines } from "../src/verbatim.ts";
 
 const QUOTE = "Meet me where it all started.";
 const IDEA = `A tired barista finds a note in the tip jar. She reads it aloud: "${QUOTE}"`;
@@ -169,6 +182,154 @@ describe("writeScript", () => {
     expect(s.shots[0]!.line).toBe("You always said you'd come back to me.");
     expect(attempts).toHaveLength(1);
     expect(attempts[0]!.ok).toBe(true);
+  });
+});
+
+// --- F10: pre-spend guards and several quotes per shot ---
+
+const CYRILLIC_IDEA = 'Бабуся стоїть біля вікна. Вона тихо каже: "Я чекала на тебе цілу зиму."';
+const NESTED_IDEA = 'A drama teacher stops the rehearsal and says: "When I say "stop," you stop. Not "in a minute." Now."';
+const LONG_QUOTE = Array.from({ length: 40 }, (_, i) => (i % 2 ? "again" : "forever")).join(" ") + ".";
+const LONG_IDEA = `An old violinist speaks to the empty hall: "${LONG_QUOTE}"`;
+const THREE = ["Where were you?", "Who saw you?", "Why are you lying to me?"];
+const THREE_IDEA = `A detective leans across the table. He asks "${THREE[0]}", then "${THREE[1]}", and finally "${THREE[2]}"`;
+
+describe("preSpendProblems (F10)", () => {
+  it("passes ordinary ideas", () => {
+    expect(preSpendProblems(IDEA)).toEqual([]);
+    expect(preSpendProblems(THREE_IDEA)).toEqual([]);
+    expect(preSpendProblems("Loneliness in a big city.")).toEqual([]);
+  });
+  it("rejects non-Latin spoken lines with the README's reason", () => {
+    expect(preSpendProblems(CYRILLIC_IDEA)).toEqual([
+      "only English lines are supported in this PoC (no video model officially supports Ukrainian speech yet); write the line in English",
+    ]);
+    expect(preSpendProblems('He calls: "Мамо, я вдома. I\'m home."')).toHaveLength(1);
+  });
+  it("rejects nested double quotes", () => {
+    expect(preSpendProblems(NESTED_IDEA)).toEqual(["nested double quotes: use single quotes inside the line"]);
+  });
+  it("rejects a single quote longer than one shot can hold", () => {
+    const p = preSpendProblems(LONG_IDEA);
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatch(/40 words need 16\.2 s .* at most 15 s/);
+  });
+  it("rejects quotes that cannot fit 2 shots × 15 s, accepts ones that can", () => {
+    const twenty = (w: string) => Array.from({ length: 20 }, () => w).join(" ");
+    const tooMany = `He says "${twenty("one")}" then "${twenty("two")}" then "${twenty("three")}"`;
+    expect(preSpendProblems(tooMany)[0]).toMatch(/3 quoted lines .* 2 shots/);
+    const fits = `He says "${twenty("one")}" then "${twenty("two")}"`;
+    expect(preSpendProblems(fits)).toEqual([]);
+  });
+});
+
+describe("writeScript pre-spend guards (F10 acceptance 2)", () => {
+  it.each([
+    ["Cyrillic", CYRILLIC_IDEA, /only English lines are supported/],
+    ["nested quotes", NESTED_IDEA, /nested double quotes: use single quotes inside the line/],
+    ["40-word quote", LONG_IDEA, /needs? .*at most 15 s/],
+  ])("%s: rejected before the first LLM call", async (_name, idea, msg) => {
+    const llm = new MockLlm({ responder: mockScriptResponder });
+    const err = await writeScript(idea, { llm }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(IdeaRejectedError);
+    expect((err as Error).message).toMatch(msg);
+    expect((err as IdeaRejectedError).attempts).toEqual([
+      expect.objectContaining({ stage: "script", ok: false, costUsd: 0, provider: "pre-spend-check" }),
+    ]);
+    expect(llm.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ["Cyrillic", CYRILLIC_IDEA, /only English lines are supported/],
+    ["nested quotes", NESTED_IDEA, /nested double quotes/],
+    ["40-word quote", LONG_IDEA, /at most 15 s/],
+  ])("%s: the whole pipeline makes zero LLM / image / video calls", async (_name, idea, msg) => {
+    const dir = await mkdtemp(join(tmpdir(), "itv-prespend-"));
+    try {
+      const llm = new MockLlm({ responder: mockScriptResponder });
+      const image = new MockImage();
+      const video = new MockVideo();
+      const tts = new MockTts();
+      const providers = () => createProviders({ mode: "mock", env: {}, overrides: { llm, image, video, tts } });
+      const { manifest } = await runPipeline({ idea, mode: "mock" }, { providers, runsDir: dir, maxCostUsd: 1, retry: { initialInterval: 1, jitter: false } });
+      expect(manifest.ok).toBe(false);
+      expect(manifest.error).toMatch(msg);
+      expect(manifest.costUsd).toBe(0);
+      expect([llm.calls.length, image.calls.length, video.calls.length, tts.calls.length]).toEqual([0, 0, 0, 0]);
+      // A clean rejection: one attempt that says why, no transient retries.
+      expect(manifest.attempts.map((a) => [a.stage, a.provider, a.ok])).toEqual([["script", "pre-spend-check", false]]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("an LLM-written line in another script is sent back, not accepted", () => {
+    const p = scriptProblems(script(draft([shot({ line: "Я тут.", seconds: 8 })]), []), "A woman waits at a window.");
+    expect(p).toContainEqual(expect.stringMatching(/only English lines are supported/));
+  });
+});
+
+describe("several quoted lines per shot (F10 acceptance 3)", () => {
+  const two = (l1: string, l2: string) =>
+    script(draft([shot({ line: l1, seconds: 5 }), shot({ id: "s2", line: l2, seconds: 5 })]), THREE);
+
+  it("accepts two quotes in one shot, in idea order", () => {
+    expect(scriptProblems(two(`${THREE[0]} ${THREE[1]}`, THREE[2]!), THREE_IDEA)).toEqual([]);
+    expect(scriptProblems(two(THREE[0]!, `${THREE[1]} [softly] ${THREE[2]}`), THREE_IDEA)).toEqual([]);
+  });
+  it("rejects quotes out of order, split across shots, or with words added around them", () => {
+    expect(scriptProblems(two(`${THREE[1]} ${THREE[0]}`, THREE[2]!), THREE_IDEA).join("\n")).toMatch(/"Who saw you\?" must appear .*exactly.*after the quoted lines before it/);
+    expect(scriptProblems(two(`${THREE[0]} Who saw`, `you? ${THREE[2]}`), THREE_IDEA)).not.toEqual([]);
+    expect(scriptProblems(two(`${THREE[0]} Tell me. ${THREE[1]}`, THREE[2]!), THREE_IDEA).join("\n")).toMatch(/s1.*words outside the quoted lines.*Tell me/);
+  });
+  it("writeScript passes when the mock LLM returns two quotes in one shot", async () => {
+    const d = draft([shot({ line: `${THREE[0]} ${THREE[1]}`, seconds: 5 }), shot({ id: "s2", line: THREE[2]!, seconds: 5 })]);
+    const llm = new MockLlm({ queue: [d] });
+    const { script: s, attempts } = await writeScript(THREE_IDEA, { llm });
+    expect(s.quotedLines).toEqual(THREE);
+    expect(attempts.map((a) => a.ok)).toEqual([true]);
+  });
+  it("the built-in mock writer packs three short quotes into two shots that pass", () => {
+    const quoted = extractQuotedLines(THREE_IDEA);
+    const d = mockScriptResponder(firstPrompt(THREE_IDEA, quoted), { system: "", call: 0 }) as ScriptDraft;
+    expect(d.shots).toHaveLength(2);
+    const s = Script.parse({ ...d, promptVersion: "t", quotedLines: quoted });
+    expect(scriptProblems(s, THREE_IDEA)).toEqual([]);
+  });
+  it("the mock writer sizes shots by spoken words, so a line with 1987 and 3:15 a.m. passes", () => {
+    const idea = 'An old man fixes a clock. He says: "It stopped in 1987, at 3:15 a.m., and so did I."';
+    const quoted = extractQuotedLines(idea);
+    const d = mockScriptResponder(firstPrompt(idea, quoted), { system: "", call: 0 }) as ScriptDraft;
+    expect(scriptProblems(Script.parse({ ...d, promptVersion: "t", quotedLines: quoted }), idea)).toEqual([]);
+  });
+});
+
+describe("lip-sync limit note (F10)", () => {
+  it("records 'no lip-sync fallback for this line' on the script attempt when a line is too long for it", async () => {
+    const line = "I played this song at our wedding, at your funeral, and every Sunday since, and I will keep playing it.";
+    const idea = `A violinist says: "${line}"`;
+    const d = draft([shot({ line, seconds: 10 }), shot({ id: "s2", line: "", seconds: 4 })]);
+    const { attempts } = await writeScript(idea, { llm: new MockLlm({ queue: [d] }), lipsyncMaxSeconds: 5 });
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]!.ok).toBe(true);
+    expect(attempts[0]!.reason).toMatch(/shot s1: .*lip-sync max 5 s: no lip-sync fallback for this line/);
+    const plain = await writeScript(idea, { llm: new MockLlm({ queue: [d] }), lipsyncMaxSeconds: 10 });
+    expect(plain.attempts[0]!.reason).toBeUndefined();
+  });
+});
+
+describe("Gemini prices (F10)", () => {
+  it.each([
+    ["DEFAULT_SCRIPT_MODELS", DEFAULT_SCRIPT_MODELS],
+    ["DEFAULT_JUDGE_MODELS", DEFAULT_JUDGE_MODELS],
+  ])("every model in %s has a price, so no run records a paid call as $0", (_name, chain) => {
+    const models = chain.split(",").map((m) => m.trim()).filter(Boolean);
+    expect(models.length).toBeGreaterThan(0);
+    for (const m of models) {
+      expect(GEMINI_PRICES[m], m).toBeDefined();
+      expect(GEMINI_PRICES[m]!.input).toBeGreaterThan(0);
+      expect(GEMINI_PRICES[m]!.output).toBeGreaterThan(0);
+    }
   });
 });
 

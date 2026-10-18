@@ -42,7 +42,7 @@ export function keyframePrompt(shot: Shot, script: Script): string {
  * dialogue); delivery tags ("[whispers]") are not words, so they move into the emotion instead of the quote.
  */
 export function talkingPrompt(shot: Shot, script: Script): string {
-  const { spoken, tags } = splitDelivery(shot.line);
+  const { spoken, tags, emoji } = splitDelivery(shot.line);
   const emotion = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
   const scene = `${oneLine(shot.visual)}. ${oneLine(shot.motion)}.`;
   if (spoken === "") {
@@ -53,7 +53,8 @@ export function talkingPrompt(shot: Shot, script: Script): string {
       NO_WRITING,
     ].join(" ");
   }
-  const said = tags.length ? spoken : shot.line;
+  // Emoji are not words either: a model asked to "say" 🚀 may improvise one (F10).
+  const said = tags.length || emoji ? spoken : shot.line;
   return [
     scene,
     `${oneLine(script.character.name)} looks toward the camera and says, ${emotion}: "${said}"`,

@@ -77,7 +77,7 @@
     {
       "id": "F10-hard-lines",
       "spec": "specs/F10-hard-lines.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/verbatim.test.ts tests/script.test.ts",
         "npx tsx evals/run.ts --mock --set hard --label f10",
