@@ -30,6 +30,7 @@ cp .env.example .env                      # then fill in the keys below
 pnpm preflight                            # no network: prints the exact requests and which keys are set
 pnpm make "<idea>" --live                 # prints the cost estimate first; MAX_COST_USD caps the run
 pnpm make --resume <runId>                # continue a crashed or interrupted run from its checkpoint
+pnpm make --resume <runId> --redo shot     # replay from a step; unchanged (paid) artifacts are reused for $0
 pnpm make "<idea>" --live --json          # last stdout line: { ok, runId, finalPath, seconds, verbatim, costUsd, attempts }
 ```
 
@@ -50,6 +51,7 @@ Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to
 
 | File | Idea | Length | Cost |
 | --- | --- | --- | --- |
+| `examples/06-castle-dialogue-final.mp4` | 3-shot storyboard: wide castle → king speaks → daughter answers; cuts inside shots, subtitles. Rescued with `--redo` for $0 after the gate caught an ASR hallucination | 18.2 s | $1.76 |
 | `examples/05-castle-storyboard-wide.mp4` | storyboard in Ukrainian ("1 кадр … 2 кадр …"), wide shots, burned-in subtitles: "Hello? Is anyone still here?" | 9 s | $1.37 |
 | `examples/04-lighthouse-keeper-22s.mp4` | two long lines, 48 words; same face in both shots (portraits-only references) | 22 s | $2.08 |
 | `examples/02-dialogue-mother-son.mp4` | two speakers: "Open it after I leave." / "Mom, are you sick?" | 10.2 s | $1.01 |

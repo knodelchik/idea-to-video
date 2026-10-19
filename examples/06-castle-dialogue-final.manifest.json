@@ -1,0 +1,423 @@
+{
+  "runId": "20261019-102838-c6cde1",
+  "idea": "Shot 1: wide shot of a dark castle on a stormy cliff at dusk; a young woman in a crimson cloak with a long white braid walks toward the huge gate. Shot 2: in a candlelit throne room an old king with a grey beard and a black fur mantle turns to her and says: \"You came back. After everything I said, you actually came back.\" Shot 3: she steps closer and answers: \"I did not come back for you, Father. I came back for the dragon.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T10:28:38.768Z",
+  "script": {
+    "promptVersion": "script-v7",
+    "title": "Return to the Keep",
+    "logline": "An exiled princess returns to her estranged father's storm-battered castle, not for reconciliation, but to claim the caged beast beneath it.",
+    "setting": "A gloomy, gothic stone fortress perched over a raging ocean cliff at dusk, lit inside by guttering torches and tall tallow candles.",
+    "characters": [
+      {
+        "name": "Lyra",
+        "look": "Lyra, 22 years old, sharp pale cheekbones, piercing icy blue eyes, a thick waist-length snow-white braid, wearing a heavy crimson velvet hooded cloak over fitted black leather armor.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "resolute"
+        },
+        "voiceDescription": "cold clear female voice, early 20s, neutral English accent, measured and unyielding"
+      },
+      {
+        "name": "King Alden",
+        "look": "King Alden, 62 years old, deeply lined scarred face, long untamed iron-grey beard, tarnished gold circlet crown, wearing an imposing jet-black wolf-fur mantle over battered chainmail.",
+        "voice": {
+          "gender": "male",
+          "age": "older",
+          "tone": "weary"
+        },
+        "voiceDescription": "gravelly weathered male voice, early 60s, Northern British accent, heavy and rasping"
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "wide shot",
+        "visual": "A colossal obsidian fortress looms on a jagged sea cliff beneath stormy violet dusk, while Lyra in her vibrant crimson cloak and thick white braid advances toward the colossal iron gate.",
+        "motion": "slow tilt-up from the cliff path to the towering battlements",
+        "emotion": "foreboding anticipation",
+        "line": "",
+        "seconds": 5,
+        "onScreen": [
+          "Lyra"
+        ]
+      },
+      {
+        "id": "s2",
+        "camera": "medium shot",
+        "visual": "Inside the cavernous, shadow-drenched throne room lit by towering torches, King Alden rises slightly from his jagged iron throne, his weathered gaze fixed forward.",
+        "motion": "slow push-in toward the king",
+        "emotion": "haunted disbelief",
+        "line": "You came back. After everything I said, you actually came back.",
+        "seconds": 6,
+        "speaker": "King Alden",
+        "onScreen": [
+          "King Alden"
+        ],
+        "cuts": [
+          {
+            "camera": "medium shot",
+            "visual": "Inside the cavernous, shadow-drenched throne room lit by towering torches, King Alden rises slightly from his jagged iron throne, his weathered gaze fixed forward.",
+            "onScreen": [
+              "King Alden"
+            ]
+          },
+          {
+            "camera": "medium close-up",
+            "visual": "King Alden's scarred brow furrows under his tarnished crown as his lips tremble with fragile hope and sorrow.",
+            "onScreen": [
+              "King Alden"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "s3",
+        "camera": "medium shot",
+        "visual": "Lyra steps into the torchlight with deliberate grace, snow melting on the deep crimson velvet shoulders of her cloak.",
+        "motion": "slow push-in into her resolute expression",
+        "emotion": "chilling determination",
+        "line": "I did not come back for you, Father. I came back for the dragon.",
+        "seconds": 7,
+        "speaker": "Lyra",
+        "onScreen": [
+          "Lyra"
+        ],
+        "cuts": [
+          {
+            "camera": "medium shot",
+            "visual": "Lyra steps into the torchlight with deliberate grace, snow melting on the deep crimson velvet shoulders of her cloak.",
+            "onScreen": [
+              "Lyra"
+            ]
+          },
+          {
+            "camera": "close-up",
+            "visual": "Lyra's icy blue eyes narrow without warmth as her striking silver braid gleams against her crimson mantle.",
+            "onScreen": [
+              "Lyra"
+            ]
+          }
+        ]
+      }
+    ],
+    "quotedLines": [
+      "You came back. After everything I said, you actually came back.",
+      "I did not come back for you, Father. I came back for the dragon."
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-102838-c6cde1/clip-s1-c61ffd50201ab7a1.mp4",
+      "seconds": 5.088,
+      "hasAudio": false,
+      "audio": "silent",
+      "keyframeScore": 10,
+      "clipScore": 3,
+      "needsReview": true
+    },
+    "s2": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-102838-c6cde1/clip-s2-079c1ddcdeed218b.mp4",
+      "seconds": 6.08,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 1.32,
+      "speechEnd": 6.24,
+      "verbatim": {
+        "expected": "you came back after everything i said you actually came back",
+        "heard": "you came back after everything i said you actually came back",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 10,
+      "needsReview": false
+    },
+    "s3": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-102838-c6cde1/clip-s3-3943deef811eb093.mp4",
+      "seconds": 7.104,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0,
+      "speechEnd": 7.2,
+      "verbatim": {
+        "expected": "i did not come back for you father i came back for the dragon",
+        "heard": "i did not come back for you father i came back for the dragon",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 10,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": false,
+      "reason": "shot s3: 14 words need 6.2 s to speak (words / 2.6 + 0.8) but the shot has 6 s; shorten the line or lengthen the shot",
+      "costUsd": 0.01405575,
+      "ms": 30886
+    },
+    {
+      "stage": "script",
+      "n": 2,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.007827,
+      "ms": 29634
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 10367
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 12284
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 14366
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (429), trying next",
+      "costUsd": 0.0008087999999999999,
+      "ms": 2505,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 13216
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (429), trying next",
+      "costUsd": 0.000801,
+      "ms": 2144,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 16487
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (429), trying next",
+      "costUsd": 0.0007971,
+      "ms": 2796,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate; reused cached clip",
+      "costUsd": 0,
+      "ms": 46
+    },
+    {
+      "stage": "listen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "groq-whisper",
+      "ok": true,
+      "reason": "speech heard in a silent shot (\"Thank you for watching!\"); its audio replaced with silence",
+      "costUsd": 0.00030833333333333337,
+      "ms": 576
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "clip score 3/10 < 5; issues: Severe structural failure and duplication of the castle in frame 3; Character completely disappears by frame 3; reused cached verdict",
+      "costUsd": 0,
+      "ms": 3,
+      "score": 3
+    },
+    {
+      "stage": "regen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "budget",
+      "ok": false,
+      "reason": "clip score 3 < 5; regeneration skipped: budget guard refuses ~$0.9276 more (MAX_COST_USD); kept take 1; needs review",
+      "costUsd": 0,
+      "ms": 0
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "reason": "reused cached clip",
+      "costUsd": 0.00030833333333333337,
+      "ms": 631
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; reused cached verdict",
+      "costUsd": 0,
+      "ms": 2,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "reason": "reused cached clip",
+      "costUsd": 0.00030833333333333337,
+      "ms": 648
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; reused cached verdict",
+      "costUsd": 0,
+      "ms": 1,
+      "score": 10
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "3 shot(s): 5.00 s + 6.07 s + 7.10 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS; reused cached cut",
+      "costUsd": 0,
+      "ms": 35
+    },
+    {
+      "stage": "subtitles",
+      "n": 1,
+      "provider": "groq-whisper+resvg+ffmpeg",
+      "ok": true,
+      "reason": "7 cue(s) of the verified line, timed by ASR words; reused cached burn",
+      "costUsd": 0.0005584533333333333,
+      "ms": 1930
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "reason": "ignored words ASR heard in digital silence (hallucination, nothing was said there): \"The American Pronunciation Guide Presents ''How to Pronounce Come Back''\"",
+      "costUsd": 0.0005584533333333333,
+      "ms": 653
+    }
+  ],
+  "costUsd": 0.116332,
+  "final": {
+    "path": "/Users/bogdan/idea-to-video/runs/20261019-102838-c6cde1/final.mp4",
+    "seconds": 18.166016,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "you came back after everything i said you actually came back i did not come back for you father i came back for the dragon",
+    "heard": "you came back after everything i said you actually came back i did not come back for you father i came back for the dragon",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "You came back. After everything I said, you actually came back. I did not come back for you, Father. I came back for the dragon.",
+    "heard": "You came back. After everything I said, you actually came back. I did not come back for you, father. I came back for the dragon."
+  },
+  "subtitles": {
+    "file": "/Users/bogdan/idea-to-video/runs/20261019-102838-c6cde1/subtitled-c03d7622fc9c4a73.mp4",
+    "cues": [
+      {
+        "start": 6.5,
+        "end": 8.26,
+        "text": "You came back."
+      },
+      {
+        "start": 8.26,
+        "end": 9.46,
+        "text": "After everything I said,"
+      },
+      {
+        "start": 9.46,
+        "end": 11.15,
+        "text": "you actually came back."
+      },
+      {
+        "start": 13.5,
+        "end": 14.26,
+        "text": "I did not come"
+      },
+      {
+        "start": 14.26,
+        "end": 14.9,
+        "text": "back for you,"
+      },
+      {
+        "start": 14.9,
+        "end": 17.18,
+        "text": "Father. I came back"
+      },
+      {
+        "start": 17.18,
+        "end": 18.166,
+        "text": "for the dragon."
+      }
+    ],
+    "timing": "asr"
+  },
+  "ok": true
+}
