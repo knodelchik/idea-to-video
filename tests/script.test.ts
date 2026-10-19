@@ -137,6 +137,17 @@ describe("scriptProblems", () => {
 });
 
 describe("speakers (F11)", () => {
+  it("storyboard markers and a leading place phrase are not speakers (live 2026-10-19)", () => {
+    const who = (idea: string) => quoteSpeakers(idea).map((a) => a && [a.who, a.gender ?? null]);
+    expect(
+      who('Shot 1: a castle. Shot 2: in a candlelit throne room an old king turns to her and says: "You came back." Shot 3: she steps closer and answers: "Not for you."'),
+    ).toEqual([["king", "male"], ["she", "female"]]);
+    expect(who('Кадр 1: двері. Кадр 2 — at the gate the old man says: "Go." Кадр 3: the girl answers: "No."')).toEqual([["man", "male"], ["girl", "female"]]);
+    expect(who('In the kitchen her mother says: "Eat."')).toEqual([["mother", "female"]]);
+    expect(who('At last the detective says: "Done."')).toEqual([["detective", null]]);
+    expect(who('A teenager hugs her dad and says: "Thanks."')).toEqual([["teenager", null]]);
+  });
+
   const OPEN = "Open it after I leave.";
   const SICK = "Mom, are you sick?";
   const KITCHEN = `At the kitchen table, a mother slides an envelope to her son. She says: "${OPEN}" He looks up and asks: "${SICK}"`;

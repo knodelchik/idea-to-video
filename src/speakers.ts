@@ -36,6 +36,13 @@ const LEADING_SUBORDINATE = new RegExp(
   "i",
 );
 
+// A storyboard beat marker before the clause ("Shot 2:", "Кадр 2 —", "2.") is not a speaker (F12; live 2026-10-19:
+// "Shot 2: … an old king … says" was read as the speaker "shot").
+const BEAT_MARKER = /^\s*(?:(?:shot|scene|кадр)\s*\d+|\d+\s*кадр|\d+\s*[.)])\s*[:.)—–-]?\s*/i;
+// A clause may open on where it happens ("In a candlelit throne room an old king … says"): the speaker comes later.
+const PREPOSITION = new Set("in at on inside outside by near under across through from into onto within beside behind above below over".split(" "));
+const OWNER = new Set("her his their my our its your".split(" "));
+
 const genderOf = (word: string): Gender | undefined => (FEMALE.has(word) ? "female" : MALE.has(word) ? "male" : undefined);
 const isPossessive = (t: string): boolean => /'s?$/.test(t);
 
@@ -43,6 +50,7 @@ const isPossessive = (t: string): boolean => /'s?$/.test(t);
 function subjectOf(clause: string): Attribution | undefined {
   // No comma, no strip: "When she finally speaks" keeps its she.
   const tokens = clause
+    .replace(BEAT_MARKER, "")
     .replace(LEADING_SUBORDINATE, "")
     .replace(/[‘’]/g, "'")
     .toLowerCase()
@@ -59,6 +67,15 @@ function subjectOf(clause: string): Attribution | undefined {
   const head = tokens.slice(start, start + 3).filter((t) => !isPossessive(t));
   const noun = head.find((t) => genderOf(t) !== undefined);
   if (noun) return { who: noun, gender: genderOf(noun)!, pronoun: false };
+  // ("at" is also in CONNECTIVE, for "at last", so look at the token before `start` too.)
+  if (PREPOSITION.has(tokens[start]!) || PREPOSITION.has(tokens[start - 1] ?? "")) {
+    // Past a leading place phrase the speaker is a gendered noun: the first one nobody owns ("an old king"), else the
+    // first at all ("In the kitchen her mother says"). A possessive only modifies ("the bride's father").
+    const gendered = tokens.map((t, k) => ({ t, k })).filter(({ t, k }) => k >= start && genderOf(t) !== undefined && !isPossessive(tokens[k - 1] ?? ""));
+    const pick = gendered.find(({ k }) => !OWNER.has(tokens[k - 1] ?? "")) ?? gendered[0];
+    if (pick) return { who: pick.t, gender: genderOf(pick.t)!, pronoun: false };
+    return undefined; // a place, not a person: "In the hall says" names nobody
+  }
   const word = head.find((t) => !SKIP.has(t) && !CONNECTIVE.has(t));
   return word ? { who: word, pronoun: false } : undefined;
 }

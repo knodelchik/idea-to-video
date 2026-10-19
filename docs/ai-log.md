@@ -211,3 +211,7 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   so the pipeline paid $0.46 for a second take that the judge failed on again. Changed by hand: a judge failure keeps the
   gated take and flags needs-review, with no paid regeneration (test 4b rewritten). (2) Subtitles at 72% height sat on
   the small figure; moved down to 84% (My Muse is ~86%).
+- [mock, before a paid run] 2026-10-19: in a storyboard ("Shot 2: in a candlelit throne room an old king … says") the
+  F11 speaker detector took "shot" as the speaker, so a script giving the king's and the daughter's lines to one
+  person passed. F11's reviewer had tested the sentence forms, not storyboards (F12 came later). Fixed by hand: beat
+  markers are stripped, and past a leading place phrase the subject is the first unowned gendered noun. 5 tests added.
