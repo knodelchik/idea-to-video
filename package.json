@@ -12,6 +12,7 @@
     "eval": "tsx --env-file-if-exists=.env evals/run.ts",
     "eval:compare": "tsx evals/compare.ts",
     "metrics": "tsx src/obs/metrics-cli.ts",
+    "web": "tsx --env-file-if-exists=.env src/web/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "bash scripts/verify.sh",

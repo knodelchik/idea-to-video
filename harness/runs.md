@@ -163,3 +163,9 @@
 2026-10-19 14:14:06 F16-observability attempt 1: implementer
 2026-10-19 14:38:27 F16-observability attempt 1: gate
 2026-10-19 14:39:23 F16-observability attempt 1: reviewer
+2026-10-19 14:44:11 F16-observability PASSED on attempt 1 -> d40cf4d
+2026-10-19 14:44:11 all requested features passing
+2026-10-19 14:44:12 ### F15-web-demo start (specs/F15-web-demo.md)
+2026-10-19 14:44:12 F15-web-demo attempt 1: implementer
+2026-10-19 14:58:36 F15-web-demo attempt 1: gate
+2026-10-19 14:59:37 F15-web-demo attempt 1: reviewer

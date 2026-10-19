@@ -1,0 +1,30 @@
+# idea-to-video web demo behind the Traefik that Coolify runs. From this folder: docker compose up -d --build
+services:
+  itv-web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: itv-web:latest
+    container_name: itv-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Traefik is the only way in, so the last X-Forwarded-For entry is the real client (login rate limit).
+      TRUST_PROXY: "1"
+    volumes:
+      - ./runs:/app/runs
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.itv-web.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.itv-web.entrypoints=https
+      - traefik.http.routers.itv-web.tls=true
+      - traefik.http.routers.itv-web.tls.certresolver=letsencrypt
+      - traefik.http.services.itv-web.loadbalancer.server.port=8080
+
+networks:
+  coolify:
+    external: true

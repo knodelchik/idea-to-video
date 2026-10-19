@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>idea → video</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">idea → video</a>
+    <nav id="nav" hidden>
+      <a href="#/" data-view="make">Make</a>
+      <a href="#/gallery" data-view="gallery">Gallery</a>
+      <a href="#/metrics" data-view="metrics">Metrics</a>
+      <button id="logout" class="link" type="button">Log out</button>
+    </nav>
+  </header>
+
+  <main id="app">
+    <section id="login" class="view" hidden>
+      <h1>Access code</h1>
+      <p class="muted">This demo is private. Type the code you were given.</p>
+      <form id="login-form" class="stack">
+        <input id="code" name="code" type="password" autocomplete="current-password" required aria-label="Access code" placeholder="code">
+        <button type="submit">Enter</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="make" class="view" hidden>
+      <h1>Make a video</h1>
+      <p class="muted">One to three sentences. Put the spoken line in quotes and it is said word for word.</p>
+      <form id="run-form" class="stack">
+        <textarea id="idea" name="idea" rows="4" maxlength="800" required placeholder='A tired barista finds a note in the tip jar: "Meet me where it started."'></textarea>
+        <div class="chips" id="examples" aria-label="Example ideas"></div>
+        <fieldset class="switch">
+          <legend>Mode</legend>
+          <label><input type="radio" name="mode" value="mock" checked> Mock</label>
+          <label><input type="radio" name="mode" value="live" id="mode-live"> Live</label>
+        </fieldset>
+        <p class="muted small" id="mode-note">Mock is free and takes about 10 s: placeholder pictures and a synthetic voice, but every gate, retry and record is real. Live calls the real models: about $1–2 and 5–10 min per video.</p>
+        <p class="muted small" id="live-off" hidden>Live is off on this server; only mock runs are allowed.</p>
+        <button type="submit" id="run-button">Make it</button>
+        <p id="run-error" class="error" role="alert"></p>
+      </form>
+
+      <div id="progress" class="panel" hidden>
+        <div class="row between">
+          <strong id="progress-title">Running…</strong>
+          <span class="muted"><span id="progress-cost">$0.0000</span> · <span id="progress-time">0 s</span></span>
+        </div>
+        <table class="attempts">
+          <thead><tr><th>#</th><th>stage</th><th>shot</th><th></th><th>reason</th><th>$</th></tr></thead>
+          <tbody id="progress-rows"></tbody>
+        </table>
+        <div id="progress-result"></div>
+      </div>
+    </section>
+
+    <section id="gallery" class="view" hidden>
+      <h1>Gallery</h1>
+      <p class="muted">Finished runs and examples, newest first. Open one to see every attempt, its reason and its cost.</p>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <section id="metrics" class="view" hidden>
+      <h1>Metrics</h1>
+      <p class="muted">Across every run on this server plus the examples.</p>
+      <div id="metrics-body"></div>
+    </section>
+  </main>
+
+  <dialog id="inspector" aria-label="Run inspector">
+    <div class="row between sticky">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="overview" aria-selected="true">Run</button>
+        <button type="button" role="tab" data-tab="trace" aria-selected="false">Trace</button>
+      </div>
+      <button type="button" class="link" id="inspector-close" aria-label="Close">Close ✕</button>
+    </div>
+    <div id="inspector-overview"></div>
+    <div id="inspector-trace" hidden></div>
+  </dialog>
+</body>
+</html>

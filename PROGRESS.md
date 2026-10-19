@@ -329,3 +329,19 @@ Append-only log, one entry per feature, written by the implementer agent and com
   generations with model, usage and cost. A failed export is logged and lands in the manifest's new `notes`, and the
   run stays ok.
 - Env values named `*_KEY` / `*_SECRET` / `*_TOKEN` are redacted from trace lines before writing.
+
+## F15 — A small hosted web demo behind one access code
+- `ACCESS_CODE=… SESSION_SECRET=… pnpm web` serves `src/web/` on `PORT` (8080). Login takes one code (5 wrong per IP
+  per 15 min → 429) and sets a 7-day HttpOnly/Secure/SameSite=Lax HMAC cookie. Then: Make (form + 3 example ideas,
+  Mock/Live switch; live only with `WEB_LIVE=1`), Gallery (runs + `examples/`, inspector with video, script, shots,
+  verbatim, fallback ladder, subtitles, every attempt, totals, and a Trace tab) and Metrics (F16).
+- API: `POST /api/runs {idea, mode}` → 202 `{runId}` (one run at a time, else 409); `GET /api/runs`,
+  `/api/runs/:id`, `/api/runs/:id/events` (SSE: `attempt`, `progress`, `done`), `/api/runs/:id/trace`,
+  `/api/metrics`, `/api/config`, `/media/<id>/final.mp4` and `/media/examples/<file>.mp4` with Range, `/health`.
+- Runs are `node --import tsx src/cli.ts --<mode> --json --run-id <id> -- <idea>` children (no shell) with
+  `MAX_COST_USD` and `RUNS_DIR` in env. The CLI gained `--run-id`, `--` (end of flags) and `RUNS_DIR`.
+- Tests inject `createWebServer(cfg, { startRun })`, a fake runner that writes manifests over time.
+  `tests/web.test.ts` also drives one real mock run end to end and ffprobes the served `final.mp4`.
+- Deploy: `deploy/Dockerfile` (node:22-bookworm-slim, ffmpeg, pnpm via corepack, `.env` guard), root
+  `.dockerignore`, `deploy/docker-compose.yml` (`itv-web` on the external `coolify` network, Traefik labels,
+  `TRUST_PROXY=1`) and `deploy/README.md` (env, `tar | ssh`, build/start, the nightly image prune).

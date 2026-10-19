@@ -9,7 +9,10 @@ import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type FetchLike, type Providers } from "./providers/index.ts";
 import { langfuseFromEnv } from "./obs/langfuse.ts";
 
-export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step>]] [--json] [--no-subtitles]`;
+export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step>]] [--json] [--no-subtitles] [--run-id <id>] [-- "<idea>"]`;
+
+/** Run ids name folders under the runs dir: word characters and dashes only (no path tricks). */
+export const RUN_ID_RE = /^[\w-]+$/;
 
 export interface CliArgs {
   idea?: string;
@@ -20,6 +23,8 @@ export interface CliArgs {
   json: boolean;
   /** Present (false) only with --no-subtitles (F13); default is on. */
   subtitles?: false;
+  /** --run-id: the caller (the web server, F15) picks the id so it can follow the run before it ends. */
+  runId?: string;
 }
 
 /** SUBTITLES=0 / false / off turns burned-in subtitles off (F13); anything else, or unset, leaves them on. */
@@ -33,6 +38,11 @@ export function parseArgs(argv: string[]): CliArgs {
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
+    // "--" ends the flags: an idea that starts with "--" (typed into the web form) is never read as a flag.
+    if (a === "--") {
+      positional.push(...argv.slice(i + 1));
+      break;
+    }
     if (a === "--json") out.json = true;
     else if (a === "--no-subtitles") out.subtitles = false;
     else if (a === "--mock" || a === "--live") {
@@ -43,6 +53,10 @@ export function parseArgs(argv: string[]): CliArgs {
       const id = argv[++i];
       if (!id || id.startsWith("--")) throw new Error("--resume needs a run id");
       out.resume = id;
+    } else if (a === "--run-id") {
+      const id = argv[++i];
+      if (!id || !RUN_ID_RE.test(id)) throw new Error("--run-id needs an id of letters, digits, _ and -");
+      out.runId = id;
     } else if (a === "--redo") {
       const step = argv[++i];
       if (!step || !(REDO_STEPS as readonly string[]).includes(step)) throw new Error(`--redo needs a step: ${REDO_STEPS.join(", ")}`);
@@ -56,6 +70,7 @@ export function parseArgs(argv: string[]): CliArgs {
   if (out.resume && out.idea) throw new Error("--resume continues a stored run; don't pass an idea with it");
   if (out.resume && out.mode) throw new Error("--resume uses the run's own mode; drop --mock/--live");
   if (out.redo && !out.resume) throw new Error("--redo needs --resume <runId>");
+  if (out.runId && out.resume) throw new Error("--run-id names a new run; --resume already has one");
   return out;
 }
 
@@ -123,9 +138,10 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
   const langfuse = langfuseFromEnv(env);
   let outcome: RunOutcome;
   try {
-    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock" }, {
+    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock", ...(args.runId ? { runId: args.runId } : {}) }, {
       providers: makeProviders,
-      runsDir: resolve(deps.runsDir ?? "runs"),
+      // RUNS_DIR lets the web server (F15) point its child runs at its own folder.
+      runsDir: resolve(deps.runsDir ?? (env.RUNS_DIR?.trim() || "runs")),
       maxCostUsd,
       quality,
       subtitles: args.subtitles !== false && subtitlesFromEnv(env),

@@ -507,7 +507,7 @@ export type RedoStep = (typeof REDO_STEPS)[number];
  * artifact is content-addressed, so steps whose inputs did not change reuse their files for $0 (a paid clip is never
  * bought twice); only what changed, e.g. a fixed prompt or a new rule, runs again.
  */
-export type RunRequest = { idea: string; mode: Mode } | { resume: string; redo?: RedoStep };
+export type RunRequest = { idea: string; mode: Mode; runId?: string } | { resume: string; redo?: RedoStep };
 
 export interface RunOutcome {
   manifest: RunManifest;
@@ -520,7 +520,7 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
   const saver = SqliteSaver.fromConnString(join(deps.runsDir, "checkpoints.sqlite"));
   try {
     const app = buildGraph(deps, ctx).compile({ checkpointer: saver });
-    const runId = "resume" in req ? req.resume : newRunId();
+    const runId = "resume" in req ? req.resume : (req.runId ?? newRunId());
     const config = { configurable: { thread_id: runId } };
 
     const path = manifestPath(deps.runsDir, runId);
@@ -550,6 +550,10 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
       carried = await previousFailures(path, state.attempts?.length ?? 0);
       deps.log?.(`resuming ${runId} (${state.mode}); next: ${snap.next.join(", ") || "nothing (run finished)"}`);
     } else {
+      // A caller-chosen id (F15) must name a new run: reusing one would mix two runs in one folder and checkpoint.
+      if (req.runId && (await readFile(path, "utf8").then(() => true, () => false))) {
+        throw new Error(`run ${runId} already exists in ${deps.runsDir}; pick a new --run-id`);
+      }
       state = {
         idea: req.idea,
         mode: req.mode,

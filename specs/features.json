@@ -135,7 +135,7 @@
     {
       "id": "F15-web-demo",
       "spec": "specs/F15-web-demo.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/web.test.ts"
       ]

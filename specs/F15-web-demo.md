@@ -120,3 +120,64 @@ harness thinking visible: nothing is silent, every cent and retry is on record.
    `deploy/Dockerfile` and `docker-compose.yml` pass a static check in a test: base image, ffmpeg, no `.env`, the
    coolify network, the labels.
 9. `pnpm verify` green; F01–F16 tests still pass.
+
+## Decisions
+- **Files:** `src/web/config.ts` (env → `WebConfig`; throws without `ACCESS_CODE` / `SESSION_SECRET`),
+  `auth.ts` (cookie sign/verify, `LoginLimiter`), `runs.ts` (safe ids, manifests, gallery, F16 records),
+  `media.ts` (`parseRange`, `sendFile`), `runner.ts` (`runSpec`, `spawnRunner`), `server.ts` (routes, SSE, `main`).
+  `createWebServer(cfg, { startRun, pollMs, now, log })` is what tests use; `pnpm web` runs `main()`.
+- **Passing the run id in, not parsing it out:** the CLI gained `--run-id <id>` (`^[\w-]+$`, refused with `--resume`,
+  and `runPipeline` refuses an id whose manifest already exists). The server makes the id (same format as
+  `newRunId`) and returns `{runId}` at once with 202. The rejected alternative was reading the id from the child's
+  stdout: `--json` prints only at the end, so it would have meant a new early log line plus parsing.
+- **`--` ends the CLI's flags:** the child gets `… --<mode> --json --run-id <id> -- <idea>`. Without it, an idea
+  typed as `--live …` would be parsed as the live flag. That would be a paid run started from the mock form, so this
+  is a security fix and not just style. The spec's order (`<idea> --<mode> --json`) is otherwise the same command.
+- **`node --import tsx src/cli.ts`** (`process.execPath`, argument array, `shell: false`) rather than
+  `node_modules/.bin/tsx`. Under pnpm that path is a `sh` shim; going through it is still safe (`"$@"`), but
+  spawning node directly keeps a shell out of the path entirely. `tsx` is already a dependency.
+- **`RUNS_DIR` in the CLI:** `main()` now reads `env.RUNS_DIR` (default `runs`), so the child writes where the
+  server reads. The child env is `process.env` minus `ACCESS_CODE` / `SESSION_SECRET`, plus `MAX_COST_USD` and
+  `RUNS_DIR`.
+- **"Finished"** = `ok` or `error` set. In-flight manifests have `ok: false` and no error. SSE re-reads the
+  manifest every `pollMs` (1 s), sends `attempt` (with `index`) for each new attempt and `progress` (`costUsd`).
+  It ends with `done` when the manifest is finished or the server's child has exited. A child that died without a
+  manifest gets `done` with `ok: false` and the tail of its output. A half-written manifest (a non-atomic
+  `writeFile`) is just read again on the next tick.
+- **Auth:** the code check is `timingSafeEqual(sha256(given), sha256(code))`. The cookie is
+  `itv_session=<expMs>.<hex HMAC-SHA256(secret, expMs)>`, HttpOnly, Secure, SameSite=Lax, Max-Age 7 days. Once 5
+  failures fall in the 15-min window, **every** login from that IP gets 429, the right code included; otherwise
+  guessing just goes on. `/logout` clears the cookie.
+- **Client IP behind Traefik:** new optional `TRUST_PROXY=1` (compose sets it) takes the *last* `X-Forwarded-For`
+  entry, the one Traefik appended. A client can prepend fake entries but can't change the last one. Off by default,
+  because without a proxy the header is client-controlled. Without this flag, every login would come from
+  Traefik's IP and one bad guesser would lock everyone out.
+- **Ids and paths:** every URL id goes through `inside(dir, id)`: `^[\w-]+$` **and** the resolved path stays under
+  the dir. `/api/runs/:id` tries the run folder, then `EXAMPLES_DIR/<id>.manifest.json`. A manifest that fails
+  `RunManifest` is 500 for that id and is left out of the gallery and metrics with a log line. Malformed `%`
+  escapes are 400.
+- **Gallery:** `GalleryItem { id, kind: run|example, title (script title or idea), idea, mode, ok, seconds, costUsd,
+  wer, thumbTime (middle of shot 1), videoUrl, createdAt, attempts }`. Finished runs plus all examples, by
+  `createdAt` desc.
+- **Page:** one `index.html` serves both `/login` and `/` (the JS picks the view). Views are hash routes: `#/` make,
+  `#/gallery`, `#/metrics`. The inspector is a `<dialog>` with Run / Trace tabs. All run data goes in via
+  `textContent`. The CSP is `default-src 'self'` with no inline scripts or styles (bar widths are set through
+  CSSOM), plus `X-Frame-Options: DENY` and `nosniff`. Live mode asks for a `confirm()` with the cost before posting.
+- **Deploy:** `.dockerignore` at the repo root (the context of `docker build -f deploy/Dockerfile .`) excludes
+  `**/.env*` (except `.env.example`), `runs`, `node_modules`, `.git`. The Dockerfile also `find`s any `.env` and
+  `exit 1`s, which is the "build must fail" guard. pnpm is pinned through corepack to 11.21.0 (the version that
+  wrote the lockfile), with `COREPACK_ENABLE_DOWNLOAD_PROMPT=0`. `python3 make g++` are added so `better-sqlite3`
+  can compile on arm64 if no prebuild matches. Compose publishes no ports (Traefik only) and adds
+  `traefik.docker.network=coolify`.
+- **Docker is not installed on this machine**, so acceptance 8 is met by the static test (base image, ffmpeg,
+  corepack/pnpm, no `COPY .env`, the `.env` guard, `.dockerignore`, coolify network, labels). I did not guess the
+  exact Traefik labels of the author's other apps; they are the standard Coolify/Traefik v2+ shape the spec lists.
+- **Not verified in a real browser:** this session could not keep a server running. The page's HTTP side
+  (`/login`, assets, CSP-safe markup, all APIs) is covered by tests and `app.js` passes `node --check`. The DOM
+  behaviour should get a manual look on first deploy.
+- **No new dependencies.** References (stable APIs, used from knowledge and **not re-fetched in this session**;
+  the behaviour that matters is pinned by tests): Node `http`, `crypto.timingSafeEqual`, `child_process.spawn`
+  (nodejs.org/api, v22); MDN Server-Sent Events and HTTP Range requests (206/416); Docker `.dockerignore`
+  (docs.docker.com/build/concepts/context/#dockerignore-files); Traefik Docker labels
+  (doc.traefik.io/traefik/routing/providers/docker/). Worth reading before the first real deploy: the Traefik
+  labels and corepack's pnpm pin.

@@ -1,0 +1,17 @@
+# Build context for deploy/Dockerfile (docker build -f deploy/Dockerfile .). Secrets and run output never enter it;
+# the Dockerfile also fails the build if a .env slipped through.
+**/.env
+**/.env.*
+!**/.env.example
+runs
+**/runs
+node_modules
+**/node_modules
+.git
+.cache
+.omc
+.idea
+.claude
+harness/logs
+**/*.log
+**/.DS_Store
