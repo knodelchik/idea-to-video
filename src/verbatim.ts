@@ -177,6 +177,29 @@ function spellSymbols(s: string): string {
 const ABBREVIATIONS: Record<string, string> = { dr: "doctor", mr: "mister", mrs: "missus", ms: "miz" };
 
 /**
+ * Spellings of the same spoken word, both directions, mapped to one form. ASR writes whichever it learned: live on
+ * 2026-10-19 Seedance said "Kyiv" correctly and Whisper wrote "Kiev", failing a $2.88 run. Only true same-sound
+ * variants belong here (transliterations, US/UK spelling); never different words that merely sound close ("four"/"for").
+ */
+const SPELLINGS: Record<string, string> = {
+  kiev: "kyiv", odessa: "odesa", kharkov: "kharkiv", lvov: "lviv", dnepr: "dnipro", zaporozhye: "zaporizhzhia",
+  grey: "gray", colour: "color", favourite: "favorite", theatre: "theater", centre: "center", metre: "meter",
+  okay: "ok", alright: "all right",
+};
+
+/**
+ * One token's comparison form: a spelling variant becomes its canonical spelling, and "'s" loses its apostrophe
+ * ("ticket's" and "tickets" are said the same; ASR cannot hear an apostrophe). Other contractions keep theirs:
+ * "we'll" is not "well".
+ */
+const compareForm = (words: string[]): string[] => words.flatMap((w) => canon(w).split(" "));
+
+function canon(t: string): string {
+  const s = t.endsWith("'s") ? `${t.slice(0, -2)}s` : t;
+  return SPELLINGS[s] ?? s;
+}
+
+/**
  * Lowercase, NFKC, diacritics folded (Zoë → zoe: ASR often drops accents), one apostrophe. Private-use characters
  * (\p{Co}, e.g. the Apple logo U+F8FF) become spaces first: they are never words, and the BMP private-use range is
  * reserved for span placeholders, so a literal one must never be read as span #n.
@@ -367,8 +390,9 @@ export function compareWords(expected: string, heard: string, opts: CompareOpts 
     dropped.push(m.trim());
     return " ";
   });
-  const es = readings(segments(expected));
-  const hs = readings(segments(cleanHeard));
+  // canon only where words are compared: normalize() keeps "it's" for people to read.
+  const es = readings(segments(expected)).map(compareForm);
+  const hs = readings(segments(cleanHeard)).map(compareForm);
 
   let best: { e: string[]; h: string[]; ops: VerbatimOp[]; laughs: string[] } | undefined;
   search: for (const e of es) {
@@ -456,12 +480,12 @@ export function alignPieces(pieces: string[], heardWords: string[]): (WordSpan |
   const h: string[] = [];
   const owner: number[] = [];
   heardWords.forEach((w, i) => {
-    for (const t of normalize(w.replace(NON_SPEECH, " ")).split(" ").filter(Boolean)) {
+    for (const t of compareForm(normalize(w.replace(NON_SPEECH, " ")).split(" ").filter(Boolean))) {
       h.push(t);
       owner.push(i);
     }
   });
-  const per = pieces.map((p) => readings(segments(p)));
+  const per = pieces.map((p) => readings(segments(p)).map(compareForm));
   let combos: number[][] = [[]];
   for (const rs of per) {
     const n = combos.length * rs.length <= MAX_READINGS ? rs.length : 1;

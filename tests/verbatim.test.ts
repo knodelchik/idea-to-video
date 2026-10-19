@@ -398,3 +398,17 @@ describe("nonLatinLetters", () => {
     expect(nonLatinLetters("Zoë, Nguyễn, 1987, $4.50 🚀")).toEqual([]);
   });
 });
+
+describe("same-sound spellings (live 2026-10-19: a correct take failed on Kiev and tickets)", () => {
+  it("apostrophe-s and spelling variants of one spoken word pass", () => {
+    const line = "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for anyone.";
+    expect(compareWords(line, "Tickets $4.50, and this train left Kiev in 1987, it doesn't stop for anyone.").pass).toBe(true);
+    expect(compareWords("It's grey in Odesa.", "Its gray in Odessa.").pass).toBe(true);
+    expect(compareWords("Okay, Kharkiv.", "OK, Kharkov.").pass).toBe(true);
+  });
+  it("different words that only sound close still fail", () => {
+    expect(compareWords("We'll go.", "Well go.").pass).toBe(false);
+    expect(compareWords("Ticket's $4.50.", "Tickets for 50 dollars.").pass).toBe(false);
+    expect(compareWords("Kyiv, 1987.", "Kiev, 1988.").pass).toBe(false);
+  });
+});
