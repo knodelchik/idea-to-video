@@ -1,0 +1,269 @@
+{
+  "runId": "20261019-074228-a4e68f",
+  "idea": "A retired lighthouse keeper sits by a rain-streaked window at dusk, turning an old brass key in his fingers. He says: \"Forty-one years I climbed those stairs, every single night, through every storm, and not one ship went down while I was keeping the light.\" Then he looks out at the dark sea and adds quietly: \"Now a computer does it, and nobody remembers my name, but on quiet nights I still wake up at three and check the sky.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T07:42:28.282Z",
+  "script": {
+    "promptVersion": "script-v4",
+    "title": "The Keeper's Watch",
+    "logline": "A retired lighthouse keeper turns an old brass key by a rainy window, reminiscing on decades of keeping ships safe from the rocks.",
+    "setting": "A dimly lit coastal cottage room by a rain-streaked window overlooking a stormy ocean at dusk.",
+    "characters": [
+      {
+        "name": "Arthur",
+        "look": "A seventy-year-old man with deep weathered facial wrinkles, wild sea-salted grey hair, a thick salt-and-pepper beard, wearing a frayed navy wool cable-knit sweater, with a faded blue anchor tattoo on his left cheekbone.",
+        "voice": {
+          "gender": "male",
+          "age": "older",
+          "tone": "gravelly and wistful"
+        },
+        "voiceDescription": "Gravelly low male voice, early 70s, coastal New England accent, slow and wistful."
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "close-up",
+        "visual": "Arthur twirls a tarnished heavy brass key between his scarred knuckles, the blue dusk and rain reflections gleaming against his weathered face.",
+        "motion": "Arthur slowly turns the key over his thumb, his jaw tightening with solemn pride as he speaks directly toward the room.",
+        "emotion": "Solemn pride",
+        "line": "Forty-one years I climbed those stairs, every single night, through every storm, and not one ship went down while I was keeping the light.",
+        "seconds": 11,
+        "speaker": "Arthur",
+        "onScreen": [
+          "Arthur"
+        ]
+      },
+      {
+        "id": "s2",
+        "camera": "close-up",
+        "visual": "Arthur turns his head to gaze through the rain-streaked windowpane out at the dark distant ocean, a faint sweep of artificial light catching his eyes.",
+        "motion": "Arthur grips the key tightly into his palm and lowers his chin slightly, speaking in a subdued, reflective whisper.",
+        "emotion": "Melancholic nostalgia",
+        "line": "Now a computer does it, and nobody remembers my name, but on quiet nights I still wake up at three and check the sky.",
+        "seconds": 11,
+        "speaker": "Arthur",
+        "onScreen": [
+          "Arthur"
+        ]
+      }
+    ],
+    "quotedLines": [
+      "Forty-one years I climbed those stairs, every single night, through every storm, and not one ship went down while I was keeping the light.",
+      "Now a computer does it, and nobody remembers my name, but on quiet nights I still wake up at three and check the sky."
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-074228-a4e68f/clip-s1-e9a4aaa0836cab0f.mp4",
+      "seconds": 11.104,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.44,
+      "speechEnd": 10.54,
+      "verbatim": {
+        "expected": "forty one years i climbed those stairs every single night through every storm and not one ship went down while i was keeping the light",
+        "heard": "forty one years i climbed those stairs every single night through every storm and not one ship went down while i was keeping the light",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 8,
+      "clipScore": 8,
+      "needsReview": false
+    },
+    "s2": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-074228-a4e68f/clip-s2-4af23074b2fe30d1.mp4",
+      "seconds": 11.104,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.68,
+      "speechEnd": 10.2,
+      "verbatim": {
+        "expected": "now a computer does it and nobody remembers my name but on quiet nights i still wake up at three and check the sky",
+        "heard": "now a computer does it and nobody remembers my name but on quiet nights i still wake up at three and check the sky",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 7,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.00697875,
+      "ms": 93185
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 15919
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11915
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 8/10 >= 7; issues: unnatural hand anatomy; model gemini-3.5-flash",
+      "costUsd": 0.00449625,
+      "ms": 6071,
+      "score": 8
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 13439
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0008006999999999999,
+      "ms": 4289,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 7969
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 10013
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 1.0020423733333335,
+      "ms": 180696
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 8/10 >= 5; issues: minor key and hand warping across frames; model gemini-3.5-flash",
+      "costUsd": 0.00516,
+      "ms": 5590,
+      "score": 8
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 6843
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 9341
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 1.0020423733333335,
+      "ms": 221836
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 7/10 >= 5; issues: key disappears from hand in frame 3; model gemini-3.5-flash",
+      "costUsd": 0.00548175,
+      "ms": 5366,
+      "score": 7
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "2 shot(s): 11.00 s + 11.00 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 5349
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.0006781695624533333,
+      "ms": 691
+    }
+  ],
+  "costUsd": 2.08168,
+  "final": {
+    "path": "/Users/bogdan/idea-to-video/runs/20261019-074228-a4e68f/final.mp4",
+    "seconds": 22,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "forty one years i climbed those stairs every single night through every storm and not one ship went down while i was keeping the light now a computer does it and nobody remembers my name but on quiet nights i still wake up at three and check the sky",
+    "heard": "forty one years i climbed those stairs every single night through every storm and not one ship went down while i was keeping the light now a computer does it and nobody remembers my name but on quiet nights i still wake up at three and check the sky",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "Forty-one years I climbed those stairs, every single night, through every storm, and not one ship went down while I was keeping the light. Now a computer does it, and nobody remembers my name, but on quiet nights I still wake up at three and check the sky.",
+    "heard": "41 years I climbed those stairs, every single night, through every storm, and not one ship went down while I was keeping the light. Now a computer does it, and nobody remembers my name. But on quiet nights I still wake up at three and check the sky."
+  },
+  "ok": true
+}

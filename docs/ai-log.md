@@ -180,3 +180,7 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [live] Probe for $0.37: the same watchmaker portrait sent **alone** as a reference was accepted and the face held
   exactly (loupe, vest, hair). So the refusal of "portrait + keyframe" came from the keyframe, not the portrait. The
   ladder gained a rung: frame → portrait + keyframe → portraits only → text. Tests updated.
+- [live] 2026-10-19, 22 s lighthouse keeper ($2.08): in both shots the keyframe and portrait + keyframe were refused,
+  the new portraits-only rung was accepted, and the face (down to an anchor tattoo) held across the two shots. WER 0
+  on the first take ("Forty-one" heard as "41"). Judge flagged hand/key warping (7–8/10): hands holding small objects
+  remain the weakest visual.
