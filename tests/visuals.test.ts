@@ -526,6 +526,19 @@ describe("talkingShot", () => {
     expect(shot.attempts[0]!.reason).toMatch(/silent shot: no verbatim gate/);
   }, 60_000);
 
+  it("speech the model adds to a silent shot is heard and its audio dropped (live 2026-10-19)", async () => {
+    const dir = fresh();
+    const kf = await keyframeFor(dir);
+    const r = rig(new MockVideo({ faults: [{ call: 0, say: "I'm sorry, I'm sorry." }] }));
+    const shot = await talkingShot(S2, kf, { script: SCRIPT, dir, ...r });
+    expect(r.video.calls).toHaveLength(1);
+    expect(r.transcribe).toHaveBeenCalledTimes(1);
+    expect(shot.via).toBe("silent");
+    expect(shot.hasAudio).toBe(false); // assembly lays silence here
+    expect(shot.attempts.at(-1)).toMatchObject({ stage: "listen", reason: expect.stringMatching(/speech heard in a silent shot \("I'm sorry, I'm sorry\.?"\); its audio replaced with silence/) });
+    expect(r.tts.calls).toHaveLength(0);
+  }, 60_000);
+
   /** Reports a length and audio flag the file doesn't have: the node must measure, not believe (hard rule 4). */
   class LyingVideo extends MockVideo {
     override async animate(req: Parameters<MockVideo["animate"]>[0]) {

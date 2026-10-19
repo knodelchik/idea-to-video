@@ -369,7 +369,25 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       costUsd: clip.costUsd,
       ms: ms(t0),
     });
-    return { shotId, path: clip.path, seconds: clip.seconds, hasAudio: clip.hasAudio, via: "silent", attempts };
+    if (!clip.hasAudio) return { shotId, path: clip.path, seconds: clip.seconds, hasAudio: false, via: "silent", attempts };
+    // A silent shot must stay silent: live 2026-10-19 Seedance put "I'm sorry, I'm sorry" into one, and only the final
+    // gate caught it, after every clip was paid for. Listen to it (cheap); any words, or no answer, and its audio is
+    // dropped, so assembly lays silence there. Room tone is lost; the line is never at risk.
+    const t1 = performance.now();
+    let heard: string | undefined;
+    let costUsd = 0;
+    let why: string;
+    try {
+      const t = await asr.transcribe({ path: clip.path });
+      costUsd = t.costUsd;
+      heard = t.words.length || /\p{L}/u.test(t.text) ? t.text.trim() : undefined;
+      why = heard ? `speech heard in a silent shot ("${heard.slice(0, 80)}"); its audio replaced with silence` : "silent shot: no speech heard; ambient audio kept";
+    } catch (e) {
+      heard = "";
+      why = `could not check the silent shot for speech (${errMsg(e)}); its audio replaced with silence`;
+    }
+    record({ stage: "listen", n: 1, provider: asr.name, ok: true, reason: why, costUsd, ms: ms(t1) });
+    return { shotId, path: clip.path, seconds: clip.seconds, hasAudio: heard === undefined, via: "silent", attempts };
   }
 
   /** `media` is the ffprobe measurement of `path` itself, so the reported length is the delivered file's. */
