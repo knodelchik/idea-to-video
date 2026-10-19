@@ -499,6 +499,20 @@ describe("talkingShot", () => {
     expect(three.video.calls[3]!.prompt).not.toMatch(/@Image/);
   }, 60_000);
 
+  it("a redo of a take whose clip came from a lower rung reuses it without asking the refused rungs again", async () => {
+    const dir = fresh();
+    const kf = await keyframeFor(dir);
+    const portrait = (await castCharacter(SCRIPT, { image: new MockImage(), dir })).path;
+    const rp = "may contain real person";
+    const paid = rig(new MockVideo({ faults: [{ call: 0, reject: rp }, { call: 1, reject: rp }] }));
+    const first = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait, ...paid });
+    expect(paid.video.calls).toHaveLength(3);
+    const again = rig(new MockVideo());
+    const redo = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait, ...again });
+    expect(again.video.calls).toHaveLength(0);
+    expect(redo.path).toBe(first.path);
+  }, 60_000);
+
   it("without a portrait: references refused too → text-to-video; a third refusal is not retried", async () => {
     const rp = "may contain real person";
 

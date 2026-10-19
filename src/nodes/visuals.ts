@@ -5,6 +5,7 @@
  * falls back to a verified TTS track lip-synced onto the best clip, so the words cannot drift. On a wide shot (F12)
  * the face is too small to lip-read, so the verified track is laid over the clip as a voice-over instead.
  */
+import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { muxArgs, trimArgs } from "../media/args.ts";
@@ -223,6 +224,7 @@ interface Clip {
 /** Silence kept after the last word when a clip is trimmed for lip-sync, so the line doesn't end on a hard cut. */
 export const LIPSYNC_TRIM_TAIL = 0.4;
 
+const exists = (path: string): Promise<boolean> => access(path).then(() => true, () => false);
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /**
@@ -301,15 +303,28 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   };
 
   /** One video call (content-addressed). A provider error is recorded, then surfaces as a ShotError. */
+  const clipPath = async (m: typeof mode, line: string | undefined, variant: number): Promise<string> => {
+    const input = m === "frame" ? { file: keyframe } : m;
+    const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, input, ...refsFor(m).map((file) => ({ file })), promptFor(m), line, seconds, variant);
+    return join(dir, `clip-${shotId}-${key}.mp4`);
+  };
   const animate = async (n: number, line: string | undefined): Promise<Clip> => {
     const variant = n - 1;
+    // A redo or resume of this take: if a lower rung already made the clip (the frame was refused last time), go
+    // straight to it. Otherwise the refused rungs would be asked again, and the budget guard, which can't know they
+    // will be refused for free, may stop the run before it reaches the clip it already paid for (live 2026-10-19).
+    for (const m of (ladder as readonly (typeof mode)[]).slice((ladder as readonly (typeof mode)[]).indexOf(mode))) {
+      if (m !== mode && (await exists(await clipPath(m, line, variant)))) {
+        mode = m;
+        break;
+      }
+    }
     const p = promptFor(mode);
     const refs = refsFor(mode);
-    const input = mode === "frame" ? { file: keyframe } : mode;
-    const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, input, ...refs.map((file) => ({ file })), p, line, seconds, variant);
+    const path = await clipPath(mode, line, variant);
     const t0 = performance.now();
     try {
-      const made = await once(join(dir, `clip-${shotId}-${key}.mp4`), (tmp) =>
+      const made = await once(path, (tmp) =>
         video.animate({
           image: keyframe,
           prompt: p,
