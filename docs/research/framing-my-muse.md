@@ -12,3 +12,24 @@
   Lines over ~8 s get mushier. → On a wide shot the line is heard, not lip-read; the fallback is a voiceover, not lip-sync.
 - 9:16 (Kapwing, Adam Sebire): a wide shot needs a vertical reason (tall architecture, the character small in the lower third);
   no fast lateral pans.
+
+## A real My Muse episode (screen recording, 70 s of "First Chosen By The Dragon", ep. 1, my-muse.ai, 2026-10-19)
+Measured from a local recording; the recording itself is not stored in the repo.
+- **Cutting pace:** 27 cuts in 70 s, so a shot lasts about 2.5 s on average (range 0.4–7 s). Lines often run across a cut
+  ("always lost in your daydreams, / you'd actually accomplish something.").
+- **Shot sizes (≈30 shots):**
+  - about half are medium or medium-full shots, often with 2–3 people in frame;
+  - about 6 close-ups, saved for emotional beats (a scream, tears, shock);
+  - a few wide shots: a vaulted hall with the figures small, a doorway;
+  - over-the-shoulder shots and inserts (a hand with a dragon figurine).
+- **Speech is often off-screen:** a line carries on over a reaction shot, an insert or a back view. Lips are not always
+  visible.
+- **Burned-in subtitles in every shot:** white, bold, lower third, 2–6 words at a time.
+- **Look:** photoreal; warm candlelight interiors against blue-dusk exteriors.
+- **Identity:** one strong cue per character, held across every shot: white braid, red hair, grey beard with a black
+  cloak, matching leather outfits.
+- **What this means for us:**
+  1. Cut faster: several cuts inside one 4–15 s Seedance clip (multi-shot prompt), or shorter shots.
+  2. Burn in subtitles of the verified line, timed by ASR word timestamps; never Seedance's own subtitles.
+  3. Allow the line over a reaction or wide shot (F12).
+  4. Lead with medium shots and keep close-ups for the emotional peak.
