@@ -16,7 +16,7 @@ import { DEFAULT_SCRIPT_MODELS, GEMINI_PRICES, GeminiLlm, toGeminiSchema, type G
 import { DEFAULT_JUDGE_MODELS } from "../src/providers/gemini-judge.ts";
 import { firstPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../src/prompts/script.ts";
 import { IdeaRejectedError, preSpendProblems, ScriptError, scriptProblems, writeScript } from "../src/nodes/script.ts";
-import { Script, ScriptDraft, type Shot } from "../src/schemas.ts";
+import { isWide, Script, ScriptDraft, type Shot } from "../src/schemas.ts";
 import { differentSpeakers, quoteSpeakers } from "../src/speakers.ts";
 import { extractQuotedLines } from "../src/verbatim.ts";
 
@@ -101,9 +101,12 @@ describe("scriptProblems", () => {
   });
 
   it("flags shot count with a specific message (acceptance 2)", () => {
-    const three = [shot({ seconds: 4 }), shot({ id: "s2", line: "", seconds: 4 }), shot({ id: "s2", line: "", seconds: 4 })];
-    expect(scriptProblems(script(draft(three)), IDEA)).toContainEqual(expect.stringMatching(/1–2 shots, got 3/));
-    expect(scriptProblems(script(draft([])), IDEA)).toContainEqual(expect.stringMatching(/1–2 shots, got 0/));
+    // F12: up to 4 shots.
+    const ids = ["s2", "s3", "s4", "s4"] as const;
+    const five = [shot({ seconds: 4 }), ...ids.map((id) => shot({ id, line: "", seconds: 4 }))];
+    expect(scriptProblems(script(draft(five)), IDEA)).toContainEqual(expect.stringMatching(/1–4 shots, got 5/));
+    expect(scriptProblems(script(draft(five.slice(0, 4))), IDEA)).toEqual([]);
+    expect(scriptProblems(script(draft([])), IDEA)).toContainEqual(expect.stringMatching(/1–4 shots, got 0/));
   });
 
   it("flags digits in a non-quoted line, but not in a quoted one (acceptance 2)", () => {
@@ -182,8 +185,11 @@ describe("speakers (F11)", () => {
   });
 
   it("an idea that changes speaker more often than there are shots is rejected before any spend", () => {
-    const idea = 'She says: "One." He says: "Two." She says: "Three."';
-    expect(preSpendProblems(idea)).toContainEqual(expect.stringMatching(/change speaker 2 times, but each of the 2 shots has one speaker/));
+    // F12: 4 shots, so up to 4 turns; a fifth turn is rejected.
+    const four = 'She says: "One." He says: "Two." She says: "Three." He says: "Four."';
+    expect(preSpendProblems(four)).toEqual([]);
+    const idea = `${four} She says: "Five."`;
+    expect(preSpendProblems(idea)).toContainEqual(expect.stringMatching(/change speaker 4 times, but each of the 4 shots has one speaker/));
     expect(preSpendProblems(KITCHEN)).toEqual([]);
   });
 
@@ -271,7 +277,7 @@ describe("speakers (F11)", () => {
   });
 
   it("the prompt asks for 1–2 characters, one speaker per spoken shot, shot-reverse-shot and voiceDescription", () => {
-    expect(SCRIPT_PROMPT_VERSION).toBe("script-v4");
+    expect(SCRIPT_PROMPT_VERSION).toBe("script-v5");
     expect(SCRIPT_SYSTEM).toMatch(/"characters" has 1 or 2 entries/);
     expect(SCRIPT_SYSTEM).toMatch(/exactly one "speaker"/);
     expect(SCRIPT_SYSTEM).toMatch(/shot-reverse-shot/);
@@ -370,11 +376,12 @@ describe("preSpendProblems (F10)", () => {
     expect(p).toHaveLength(1);
     expect(p[0]).toMatch(/40 words need 16\.2 s .* at most 15 s/);
   });
-  it("rejects quotes that cannot fit 2 shots × 15 s, accepts ones that can", () => {
+  it("rejects quotes that cannot fit 4 shots × 15 s, accepts ones that can (F12: 4 shots)", () => {
     const twenty = (w: string) => Array.from({ length: 20 }, () => w).join(" ");
-    const tooMany = `He says "${twenty("one")}" then "${twenty("two")}" then "${twenty("three")}"`;
-    expect(preSpendProblems(tooMany)[0]).toMatch(/3 quoted lines .* 2 shots/);
-    const fits = `He says "${twenty("one")}" then "${twenty("two")}"`;
+    const words = ["one", "two", "three", "four", "five"];
+    const tooMany = `He says ${words.map((w) => `"${twenty(w)}"`).join(" then ")}`;
+    expect(preSpendProblems(tooMany)[0]).toMatch(/5 quoted lines .* 4 shots/);
+    const fits = `He says ${words.slice(0, 4).map((w) => `"${twenty(w)}"`).join(" then ")}`;
     expect(preSpendProblems(fits)).toEqual([]);
   });
 });
@@ -593,5 +600,88 @@ describe("GeminiLlm (fake client)", () => {
     expect(JSON.stringify(s)).not.toMatch(/"(minLength|pattern|\$schema)"/);
     expect(s.type).toBe("object");
     expect(s.required).toContain("shots");
+  });
+
+  it("the live JSON schema offers all six shot sizes (F12)", () => {
+    expect(JSON.stringify(toGeminiSchema(ScriptDraft))).toContain(
+      '"enum":["extreme wide shot","wide shot","full shot","medium shot","medium close-up","close-up"]',
+    );
+  });
+});
+
+describe("storyboards (F12)", () => {
+  const HELLO = "Hello? Is anyone still here?";
+  const CASTLE =
+    `1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: "${HELLO}"`;
+  const FOUR =
+    'Shot 1: a knight rides through a stormy valley toward a black castle. Shot 2: he dismounts at the gate. Shot 3: he looks up at the tower window. Shot 4: he calls out: "I came back for you."';
+
+  it("the prompt replaces close framing with shot-size rules and asks for distance cues", () => {
+    expect(SCRIPT_SYSTEM).not.toMatch(/keeps the face large/);
+    expect(SCRIPT_SYSTEM).toMatch(/"extreme wide shot", "wide shot", "full shot", "medium shot", "medium close-up", "close-up"/);
+    expect(SCRIPT_SYSTEM).toMatch(/Never two close-ups in a row, unless it is a dialogue/);
+    expect(SCRIPT_SYSTEM).toMatch(/character small in the lower third/);
+    expect(SCRIPT_SYSTEM).toMatch(/line is heard, not lip-read/);
+    expect(SCRIPT_SYSTEM).toMatch(/2–3\s+high-contrast features that read at a distance/);
+  });
+
+  it("the user prompt lists the beats, in order; an ordinary idea gets no beats block", () => {
+    const p = firstPrompt(CASTLE, [HELLO]);
+    expect(p).toMatch(/storyboard of 2 beats\. Write exactly 2 shots/);
+    expect(p).toContain("Beat 1 (shot s1): маленька дівчина в червоному плащі");
+    expect(p.indexOf("Beat 1 (shot s1)")).toBeLessThan(p.indexOf("Beat 2 (shot s2)"));
+    expect(firstPrompt(IDEA, [QUOTE])).not.toMatch(/Beat 1/);
+  });
+
+  const wide = (over: Partial<Shot> = {}) => shot({ camera: "wide shot", line: "", speaker: undefined, seconds: 4, ...over });
+
+  it("rejects a script whose shot count is not the number of beats", () => {
+    const one = script(draft([shot({ line: HELLO, seconds: 8 })]), [HELLO]);
+    expect(scriptProblems(one, CASTLE)).toContainEqual(expect.stringMatching(/storyboard of 2 beats, so the script must have exactly 2 shots.*got 1/));
+    const ok = script(draft([wide(), wide({ id: "s2", line: HELLO, speaker: "Maya", seconds: 5 })]), [HELLO]);
+    expect(scriptProblems(ok, CASTLE)).toEqual([]);
+  });
+
+  it("rejects a quote placed in another beat's shot", () => {
+    const moved = script(draft([wide({ line: HELLO, speaker: "Maya", seconds: 5 }), wide({ id: "s2" })]), [HELLO]);
+    expect(scriptProblems(moved, CASTLE)).toContainEqual(
+      expect.stringMatching(/"Hello\? Is anyone still here\?" is in beat 2, so it must be in shot s2's line, not in s1's/),
+    );
+  });
+
+  it("pre-spend: two speakers in one beat, or beats that can't fit 30 s, are rejected for $0", () => {
+    expect(preSpendProblems(CASTLE)).toEqual([]);
+    expect(preSpendProblems(FOUR)).toEqual([]);
+    const twoInOne = 'Shot 1: she says: "Go." He answers: "No." Shot 2: the door shuts.';
+    expect(preSpendProblems(twoInOne)).toContainEqual(expect.stringMatching(/beat 1 gives lines to two different people/));
+    const long = Array.from({ length: 30 }, () => "word").join(" ");
+    const tooLong = `Shot 1: she says "${long}" Shot 2: he says "${long}" Shot 3: she says "${long}"`;
+    expect(preSpendProblems(tooLong)).toContainEqual(expect.stringMatching(/3 beats need at least \d+ s together, over the 30 s maximum/));
+  });
+
+  it("the mock writer honours the castle storyboard: 2 shots, the line and a wide size on shot 2", async () => {
+    const llm = new MockLlm({ responder: mockScriptResponder });
+    const { script: s } = await writeScript(CASTLE, { llm });
+    expect(s.shots.map((x) => x.id)).toEqual(["s1", "s2"]);
+    expect(s.shots[1]!.line).toBe(HELLO);
+    expect(isWide(s.shots[1]!.camera)).toBe(true);
+    expect(s.shots[0]!.line).toBe("");
+    expect(llm.calls[0]!.prompt).toMatch(/Beat 2 \(shot s2\)/);
+  });
+
+  it("the mock writer makes one shot per beat for a 4-beat storyboard, 8–30 s in total", async () => {
+    const { script: s } = await writeScript(FOUR, { llm: new MockLlm({ responder: mockScriptResponder }) });
+    expect(s.shots.map((x) => x.id)).toEqual(["s1", "s2", "s3", "s4"]);
+    expect(s.shots[3]!.line).toBe("I came back for you.");
+    expect(s.shots[0]!.camera).toBe("wide shot"); // "valley", "castle"
+    const total = s.shots.reduce((a, x) => a + x.seconds, 0);
+    expect(total).toBeGreaterThanOrEqual(8);
+    expect(total).toBeLessThanOrEqual(30);
+  });
+
+  it("without a storyboard the mock still writes 2 shots, wide establishing shot when the idea names a place", async () => {
+    const cliff = 'A tiny figure on a cliff above a stormy sea shouts: "I am not afraid of you!"';
+    const { script: s } = await writeScript(cliff, { llm: new MockLlm({ responder: mockScriptResponder }) });
+    expect(s.shots.map((x) => x.camera)).toEqual(["wide shot", "medium close-up"]);
   });
 });

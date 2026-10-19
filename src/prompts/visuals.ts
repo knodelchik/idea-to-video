@@ -6,12 +6,14 @@
  * make" 2–8): audio policy first, dialogue as `Name says in English: {line}` with nothing after the closing brace,
  * references as `@Image N (noun)` in upload order, one camera move, and the constraint tail last.
  */
-import { castOf, speakerOf, type Character, type Script, type Shot } from "../schemas.ts";
+import { castOf, isWide, speakerOf, type Character, type Script, type Shot } from "../schemas.ts";
 import { splitDelivery } from "../verbatim.ts";
 import { issuesNote } from "./judge.ts";
 
 // v3: Seedance playbook wording, 1–2 characters (F11).
-export const VISUALS_PROMPT_VERSION = "visuals-v3";
+// v4: shot size leads the video prompt; wide sizes show the character small and whole, recognised by its look,
+//     with a heard (not lip-read) line (F12).
+export const VISUALS_PROMPT_VERSION = "visuals-v4";
 
 const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
 /** A field as one sentence: single-spaced, ending in exactly one full stop (unless it ends in ! or ?). */
@@ -42,6 +44,18 @@ export function portraitPrompt(script: Script, name?: string): string {
   ].join(" ");
 }
 
+/** A character's look without its final full stop, for use inside a sentence. */
+const cues = (c: Character): string => oneLine(c.look).replace(/[.\s]+$/, "");
+
+/**
+ * Wide sizes (F12): the character is small, so identity comes from the look's high-contrast features, and the frame
+ * needs a vertical reason (tall architecture, the character in the lower third).
+ */
+function wideFraming(cast: Character[], name: Naming): string {
+  const who = cast.map((c) => `${name(c)} is small in frame, full figure visible, recognisable by ${cues(c)}`).join("; ");
+  return `${who}; the place dominates, composed vertically: tall architecture or landscape fills the frame, the character small in the lower third.`;
+}
+
 /** First frame of a shot: everyone on screen, speaker first (the order of the portrait refs). Mouths closed. */
 export function keyframePrompt(shot: Shot, script: Script): string {
   const cast = castOf(script, shot);
@@ -55,7 +69,9 @@ export function keyframePrompt(shot: Shot, script: Script): string {
     `Shot: ${shot.camera}. ${sentence(shot.visual)}`,
     `Emotion: ${sentence(shot.emotion)}`,
     same,
-    "Photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed, no text, no watermark.",
+    isWide(shot.camera)
+      ? `${wideFraming(cast, plain)} Photoreal, cinematic, vertical 9:16, no text, no watermark.`
+      : "Photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed, no text, no watermark.",
     NO_WRITING,
   ].join(" ");
 }
@@ -98,22 +114,35 @@ function constraintTail(shot: Shot, script: Script): string {
 function body(shot: Shot, script: Script, name: Naming): string[] {
   const { spoken, tags, emoji } = splitDelivery(shot.line);
   const delivery = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
-  const scene = `${sentence(shot.visual)} ${sentence(shot.motion)}`;
-  const camera = "Locked-off camera with at most a slow push-in.";
+  const wide = isWide(shot.camera);
+  // Order (F12, Seedance guides): shot size, one camera move, subject, action, then audio.
+  const size = `Shot size: ${shot.camera}.`;
+  const camera = wide
+    ? "Locked-off camera, or one slow crane up or pull-back; no other camera move."
+    : "Locked-off camera with at most a slow push-in.";
   const cast = castOf(script, shot);
+  const subject = wide ? [wideFraming(cast, name)] : [];
+  const action = `${sentence(shot.visual)} ${sentence(shot.motion)}`;
   if (spoken === "") {
     const who = cast.map(name).join(" and ");
-    return [scene, camera, `Emotion: ${delivery}. ${who} ${cast.length === 1 ? "is" : "are"} silent, mouth closed.`, NO_WRITING];
+    return [size, camera, ...subject, action, `Emotion: ${delivery}. ${who} ${cast.length === 1 ? "is" : "are"} silent, mouth closed.`, NO_WRITING];
   }
   const [speaker, ...listeners] = cast;
   // Emoji are not words either: a model asked to "say" 🚀 may improvise one (F10).
   const said = tags.length || emoji ? spoken : shot.line;
+  // Wide: the line is heard, not lip-read, so no "looks toward the camera"; the delivery gets its own sentence so
+  // the dialogue sentence stays `Name, small in frame, says in English: {line}`.
+  const line = wide
+    ? `Delivery: ${delivery}. ${name(speaker!)}, small in frame, says in English: {${said}}`
+    : `${name(speaker!)} looks toward the camera and, ${delivery}, says in English: {${said}}`;
   return [
-    scene,
+    size,
     camera,
+    ...subject,
+    action,
     ...listeners.map((c) => `${name(c)} listens in silence, mouth closed.`),
     `Voice: ${sentence(speaker!.voiceDescription)}`,
-    `${name(speaker!)} looks toward the camera and, ${delivery}, says in English: {${said}}`,
+    line,
     NO_WRITING,
   ];
 }

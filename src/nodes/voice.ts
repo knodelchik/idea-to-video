@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { probe } from "../media/ffmpeg.ts";
 import type { AsrProvider, TtsProvider } from "../providers/index.ts";
-import { VoiceTrack, type Attempt, type Character, type VerbatimResult } from "../schemas.ts";
+import { VoiceTrack, type Attempt, type Character, type ShotId, type VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { splitDelivery } from "../verbatim.ts";
 import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf } from "./gate.ts";
@@ -22,7 +22,7 @@ export interface VerifiedVoiceOpts {
   maxAttempts?: number;
   /** Delivery for the whole line (e.g. the shot's emotion). Sent as a setting/tag, never compared. */
   emotion?: string;
-  shotId?: "s1" | "s2";
+  shotId?: ShotId;
 }
 
 export type VerifiedVoice = VoiceTrack & { attempts: Attempt[] };

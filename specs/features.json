@@ -96,7 +96,7 @@
     {
       "id": "F12-shot-sizes-storyboard",
       "spec": "specs/F12-shot-sizes-storyboard.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/schemas.test.ts tests/script.test.ts tests/visuals.test.ts tests/storyboard.test.ts",
         "npx tsx src/cli.ts '1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: \"Hello? Is anyone still here?\"' --mock --json",

@@ -13,7 +13,7 @@ import { extractFrames } from "../media/frames.ts";
 import { clipRubric, JUDGE_PROMPT_VERSION, keyframeRubric } from "../prompts/judge.ts";
 import { talkingPrompt } from "../prompts/visuals.ts";
 import type { ImageProvider, JudgeProvider } from "../providers/index.ts";
-import { JudgeVerdict, speakerOf, type Attempt, type Script, type Shot } from "../schemas.ts";
+import { isWide, JudgeVerdict, speakerOf, type Attempt, type Script, type Shot } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { VerbatimError } from "./gate.ts";
 import {
@@ -208,7 +208,8 @@ export function regenEstimateUsd(shot: Shot, keyframe: string, opts: JudgedShotO
   const seconds = snapDuration(shot.seconds, video.capabilities.durations);
   const take = video.estimateUsd?.({ image: keyframe, prompt: talkingPrompt(shot, script), seconds, out: "" }) ?? 0;
   const tries = video.capabilities.nativeSpeech ? maxNative : 1;
-  const sync = shot.line.trim() ? (lipsync.estimateUsd?.({ video: "", audio: "", out: "" }) ?? 0) : 0;
+  // A wide shot's fallback is a voice-over, not a lip-sync (F12).
+  const sync = shot.line.trim() && !isWide(shot.camera) ? (lipsync.estimateUsd?.({ video: "", audio: "", out: "" }) ?? 0) : 0;
   const judging = j.estimateUsd?.({ images: CLIP_FRAMES + 1, rubric: clipRubric(shot, script) }) ?? 0;
   return take * tries + sync + judging;
 }

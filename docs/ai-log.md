@@ -184,3 +184,9 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   the new portraits-only rung was accepted, and the face (down to an anchor tattoo) held across the two shots. WER 0
   on the first take ("Forty-one" heard as "41"). Judge flagged hand/key warping (7–8/10): hands holding small objects
   remain the weakest visual.
+- [F12] `parseStoryboard` checked the "start of a sentence" boundary on the *quote-masked* text, so in
+  `Shot 1: she says "Hi." Shot 2: …` the blanked `"Hi."` hid the full stop and beat 2 was never found. Caught by the
+  `quoteBeats` unit test (null storyboard). Fix: mask quotes only to find markers; check the boundary on the original.
+- [F12] The boundary also needed punctuation *before* a closing quote, so `… "thirty words" Shot 2: …` (no full stop)
+  was not a beat. Caught by the pre-spend "beats can't fit 30 s" test, which came back `[]` because the idea was not
+  recognised as a storyboard at all. Fix: a closing quote ends the spoken line and counts as a boundary.

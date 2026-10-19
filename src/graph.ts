@@ -23,7 +23,7 @@ import {
   type QualitySettings,
 } from "./nodes/quality.ts";
 import { castCharacters } from "./nodes/visuals.ts";
-import { firstPrompt, SCRIPT_SYSTEM } from "./prompts/script.ts";
+import { firstPrompt, SCRIPT_SYSTEM, storyboardOf } from "./prompts/script.ts";
 import {
   Budget,
   HttpError,
@@ -33,6 +33,8 @@ import {
 } from "./providers/index.ts";
 import {
   RunManifest,
+  SCRIPT_SECONDS,
+  SHOT_SECONDS,
   type Attempt,
   type FinalVideo,
   type Script,
@@ -351,7 +353,7 @@ function shotOutput(r: JudgedShot, kf?: KeyframeQuality): ShotOutput {
     path: r.path,
     seconds: r.seconds,
     hasAudio: r.hasAudio,
-    audio: r.via === "native" ? "native" : r.via === "lipsync" ? "fallback" : "silent",
+    audio: r.via === "lipsync" ? "fallback" : r.via,
     ...(r.speechStart !== undefined ? { speechStart: r.speechStart } : {}),
     ...(r.speechEnd !== undefined ? { speechEnd: r.speechEnd } : {}),
     ...(r.verbatim ? { verbatim: r.verbatim } : {}),
@@ -393,7 +395,12 @@ export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; err
   });
 }
 
-/** Rough cost of a typical run (2 shots of 8 s, one native take each, no fallback, no regeneration), printed before a live run. */
+const TYPICAL_SHOT_SECONDS = 8;
+
+/**
+ * Rough cost of a typical run, printed before a live run: one shot per storyboard beat (F12, up to 4), else 2 shots;
+ * 8 s each, or less when that would pass the 30 s total; one native take each, no fallback, no regeneration.
+ */
 export function estimateRunUsd(p: Providers, idea: string): number {
   // An idea with unreadable quotes is rejected by the script node for $0; the estimate must not crash first.
   const quoted = (() => {
@@ -403,13 +410,16 @@ export function estimateRunUsd(p: Providers, idea: string): number {
       return [];
     }
   })();
+  const shots = storyboardOf(idea)?.beats.length ?? 2;
+  const seconds = Math.max(SHOT_SECONDS.min, Math.min(TYPICAL_SHOT_SECONDS, Math.floor(SCRIPT_SECONDS.max / shots)));
   const llm = p.llm.estimateUsd?.({ system: SCRIPT_SYSTEM, prompt: firstPrompt(idea, quoted) }) ?? 0;
   const image = p.image.estimateUsd?.({ prompt: "", out: "" }) ?? 0;
-  const video = p.video.estimateUsd?.({ image: "", prompt: "", seconds: 8, out: "" }) ?? 0;
+  const video = p.video.estimateUsd?.({ image: "", prompt: "", seconds, out: "" }) ?? 0;
   const asr = p.asr.estimateUsd?.({ path: "" }) ?? 0;
-  // Judge (F07): 2 keyframes (image + portrait ref) and 2 clips (3 frames + portrait), all passing first time.
-  const judge = 2 * (p.judge.estimateUsd?.({ images: 2, rubric: "" }) ?? 0) + 2 * (p.judge.estimateUsd?.({ images: 4, rubric: "" }) ?? 0);
-  return llm + 3 * image + 2 * video + 3 * asr + judge;
+  // Judge (F07): each keyframe (image + portrait ref) and each clip (3 frames + portrait), all passing first time.
+  const judge = shots * ((p.judge.estimateUsd?.({ images: 2, rubric: "" }) ?? 0) + (p.judge.estimateUsd?.({ images: 4, rubric: "" }) ?? 0));
+  // Images: one portrait plus a keyframe per shot. ASR: each spoken shot plus the final gate (at most every shot + 1).
+  return llm + (1 + shots) * image + shots * video + (1 + shots) * asr + judge;
 }
 
 /** A manifest lists checkpointed attempts first, then the failed ones; the tail past the checkpoint is the latter. */

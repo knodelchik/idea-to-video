@@ -427,6 +427,9 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
       expect(manifest?.costUsd).toBe(0);
       expect(err.join("\n")).toMatch(/estimated ~\$\d+\.\d\d for a typical run; MAX_COST_USD=\$0\.01/);
       expect(estimateRunUsd(priced, IDEA)).toBeCloseTo(0.02 + 3 * 0.04 + 2 * 0.3 * 8);
+      // F12: a 4-beat storyboard is 4 shots (portrait + 4 keyframes), at most 30 s in total (4 × 7 s).
+      const four = 'Shot 1: a gate. Shot 2: a hall. Shot 3: a stair. Shot 4: she says: "Hello?"';
+      expect(estimateRunUsd(priced, four)).toBeCloseTo(0.02 + 5 * 0.04 + 4 * 0.3 * 7);
     },
     SLOW,
   );

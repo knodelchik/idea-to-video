@@ -8,8 +8,10 @@ import {
   Shot,
   Transcript,
   VerbatimResult,
+  CAMERAS,
   castOf,
   formatIssues,
+  isWide,
   speakerOf,
 } from "../src/schemas.ts";
 
@@ -106,16 +108,16 @@ describe("Script", () => {
     expect(errorsOf(Script, script({ shots: [shot({ seconds: 25 })] }))).toMatch(/shots\.0\.seconds/);
   });
 
-  it("rejects 3 shots with a readable message", () => {
-    const msg = errorsOf(
-      Script,
-      script({ shots: [shot({ seconds: 4 }), shot({ id: "s2", seconds: 4 }), shot({ id: "s2", seconds: 4 })] }),
-    );
-    expect(msg).toMatch(/shots: a script has 1–2 shots, got 3/);
+  it("rejects 5 shots with a readable message (F12: up to 4)", () => {
+    // "s5" is not an id at all; five valid ids (one repeated) reach the count rule.
+    expect(errorsOf(Shot, shot({ id: "s5" as never }))).toMatch(/id/);
+    const ids = ["s1", "s2", "s3", "s4", "s4"] as const;
+    const msg = errorsOf(Script, script({ shots: ids.map((id) => shot({ id, seconds: 4 })) }));
+    expect(msg).toMatch(/shots: a script has 1–4 shots, got 5/);
   });
 
   it("rejects 0 shots", () => {
-    expect(errorsOf(Script, script({ shots: [] }))).toMatch(/a script has 1–2 shots, got 0/);
+    expect(errorsOf(Script, script({ shots: [] }))).toMatch(/a script has 1–4 shots, got 0/);
   });
 
   it("rejects all-empty lines with a readable message", () => {
@@ -225,6 +227,48 @@ describe("characters and speakers (F11 acceptance 1)", () => {
     });
     expect(m.script?.characters[0]!.name).toBe("Mara");
     expect(m.script?.shots[0]!.speaker).toBe("Mara");
+  });
+});
+
+describe("shot sizes and up to 4 shots (F12 acceptance 2)", () => {
+  it("all six sizes parse; isWide is true for extreme wide / wide / full only", () => {
+    for (const camera of CAMERAS) expect(errorsOf(Shot, shot({ camera }))).toBe("");
+    expect(CAMERAS.filter(isWide)).toEqual(["extreme wide shot", "wide shot", "full shot"]);
+  });
+
+  it('"medium" migrates to "medium shot"', () => {
+    expect(Shot.parse(shot({ camera: "medium" as never })).camera).toBe("medium shot");
+    expect(Script.parse(script()).shots[1]!.camera).toBe("medium shot");
+  });
+
+  it("4 shots parse; ids must be s1..sN in order", () => {
+    const four = (["s1", "s2", "s3", "s4"] as const).map((id) => shot({ id, seconds: 4, camera: "wide shot" }));
+    expect(errorsOf(Script, script({ shots: four }))).toBe("");
+    const swapped = [four[0]!, four[2]!, four[1]!, four[3]!];
+    expect(errorsOf(Script, script({ shots: swapped }))).toMatch(/shot 2 must have id "s2", got "s3"/);
+    expect(errorsOf(Script, script({ shots: [four[0]!, four[0]!] }))).toMatch(/shot 2 must have id "s2", got "s1"/);
+  });
+
+  it("a script with no line anywhere is rejected", () => {
+    const silent = (["s1", "s2", "s3"] as const).map((id) => shot({ id, line: "", speaker: undefined, seconds: 4 }));
+    expect(errorsOf(Script, script({ shots: silent }))).toMatch(/at least one shot must have a non-empty spoken line/);
+  });
+
+  it("an old manifest (pre-F12 camera, lip-sync fallback) still parses; voiceover and s3/s4 are new valid values", () => {
+    const pass = { expected: "a", heard: "a", wer: 0, ops: [], pass: true };
+    const base = { runId: "old", idea: "x", mode: "mock", createdAt: "2026-10-16T12:00:00.000Z", attempts: [], costUsd: 0, ok: true };
+    const old = RunManifest.parse({
+      ...base,
+      script: script(),
+      shots: { s2: { path: "b", seconds: 6, hasAudio: true, audio: "fallback", verbatim: pass } },
+    });
+    expect(old.script?.shots[1]!.camera).toBe("medium shot");
+    const fresh = RunManifest.parse({
+      ...base,
+      shots: { s4: { path: "d", seconds: 6, hasAudio: true, audio: "voiceover", verbatim: pass } },
+      attempts: [{ stage: "voiceover", shotId: "s3", n: 1, provider: "ffmpeg", ok: true, costUsd: 0, ms: 1 }],
+    });
+    expect(fresh.shots?.s4?.audio).toBe("voiceover");
   });
 });
 

@@ -256,3 +256,25 @@ Append-only log, one entry per feature, written by the implementer agent and com
   connectives ("Then she adds") and possessive subjects ("The bride's father" → male). Try:
   `pnpm make 'A mother slides an envelope to her son. "Open it after I leave," she says. "Mom, are you sick?" he asks.' --mock`
   → Alex (she) says line 1, Sam (he) says line 2.
+
+## F12 — Wide shots and storyboard ideas
+- Shot sizes: `Shot.camera` is one of `extreme wide shot | wide shot | full shot | medium shot | medium close-up |
+  close-up` (old `"medium"` migrates). `isWide()` is true for the first three. A script has up to 4 shots (`s1`–`s4`).
+- Storyboards: `parseStoryboard(idea)` in `src/storyboard.ts` splits `1 кадр: … 2 кадр: …`, `Shot 1: …`, `1. …` and
+  `1) …` into 2–4 beats. It ignores ordinary numbers and numbers inside quotes. 5+ beats are rejected before any
+  paid call.
+  - The script must have one shot per beat, and a quote in beat k must be in shot k (`scriptProblems`).
+  - Pre-spend also rejects a beat with two speakers, a beat whose quotes need more than 15 s, and beats that can't
+    fit 30 s.
+- Prompts:
+  - `script-v5` has shot-size rules and asks for looks that read at a distance.
+  - `visuals-v4`: on a wide shot the character is "small in frame … recognisable by <look>; the place dominates", and
+    the line is `Name, small in frame, says in English: {line}`.
+  - `judge-v3` judges wide shots on recognisability, whole figures and stable architecture, with no lip-sync item.
+- Wide-shot fallback: when native speech fails on a wide shot, the verified TTS is laid over the clip with no
+  lip-sync call. The manifest shows `audio: "voiceover"`, stage `voiceover`, and the reason on the `fallback`
+  attempt. Close sizes still use TTS + lip-sync.
+- Try:
+  `npx tsx src/cli.ts '1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: "Hello? Is anyone still here?"' --mock --json`
+  → 2 shots, both wide, the line on s2, WER 0. `npx tsx evals/run.ts --mock --set hard --label f12` runs the three
+  new eval ideas.

@@ -5,16 +5,17 @@
 import { performance } from "node:perf_hooks";
 import type { LlmProvider } from "../providers/index.ts";
 import { firstPrompt, retryPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../prompts/script.ts";
-import { castProblems, formatIssues, Script, SCRIPT_SECONDS, ScriptDraft, SHOT_SECONDS, type Attempt, type Character } from "../schemas.ts";
+import { castProblems, formatIssues, MAX_SHOTS, Script, SCRIPT_SECONDS, ScriptDraft, SHOT_SECONDS, type Attempt, type Character } from "../schemas.ts";
 import { differentSpeakers, quoteSpeakers, speakerRuns } from "../speakers.ts";
+import { parseStoryboard, quoteBeats, StoryboardError, type Storyboard } from "../storyboard.ts";
 import { extractQuotedLines, nonLatinLetters, QuoteError, splitDelivery, wordCount } from "../verbatim.ts";
 
 /** Conservative speaking rate (words/s) plus breath, so TTS/video lines fit their shot. */
 export const WORDS_PER_SECOND = 2.6;
 export const LINE_PAD_SECONDS = 0.8;
 export const MIN_LOOK_WORDS = 12;
-/** The script has at most this many shots (Shot id enum: s1, s2). */
-export const MAX_SHOTS = 2;
+/** The script has at most this many shots (Shot id enum: s1…s4). */
+export { MAX_SHOTS };
 
 export const ENGLISH_ONLY =
   "only English lines are supported in this PoC (no video model officially supports Ukrainian speech yet); write the line in English";
@@ -32,10 +33,12 @@ const spokenWords = (line: string) => wordCount(splitDelivery(line).spoken);
  */
 export function preSpendProblems(idea: string): string[] {
   let quoted: string[];
+  let board: Storyboard | null;
   try {
     quoted = extractQuotedLines(idea);
+    board = parseStoryboard(idea);
   } catch (e) {
-    if (e instanceof QuoteError) return [e.message];
+    if (e instanceof QuoteError || e instanceof StoryboardError) return [e.message];
     throw e;
   }
   const out: string[] = [];
@@ -61,14 +64,52 @@ export function preSpendProblems(idea: string): string[] {
   if (runs > MAX_SHOTS) {
     out.push(`the quoted lines change speaker ${runs - 1} times, but each of the ${MAX_SHOTS} shots has one speaker; use at most ${MAX_SHOTS} turns of dialogue`);
   }
+  if (board && out.length === 0) out.push(...storyboardPreSpend(idea, board, quoted, words));
   return out;
 }
 
-/** Can the quotes, in order, be split into ≤ 2 contiguous groups that each fit one shot? */
+/**
+ * A storyboard fixes which shot says which quote: each beat's quotes must fit one shot with one speaker, and the
+ * beats together must fit the total length.
+ */
+function storyboardPreSpend(idea: string, board: Storyboard, quoted: string[], words: number[]): string[] {
+  const out = new Set<string>();
+  const beatOf = quoteBeats(idea, board);
+  const said = quoteSpeakers(idea);
+  const need = board.beats.map((_, k) => {
+    const mine = quoted.map((_, i) => i).filter((i) => beatOf[i] === k);
+    const w = mine.reduce((a, i) => a + words[i]!, 0);
+    const seconds = w > 0 ? speakSeconds(w) : 0;
+    if (seconds > SHOT_SECONDS.max) {
+      out.add(`beat ${k + 1} quotes ${w} words that need ${seconds.toFixed(1)} s, but one shot holds at most ${SHOT_SECONDS.max} s; move a line to another beat or shorten it`);
+    }
+    if (mine.some((a, x) => mine.slice(x + 1).some((b) => differentSpeakers(said[a], said[b])))) {
+      out.add(`beat ${k + 1} gives lines to two different people, but a shot has one speaker; put each person's line in its own beat`);
+    }
+    return Math.max(SHOT_SECONDS.min, Math.ceil(seconds));
+  });
+  const total = need.reduce((a, b) => a + b, 0);
+  if (total > SCRIPT_SECONDS.max) {
+    out.add(`the ${board.beats.length} beats need at least ${total} s together, over the ${SCRIPT_SECONDS.max} s maximum; use fewer beats or shorter lines`);
+  }
+  return [...out];
+}
+
+/**
+ * Can the quotes, in order, be split into ≤ MAX_SHOTS contiguous groups that each fit one shot? Greedy packing (each
+ * group takes as many quotes as fit) uses the fewest groups, so counting its groups is enough.
+ */
 function fitsShots(words: number[]): boolean {
-  const fits = (ws: number[]) => ws.length === 0 || speakSeconds(ws.reduce((a, b) => a + b, 0)) <= SHOT_SECONDS.max;
-  for (let k = 1; k <= words.length; k++) if (fits(words.slice(0, k)) && fits(words.slice(k))) return true;
-  return false;
+  let groups = 0;
+  let acc = 0;
+  for (const w of words) {
+    if (groups > 0 && speakSeconds(acc + w) <= SHOT_SECONDS.max) acc += w;
+    else {
+      groups++;
+      acc = w;
+    }
+  }
+  return groups <= MAX_SHOTS;
 }
 
 /**
@@ -118,6 +159,8 @@ export function scriptProblems(script: Script, idea: string): string[] {
 
   const { leftovers, problems, shotOf } = placeQuotes(lines, quoted);
   out.push(...problems);
+  const board = parseStoryboard(idea);
+  if (board) out.push(...storyboardProblems(script, idea, board, quoted, shotOf));
   out.push(...castProblems(script).map((p) => p.message));
   out.push(...speakerProblems(script, idea, quoted, shotOf));
   if (JSON.stringify(script.quotedLines) !== JSON.stringify(quoted)) {
@@ -161,6 +204,22 @@ export function scriptProblems(script: Script, idea: string): string[] {
     if (look < MIN_LOOK_WORDS) {
       out.push(`characters[${i}].look (${c.name}) has ${look} words; needs at least ${MIN_LOOK_WORDS} words of concrete visual detail`);
     }
+  });
+  return out;
+}
+
+/** A storyboard idea's script has one shot per beat, and a quote in beat k is in shot k's line (F12). */
+function storyboardProblems(script: Script, idea: string, board: Storyboard, quoted: string[], shotOf: number[]): string[] {
+  const out: string[] = [];
+  const n = board.beats.length;
+  if (script.shots.length !== n) {
+    out.push(`the idea is a storyboard of ${n} beats, so the script must have exactly ${n} shots, one per beat in order; got ${script.shots.length}`);
+  }
+  quoteBeats(idea, board).forEach((k, i) => {
+    const at = shotOf[i] ?? -1;
+    // k < 0: the quote is in the shared context, any shot may say it. at < 0: missing, placeQuotes already said so.
+    if (k < 0 || at < 0 || at === k) return;
+    out.push(`quoted line ${JSON.stringify(quoted[i])} is in beat ${k + 1}, so it must be in shot s${k + 1}'s line, not in s${at + 1}'s`);
   });
   return out;
 }

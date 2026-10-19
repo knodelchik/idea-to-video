@@ -2,11 +2,12 @@
  * Visuals: identity anchor → keyframes → talking shots. Consistency comes from construction: the portrait is a
  * reference for every keyframe, the previous keyframe is a reference for the next, and each clip starts from its
  * keyframe. Native speech is never trusted: it goes through the verbatim gate, and when it keeps failing the shot
- * falls back to a verified TTS track lip-synced onto the best clip, so the words cannot drift.
+ * falls back to a verified TTS track lip-synced onto the best clip, so the words cannot drift. On a wide shot (F12)
+ * the face is too small to lip-read, so the verified track is laid over the clip as a voice-over instead.
  */
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { trimArgs } from "../media/args.ts";
+import { muxArgs, trimArgs } from "../media/args.ts";
 import { probe, run } from "../media/ffmpeg.ts";
 import {
   PolicyRejectedError,
@@ -25,8 +26,9 @@ import {
   VISUALS_PROMPT_VERSION,
 } from "../prompts/visuals.ts";
 import { withIssues } from "../prompts/judge.ts";
-import { castOf, speakerOf, type Attempt, type Script, type Shot, type VerbatimResult } from "../schemas.ts";
+import { castOf, isWide, speakerOf, type Attempt, type Script, type Shot, type VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
+import { linkSource } from "../util/sidecar.ts";
 import { splitDelivery } from "../verbatim.ts";
 import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
 import { verifiedVoice } from "./voice.ts";
@@ -189,8 +191,11 @@ export interface TalkingShot {
   path: string;
   seconds: number;
   hasAudio: boolean;
-  /** How the words got there: none, the video model's own speech, or verified TTS + lip-sync. */
-  via: "silent" | "native" | "lipsync";
+  /**
+   * How the words got there: none, the video model's own speech, verified TTS + lip-sync, or (wide shots, F12)
+   * verified TTS laid over the clip without lip-sync.
+   */
+  via: "silent" | "native" | "lipsync" | "voiceover";
   /** Gate result on the final clip (absent for silent shots). */
   verbatim?: VerbatimResult;
   speechStart?: number;
@@ -433,17 +438,20 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     if (!best || heard.wer < best.wer) best = { clip, wer: heard.wer };
   }
 
-  // 3. Fallback: words from verified TTS, mouth from lip-sync on the closest native clip.
+  const wide = isWide(shot.camera);
+  const how = wide
+    ? "verified TTS as a voice-over without lip-sync (wide shot: the face is too small to lip-read)"
+    : "verified TTS + lip-sync";
   record({
     stage: "fallback",
     n: 1,
-    provider: `${opts.tts.name}+${lipsync.name}`,
+    provider: wide ? opts.tts.name : `${opts.tts.name}+${lipsync.name}`,
     ok: true,
     reason: !native
-      ? "no native speech; using verified TTS + lip-sync"
+      ? `no native speech; using ${how}`
       : Number.isFinite(best!.wer)
-        ? `native speech failed the verbatim gate ${tries}× (best wer ${best!.wer.toFixed(2)}); falling back to verified TTS + lip-sync`
-        : `native speech failed ${tries}× (no take had an audio track); falling back to verified TTS + lip-sync`,
+        ? `native speech failed the verbatim gate ${tries}× (best wer ${best!.wer.toFixed(2)}); falling back to ${how}`
+        : `native speech failed ${tries}× (no take had an audio track); falling back to ${how}`,
     costUsd: 0,
     ms: 0,
   });
@@ -462,6 +470,41 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     throw new ShotError(shotId, `fallback voice failed: ${(e as Error).message}`, attempts, { cause: e });
   }
   attempts.push(...voice.attempts);
+
+  // 3a. Wide shot (F12): no lip-sync call. The verified voice replaces the clip's audio as it is; the gate listens
+  // to the muxed file, and the final gate to the finished video, so the words still can't drift.
+  if (wide) {
+    const clip = best!.clip;
+    const t1 = performance.now();
+    const step = { stage: "voiceover", n: 1, provider: `ffmpeg+${asr.name}` };
+    if (voice.speechEnd > clip.seconds) {
+      return fail(
+        { ...step, costUsd: 0, ms: ms(t1) },
+        `voice speech ends at ${fmt(voice.speechEnd)} s, after the ${fmt(clip.seconds)} s clip`,
+        `the verified voice (${fmt(voice.speechEnd)} s of speech) is longer than the ${fmt(clip.seconds)} s clip; lengthen the shot or shorten the line`,
+      );
+    }
+    const key = await contentKey("voiceover", { file: clip.path }, { file: voice.path });
+    const laid = await once(join(dir, `voiceover-${shotId}-${key}.mp4`), (tmp) =>
+      run(muxArgs({ video: clip.path, audio: voice.path, out: tmp, seconds: clip.seconds })),
+    );
+    // Real ASR hears the muxed audio; the mock follows this link to the voice's transcript.
+    await linkSource(laid.path, voice.path);
+    let heard: ListenResult;
+    try {
+      heard = await listen(laid.path, shot.line, { asr });
+    } catch (e) {
+      const reason = `asr error on voice-over clip: ${errMsg(e)}`;
+      return fail({ ...step, costUsd: 0, ms: ms(t1) }, reason, reason, e);
+    }
+    const why = [
+      ...(heard.pass ? (laid.cached ? ["reused cached voice-over"] : []) : [describeOps(heard.ops) || "no speech heard"]),
+      ...describeIgnored(heard),
+    ];
+    record({ ...step, ok: heard.pass, ...(why.length ? { reason: why.join("; ") } : {}), costUsd: heard.costUsd, ms: ms(t1) });
+    if (!heard.pass) throw new VerbatimError(verbatimOf(heard), attempts, `voiceover ${shotId}`);
+    return result(laid.path, await measure(laid.path), "voiceover", heard);
+  }
 
   const base = await fitForLipsync(best!.clip, voice.speechEnd);
   const t2 = performance.now();

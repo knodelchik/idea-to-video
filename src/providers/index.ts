@@ -2,7 +2,8 @@
  * The only door from nodes to providers (CLAUDE.md rule 7). `mock` is free and deterministic; `live` adapters
  * arrive in later features and until then fail loudly, naming the env var that would configure them.
  */
-import { MockAsr, MockImage, MockJudge, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo, mockScriptResponder } from "./mock.ts";
+import { MockAsr, MockImage, MockJudge, MockLipsync, MockLlm, MockTalking, MockTts, MockVideo } from "./mock.ts";
+import { mockScriptResponder } from "./mock-script.ts";
 import type { Providers } from "./types.ts";
 import { GeminiLlm } from "./gemini.ts";
 import { GeminiTts } from "./gemini-tts.ts";
@@ -33,11 +34,10 @@ export {
   MockTalking,
   MockTts,
   MockVideo,
-  MOCK_DEFAULT_LINE,
   MOCK_JUDGE_SCORE,
   MockJudge,
-  mockScriptResponder,
 } from "./mock.ts";
+export { MOCK_DEFAULT_LINE, mentionsPlace, mockScriptResponder } from "./mock-script.ts";
 export type { JudgeScript } from "./mock.ts";
 export { DEFAULT_JUDGE_MODELS, GeminiJudge, JUDGE_SYSTEM } from "./gemini-judge.ts";
 export { Budget, BudgetExceededError, DEFAULT_MAX_COST_USD, maxCostFromEnv, withBudget } from "./budget.ts";

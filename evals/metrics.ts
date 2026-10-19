@@ -89,7 +89,7 @@ export const EvalResults = z.object({
 });
 export type EvalResults = z.infer<typeof EvalResults>;
 
-const VERBATIM_STAGES = new Set(["video", "voice", "lipsync"]);
+const VERBATIM_STAGES = new Set(["video", "voice", "lipsync", "voiceover"]);
 /** Attempt provider of the script node's pre-spend rejection (src/nodes/script.ts). */
 export const PRE_SPEND_PROVIDER = "pre-spend-check";
 

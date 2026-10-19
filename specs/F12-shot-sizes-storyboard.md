@@ -90,3 +90,90 @@ from 2–3 high-contrast features (hair colour, one bright outfit colour, a silh
    MockLipsync not called); on a close-up the old TTS + lip-sync path is unchanged.
 7. `pnpm verify` green; F01–F11 tests still pass (update only where the contract changed; never weaken a verbatim
    assertion).
+
+## Decisions
+- **Contract.** `Shot.camera` uses the exported `Camera` schema:
+  `z.preprocess(v => v === "medium" ? "medium shot" : v, z.enum(CAMERAS))`. The migration sits on the field, so a bare
+  `Shot`, a `Script` and a `RunManifest` all accept old values. `z.toJSONSchema` (the Gemini response schema) takes the
+  output side of the pipe, so the model sees the plain six-value enum. A test pins this.
+  - `isWide()` is true for extreme wide, wide and full.
+  - `MAX_SHOTS = 4` and `ShotId = s1..s4` live in `schemas.ts`, and every other module imports them from there.
+    `nodes/script.ts` re-exports `MAX_SHOTS`.
+  - `ShotOutput.audio` gains `"voiceover"`, and `TalkingShot.via` gains `"voiceover"`. The graph maps `lipsync` →
+    `"fallback"` as before; every other value passes through unchanged.
+  - Rejected: a wide-only flag on Shot. The size is already in the data, so a flag would duplicate it.
+- **Storyboard parsing (`src/storyboard.ts`)** works in four steps:
+  1. Masks quoted spans. `quoteSpans` blanks them, so a number inside a line never becomes a marker.
+  2. Matches markers: `кадр N`, `N кадр`, `shot N` (any case), or `N.` / `N)` followed by whitespace.
+  3. Keeps a marker only at a boundary in the *original* text: the start of the idea, a newline, or after
+     `. ! ? … : ;` (optionally followed by a closing quote or bracket), or right after a closing quote.
+  4. Accepts numbers only as consecutive 1..N with non-empty beats.
+
+  It returns `{ context, beats, spans }`; `spans` lets `quoteBeats` place each quote in its beat. More than 4
+  well-formed beats throw `StoryboardError`, which `preSpendProblems` turns into a $0 `IdeaRejectedError`.
+  - Rejected: accepting a bare `N ` (number + space) as a marker. It fires on "2 coffees".
+  - Rejected: asking the LLM to split the storyboard. The spec says code splits it, and the split must be checkable.
+- **Script checks.** These are added on top of F10/F11:
+  - With a storyboard, `scriptProblems` requires exactly one shot per beat.
+  - A quote that sits in beat k must land in shot k (via `placeQuotes`' `shotOf`). A quote in the shared context
+    (before beat 1) may go in any shot.
+
+  Pre-spend, for $0, rejects:
+  - a beat whose quotes need more than 15 s;
+  - a beat that gives lines to two different speakers (one speaker per shot);
+  - beats whose minimum lengths add up to more than 30 s.
+
+  `fitsShots` now packs greedily into ≤ 4 shots, which is optimal for contiguous groups. The speaker-turn limit
+  follows `MAX_SHOTS` (4 turns).
+- **Script prompt `script-v5`.**
+  - The close-framing rule is gone. In its place are the size enum, "wide/full to set the place, then a medium
+    close-up for the key line", no two close-ups in a row outside a dialogue, wide only when the place matters and
+    composed vertically (character in the lower third), and "on a wide size the line is heard, not lip-read".
+  - The look must include 2–3 high-contrast distance cues, repeated identically.
+  - `visual` and the other description fields are written in English.
+  - `firstPrompt(idea, quoted, board?)` adds a "Beat k (shot sk): …" block. The board is parsed from the idea when
+    not passed, so callers (graph estimate, preflight) stay unchanged.
+- **Visuals prompt `visuals-v4`.**
+  - Body order: `Shot size: <camera>.`, then one camera move (wide: locked-off or one slow crane/pull-back; close:
+    locked-off with at most a push-in), then the subject (wide only), the action (visual + motion), and the
+    voice/line.
+  - On a wide shot the subject is `<Name> is small in frame, full figure visible, recognisable by <look>; the place
+    dominates, composed vertically …`. The keyframe uses the same sentence instead of "face clearly visible, mouth
+    closed".
+  - A wide line is `Delivery: <emotion, tags>. <Name>, small in frame, says in English: {line}`. The delivery moves
+    to its own sentence so the dialogue sentence matches the spec and nothing follows the brace.
+  - Close sizes keep the F11 sentence exactly. The audio policy, the constraint tail, the portrait refs and the
+    real-face ladder are unchanged.
+  - Not done: a subject line for close sizes. The keyframe (first frame) already fixes identity there, and repeating
+    the look would only lengthen a prompt the guide wants short.
+- **Judge `judge-v3`.**
+  - The keyframe rubric switches items 2 and 6 by size: a wide shot is judged on whether the character is
+    recognisable by its look, anatomically whole, and the setting matches and dominates.
+  - The clip rubric for wide sizes drops the mouth item and checks for duplicated, merging or melting figures and
+    for stable architecture.
+- **Wide-shot fallback (`src/nodes/visuals.ts`).** After native speech fails, a wide shot still gets the verified
+  TTS (F04 `verifiedVoice`), then:
+  1. `muxArgs` replaces the audio of the closest native clip, keeping the video stream and its length. The clip
+     must be long enough for the speech, or the shot fails with a reason.
+  2. `linkSource` lets the mock ASR hear the voice.
+  3. The muxed file goes through the verbatim gate (stage `voiceover`), and a miss throws `VerbatimError`.
+
+  The `fallback` attempt's reason says "voice-over without lip-sync (wide shot…)". No lip-sync call is made, and
+  `regenEstimateUsd` no longer counts a lip-sync for wide shots. Models without native speech also take this path
+  on wide shots. `evals/metrics.ts` counts a failed `voiceover` attempt as a verbatim miss.
+- **Mocks.** The mock script writer moved to `src/providers/mock-script.ts` to keep `mock.ts` small; it is still
+  exported from `providers/index.ts`.
+  - With a storyboard: one shot per beat. A beat that names a place gets a "wide shot". The rule is an English +
+    Ukrainian stem list (hall, castle, street, sea, зал, замк, вулиц, …).
+  - Without a storyboard: a wide establishing shot when the idea names a place, else a "medium shot", then the line
+    on a "medium close-up". Dialogues stay close-up shot-reverse-shot, now up to 4 turns.
+  - Mock looks gained bright colours (distance cues).
+- **Cost estimate.** It assumes one shot per storyboard beat (else 2): one portrait plus one keyframe per shot, 8 s
+  per shot capped so the total stays ≤ 30 s (4 shots → 7 s each), and ASR per shot plus one. `Budget` already
+  guards each call and reserves per parallel shot, so 4 shots needed no change there.
+- **Evals.** Three ideas were added to `evals/hard.jsonl`: `storyboard-castle-uk`, `storyboard-four-beats` and
+  `wide-cliff-no-storyboard`. The mock run `evals/results/2026-10-19-f12-mock.json` has all three ok. The only
+  failures are the three intended pre-spend rejections from F10.
+- **No new dependencies.**
+- **Docs checked.** I used `docs/research/seedance-playbook.md` (§1 Structure, camera, dialogue syntax) and the
+  research notes in this spec. I fetched no new URLs.

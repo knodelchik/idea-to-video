@@ -30,9 +30,27 @@ export const MAX_CHARACTERS = 2;
 export const SHOT_SECONDS = { min: 4, max: 15 } as const;
 export const SCRIPT_SECONDS = { min: 8, max: 30 } as const;
 
+/** Up to four shots (F12): a storyboard idea may have up to four beats, one shot each. */
+export const MAX_SHOTS = 4;
+export const ShotId = z.enum(["s1", "s2", "s3", "s4"]);
+export type ShotId = z.infer<typeof ShotId>;
+
+/** Standard shot-size words (the Seedance guides use them; one size per shot), widest first. */
+export const CAMERAS = ["extreme wide shot", "wide shot", "full shot", "medium shot", "medium close-up", "close-up"] as const;
+export type Camera = (typeof CAMERAS)[number];
+export const Camera = z.preprocess(
+  // Pre-F12 scripts said "medium"; it is the standard "medium shot".
+  (v) => (v === "medium" ? "medium shot" : v),
+  z.enum(CAMERAS),
+);
+
+/** The character is small in frame: lips can't be read, identity comes from hair, outfit and silhouette. */
+export const isWide = (camera: Camera): boolean =>
+  camera === "extreme wide shot" || camera === "wide shot" || camera === "full shot";
+
 export const Shot = z.object({
-  id: z.enum(["s1", "s2"]),
-  camera: z.enum(["close-up", "medium close-up", "medium"]),
+  id: ShotId,
+  camera: Camera,
   visual: nonEmpty("visual"),
   motion: nonEmpty("motion"),
   emotion: nonEmpty("emotion"),
@@ -137,8 +155,8 @@ const RefinedScript = ScriptFields
   .superRefine((s, ctx) => {
     for (const p of castProblems(s)) ctx.addIssue({ code: "custom", path: p.path, message: p.message });
     const n = s.shots.length;
-    if (n < 1 || n > 2) {
-      ctx.addIssue({ code: "custom", path: ["shots"], message: `a script has 1–2 shots, got ${n}` });
+    if (n < 1 || n > MAX_SHOTS) {
+      ctx.addIssue({ code: "custom", path: ["shots"], message: `a script has 1–${MAX_SHOTS} shots, got ${n}` });
       return;
     }
     s.shots.forEach((shot, i) => {
@@ -251,7 +269,7 @@ export type VoiceTrack = z.infer<typeof VoiceTrack>;
 
 export const Attempt = z.object({
   stage: nonEmpty("stage"),
-  shotId: z.enum(["s1", "s2"]).optional(),
+  shotId: ShotId.optional(),
   n: z.number().int().min(1),
   provider: nonEmpty("provider"),
   ok: z.boolean(),
@@ -288,8 +306,11 @@ export const ShotOutput = z.object({
   path: nonEmpty("path"),
   seconds: z.number().positive(),
   hasAudio: z.boolean(),
-  /** native = the video model spoke; fallback = verified TTS + lip-sync; silent = no line in this shot. */
-  audio: z.enum(["native", "fallback", "silent"]),
+  /**
+   * native = the video model spoke; fallback = verified TTS + lip-sync; voiceover = verified TTS laid over a wide
+   * shot without lip-sync (F12: the face is too small to lip-read); silent = no line in this shot.
+   */
+  audio: z.enum(["native", "fallback", "voiceover", "silent"]),
   speechStart: z.number().min(0).optional(),
   speechEnd: z.number().min(0).optional(),
   verbatim: VerbatimResult.optional(),
@@ -312,7 +333,7 @@ export const RunManifest = z.object({
   createdAt: z.iso.datetime(),
   script: Script.optional(),
   // partialRecord: zod 4's record over an enum demands every key, and a failed run may have only s1.
-  shots: z.partialRecord(z.enum(["s1", "s2"]), ShotOutput).optional(),
+  shots: z.partialRecord(ShotId, ShotOutput).optional(),
   attempts: z.array(Attempt),
   costUsd: z.number().min(0),
   final: FinalVideo.optional(),

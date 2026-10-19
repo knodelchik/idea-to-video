@@ -17,6 +17,7 @@ import {
   textToVideoPrompt,
 } from "../src/nodes/visuals.ts";
 import { VISUALS_PROMPT_VERSION } from "../src/prompts/visuals.ts";
+import { clipRubric, keyframeRubric } from "../src/prompts/judge.ts";
 import { VerbatimError } from "../src/nodes/gate.ts";
 import { muxArgs, trimArgs } from "../src/media/args.ts";
 import { probe, run } from "../src/media/ffmpeg.ts";
@@ -286,7 +287,7 @@ describe("Seedance prompt wording (F11 acceptance 3)", () => {
   });
 
   it("the prompt version was bumped", () => {
-    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v3");
+    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v4");
   });
 });
 
@@ -1374,4 +1375,108 @@ describe("live adapters (acceptance 7, no network)", () => {
       createProviders({ mode: "live", env: { GEMINI_API_KEY: "g", GROQ_API_KEY: "q", FAL_KEY: "f", LIPSYNC_PROVIDER: "kling2" } }),
     ).toThrow(/unknown "kling2"/);
   });
+});
+
+describe("wide shots (F12)", () => {
+  const WIDE: Shot = { ...S1, camera: "wide shot", visual: "Dan stands at the far edge of the roof, the city towering behind him" };
+  const LOOK = SCRIPT.characters[0]!.look;
+
+  it("wide keyframe: no face close-up demand, the identity cues named, the place dominates (acceptance 5)", () => {
+    const p = keyframePrompt(WIDE, SCRIPT);
+    expect(p).not.toMatch(/face clearly visible/i);
+    expect(p).toContain(`Dan is small in frame, full figure visible, recognisable by ${LOOK}`);
+    expect(p).toMatch(/the place dominates/);
+    expect(p).toMatch(/lower third/);
+    // Close sizes are unchanged.
+    expect(keyframePrompt(S1, SCRIPT)).toContain("face clearly visible, mouth closed");
+  });
+
+  it("wide talking prompt: `small in frame, says in English: {…}`, no looking at the camera, F11 policy and tail kept (acceptance 5)", () => {
+    const p = talkingPrompt(WIDE, SCRIPT);
+    expect(p).toContain(`Dan, small in frame, says in English: {${LINE}}`);
+    expect(p).not.toMatch(/looks toward the camera/);
+    expect(p).toMatch(/^Audio policy: only Dan's spoken line/);
+    expect(p).toMatch(/Avoid generating subtitles, captions, a logo or a watermark\.$/);
+    expect(p).not.toMatch(/\}[^\s]/);
+    // Order: shot size, one camera move, subject with identity cues, action, then the audio.
+    const at = (s: string) => p.indexOf(s);
+    expect(at("Shot size: wide shot.")).toBeGreaterThan(0);
+    expect(at("Shot size: wide shot.")).toBeLessThan(at("Locked-off camera, or one slow crane up or pull-back"));
+    expect(at("pull-back")).toBeLessThan(at(`recognisable by ${LOOK}`));
+    expect(at(`recognisable by ${LOOK}`)).toBeLessThan(at(WIDE.visual));
+    expect(at(WIDE.visual)).toBeLessThan(at("says in English"));
+    expect(p).not.toMatch(/push-in/);
+    // The text-to-video variant follows the same rules.
+    const t = textToVideoPrompt(WIDE, SCRIPT);
+    expect(t).toContain(`Dan, small in frame, says in English: {${LINE}}`);
+    expect(t).not.toMatch(/looks toward the camera/);
+  });
+
+  it("close-up talking prompt keeps the F11 sentence and a push-in", () => {
+    const p = talkingPrompt(S1, SCRIPT);
+    expect(p).toContain(`Dan looks toward the camera and, quiet, hurt, says in English: {${LINE}}`);
+    expect(p).toContain("Shot size: medium close-up. Locked-off camera with at most a slow push-in.");
+  });
+
+  it("judge rubrics for a wide shot have no lip-sync or mouth item; close shots keep them (acceptance 5)", () => {
+    const k = keyframeRubric(WIDE, SCRIPT);
+    expect(k).not.toMatch(/lip-sync/i);
+    expect(k).toMatch(/recognisable by its look \(hair, outfit, silhouette\), anatomically whole/);
+    expect(k).toMatch(/setting matches and dominates/);
+    expect(keyframeRubric(S1, SCRIPT)).toMatch(/large and sharp enough for lip-sync/);
+    const c = clipRubric(WIDE, SCRIPT);
+    expect(c).not.toMatch(/mouth/i);
+    expect(c).toMatch(/duplicated, merging or melting figures/);
+    expect(c).toMatch(/Stable architecture/);
+    expect(clipRubric(S1, SCRIPT)).toMatch(/Mouth region intact/);
+  });
+
+  async function wideKeyframe(dir: string): Promise<string> {
+    const image = new MockImage();
+    const portrait = await castCharacter(SCRIPT, { image, dir });
+    return (await keyframeShot(WIDE, SCRIPT, portrait.path, undefined, { image, dir })).path;
+  }
+
+  it("native speech fails twice on a wide shot → verified TTS laid over the clip, no lip-sync call (acceptance 6)", async () => {
+    const dir = fresh();
+    const kf = await wideKeyframe(dir);
+    const r = rig(new MockVideo({ faults: [{ call: 0, say: "I kept the clock. I kept everything." }, { call: 1, say: "I kept it." }] }));
+    const shot = await talkingShot(WIDE, kf, { script: SCRIPT, dir, maxNative: 2, ...r });
+
+    expect(r.video.calls).toHaveLength(2);
+    expect(r.tts.calls).toHaveLength(1);
+    expect(r.lipsync.calls).toHaveLength(0);
+    expect(shot).toMatchObject({ via: "voiceover", hasAudio: true, verbatim: { pass: true, wer: 0 } });
+    expect(shot.path).toMatch(/voiceover-s1-[0-9a-f]+\.mp4$/);
+    // Laid on the closer native clip (1 sub beats 4 dels), keeping its length.
+    const base = await probe(finalPath(r.video.calls[0]!.out));
+    expect(shot.seconds).toBeCloseTo(base.seconds, 1);
+    const story = shot.attempts.map((a) => `${a.stage}:${a.n}:${a.ok}`);
+    expect(story).toEqual(["video:1:false", "video:2:false", "fallback:1:true", "voice:1:true", "voiceover:1:true"]);
+    expect(shot.attempts[2]!.reason).toMatch(/failed the verbatim gate 2×.*voice-over without lip-sync \(wide shot/);
+    for (const a of shot.attempts) expect(Attempt.parse(a).shotId).toBe("s1");
+  }, 60_000);
+
+  it("on a close-up the same failure still goes TTS + lip-sync (acceptance 6)", async () => {
+    const dir = fresh();
+    const kf = await keyframeFor(dir);
+    const r = rig(new MockVideo({ faults: [{ call: 0, say: "I kept the clock. I kept everything." }, { call: 1, say: "I kept it." }] }));
+    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, ...r });
+    expect(r.lipsync.calls).toHaveLength(1);
+    expect(shot.via).toBe("lipsync");
+    expect(shot.attempts.map((a) => a.stage)).not.toContain("voiceover");
+  }, 60_000);
+
+  it("a voice-over the gate mis-hears fails loudly, never passes", async () => {
+    const dir = fresh();
+    const kf = await wideKeyframe(dir);
+    const video = new MockVideo({ faults: [{ call: 0, say: "nothing like it" }] });
+    // ASR calls: 0 = native clip, 1 = TTS take (passes), 2 = voice-over clip (mis-heard).
+    const asr = new MockAsr({ faults: [{ call: 2, replace: { watch: "wash" } }] });
+    const lipsync = new MockLipsync();
+    const err = await talkingShot(WIDE, kf, { script: SCRIPT, dir, maxNative: 1, video, asr, tts: new MockTts(), lipsync }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(VerbatimError);
+    expect(lipsync.calls).toHaveLength(0);
+    expect((err as VerbatimError).attempts.at(-1)).toMatchObject({ stage: "voiceover", ok: false });
+  }, 60_000);
 });

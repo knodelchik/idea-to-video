@@ -118,3 +118,7 @@
 2026-10-19 01:51:16 F11-dialogue-seedance attempt 3: reviewer
 2026-10-19 01:55:35 F11-dialogue-seedance PASSED on attempt 3 -> 8bbf8e7
 2026-10-19 01:55:35 all requested features passing
+2026-10-19 11:02:24 ### F12-shot-sizes-storyboard start (specs/F12-shot-sizes-storyboard.md)
+2026-10-19 11:02:24 F12-shot-sizes-storyboard attempt 1: implementer
+2026-10-19 11:19:37 F12-shot-sizes-storyboard attempt 1: gate
+2026-10-19 11:21:27 F12-shot-sizes-storyboard attempt 1: reviewer
