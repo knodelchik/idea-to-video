@@ -92,6 +92,16 @@
         "npx vitest run tests/schemas.test.ts tests/visuals.test.ts tests/script.test.ts",
         "npx tsx src/cli.ts 'At the kitchen table, a mother slides an envelope to her son. She says: \"Open it after I leave.\" He looks up and asks: \"Mom, are you sick?\"' --mock --json"
       ]
+    },
+    {
+      "id": "F12-shot-sizes-storyboard",
+      "spec": "specs/F12-shot-sizes-storyboard.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/schemas.test.ts tests/script.test.ts tests/visuals.test.ts tests/storyboard.test.ts",
+        "npx tsx src/cli.ts '1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: \"Hello? Is anyone still here?\"' --mock --json",
+        "npx tsx evals/run.ts --mock --set hard --label f12"
+      ]
     }
   ]
 }
