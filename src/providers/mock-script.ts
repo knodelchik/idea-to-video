@@ -100,16 +100,30 @@ interface MockShot {
  * Cuts for a shot of CUT_SHOT_MIN_SECONDS or more (F13, My Muse pacing): wide → medium when a place matters, else the
  * speaker → a close-up on the peak. Two cuts, never the same size twice; the first cut is the shot's own framing.
  */
-function cutsFor(s: MockShot): { camera: string; cuts: { camera: string; visual: string; onScreen: string[] }[] } {
+function cutsFor(s: MockShot): { camera: string; cuts: { camera: string; visual: string; onScreen: string[]; blocking: MockBlocking }[] } {
   const [first, second] = s.place
     ? ["wide shot", "medium shot"]
     : [s.camera === "close-up" ? "medium close-up" : s.camera, "close-up"];
   return {
     camera: first,
     cuts: [
-      { camera: first, visual: s.visual, onScreen: [s.who] },
-      { camera: second, visual: `${s.who}'s face, the emotional peak of the line`, onScreen: [s.who] },
+      { camera: first, visual: s.visual, onScreen: [s.who], blocking: blockingFor(s) },
+      { camera: second, visual: `${s.who}'s face, the emotional peak of the line`, onScreen: [s.who], blocking: blockingFor(s) },
     ],
+  };
+}
+
+type MockBlocking = ReturnType<typeof blockingFor>;
+
+/**
+ * Blocking (F18), the same every time: the one on-screen character center/midground facing the camera, standing still
+ * in real time, speaking exactly when the shot has a line. It passes the checks; it does not stage anything.
+ */
+function blockingFor(s: MockShot) {
+  return {
+    subjects: [{ name: s.who, position: "midground", side: "center", facing: "camera" }],
+    movement: { who: s.who, direction: "none", pace: "real-time" },
+    speaking: s.line ? s.who : null,
   };
 }
 
@@ -129,6 +143,8 @@ function toShots(shots: MockShot[]) {
       ...(s.line ? { speaker: s.who } : {}),
       onScreen: [s.who],
       ...(cut ? { cuts: cut.cuts } : {}),
+      blocking: blockingFor(s),
+      continuity: { from: i === 0 ? "start" : `follows straight on from the last moment of s${i}`, screenDirection: "neutral" },
     };
   });
 }

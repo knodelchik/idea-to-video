@@ -23,6 +23,11 @@ export interface LlmRequest<T> {
   /** The shape we want back. The provider parses through it so failures come back as text we can re-prompt with. */
   schema: z.ZodType<T>;
   temperature?: number;
+  /**
+   * What the call is for, when it is not the script writer (F18: the continuity critic). Traced, so the call gets its
+   * own observation name, and lets the mock answer the critic apart from the writer.
+   */
+  purpose?: "continuity";
 }
 
 /** Not thrown on a bad shape: the caller needs the cost and the error text to retry. */

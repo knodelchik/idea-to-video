@@ -89,7 +89,12 @@ export function withTrace(p: Providers, sink: TraceSink): Providers {
           sink,
           "llm",
           llm.name,
-          async () => ({ system: req.system, prompt: req.prompt, ...(req.temperature !== undefined ? { temperature: req.temperature } : {}) }),
+          async () => ({
+            system: req.system,
+            prompt: req.prompt,
+            ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+            ...(req.purpose ? { purpose: req.purpose } : {}),
+          }),
           () => llm.generateJson(req),
           (r) => ({
             costUsd: r.costUsd,

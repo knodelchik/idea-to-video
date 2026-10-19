@@ -49,6 +49,70 @@ export const isWide = (camera: Camera): boolean =>
   camera === "extreme wide shot" || camera === "wide shot" || camera === "full shot";
 
 /**
+ * Blocking (F18): where each on-screen person stands, where they go and who speaks, so the video model stages the
+ * story instead of guessing it (live 2026-10-19: "advances toward the gate" rendered as walking away from it).
+ */
+export const POSITIONS = ["foreground", "midground", "background"] as const;
+export const SIDES = ["left", "center", "right"] as const;
+export const FACINGS = ["camera", "away", "left", "right"] as const;
+export const DIRECTIONS = ["toward camera", "away from camera", "left to right", "right to left", "none"] as const;
+export const PACES = ["real-time", "slow-motion"] as const;
+export const SCREEN_DIRECTIONS = ["left to right", "right to left", "neutral"] as const;
+
+export const Subject = z.object({
+  name: nonEmpty("subject name"),
+  position: z.enum(POSITIONS),
+  side: z.enum(SIDES),
+  facing: z.enum(FACINGS),
+});
+export type Subject = z.infer<typeof Subject>;
+
+export const Place = z.object({ position: z.enum(POSITIONS), side: z.enum(SIDES) });
+export type Place = z.infer<typeof Place>;
+
+export const Movement = z
+  .object({
+    who: nonEmpty("movement.who"),
+    direction: z.enum(DIRECTIONS),
+    /** A thing visible in frame the movement heads for ("the open door of the carriage"). */
+    target: z.string().trim().min(1, "movement.target must not be empty when set").optional(),
+    targetPosition: Place.optional(),
+    pace: z.enum(PACES),
+  })
+  // A goal the viewer can't locate is the castle bug: the model then picks a direction itself.
+  .refine((m) => m.target === undefined || m.targetPosition !== undefined, {
+    message: "movement.target is set, so movement.targetPosition ({ position, side }) must be set too",
+    path: ["targetPosition"],
+  });
+export type Movement = z.infer<typeof Movement>;
+
+export const Blocking = z.object({
+  /** One entry per on-screen character (checked against onScreen in scriptProblems). */
+  subjects: z.array(Subject),
+  /** Who moves and how; null when nobody moves (a held moment, an insert). */
+  movement: Movement.nullable(),
+  /** The one person whose lips move here, or null. Everyone else is silent with closed lips. */
+  speaking: z.string().nullable(),
+});
+export type Blocking = z.infer<typeof Blocking>;
+
+export const Continuity = z.object({
+  /** One sentence on how this shot follows the previous one's last moment; "start" for s1. */
+  from: nonEmpty("continuity.from"),
+  screenDirection: z.enum(SCREEN_DIRECTIONS),
+});
+export type Continuity = z.infer<typeof Continuity>;
+
+/** Defaults for scripts written before F18: everyone mid-frame facing the camera, no movement, the speaker speaks. */
+export function defaultBlocking(onScreen: string[], speaking: string | null): Blocking {
+  return {
+    subjects: onScreen.map((name) => ({ name, position: "midground", side: "center", facing: "camera" })),
+    movement: null,
+    speaking: speaking !== null && onScreen.includes(speaking) ? speaking : null,
+  };
+}
+
+/**
  * One cut inside a clip (F13): Seedance renders 2–3 cuts in one call from a "Shot 1: … Shot 2: …" prompt. A cut has
  * no seconds of its own (the model paces them inside the clip). `onScreen` may be empty for an insert (an object).
  */
@@ -56,6 +120,7 @@ export const Cut = z.object({
   camera: Camera,
   visual: nonEmpty("cut visual"),
   onScreen: z.array(nonEmpty("onScreen name")),
+  blocking: Blocking,
 });
 export type Cut = z.infer<typeof Cut>;
 export const CUTS = { min: 2, max: 3 } as const;
@@ -83,6 +148,9 @@ const ShotFields = z.object({
    * first cut's (and `visual` describes it) so readers that ignore cuts still see the opening framing.
    */
   cuts: z.array(Cut).optional(),
+  /** Staging of the shot (F18); for a shot with cuts, of its opening. Each cut has its own. */
+  blocking: Blocking,
+  continuity: Continuity,
 });
 
 /** Cut rules, shared by Shot (so a bad shot fails at the boundary) and the script node's feedback. */
@@ -140,17 +208,56 @@ const ScriptFields = z.object({
   shots: z.array(Shot),
   /** Lines quoted in the idea, as extracted by code (extractQuotedLines), not by the model. */
   quotedLines: z.array(z.string()),
+  /** The continuity critic still objected on the last try (F18): the script was kept, a human should look. */
+  needsReview: z.boolean().optional(),
+  /** What the critic objected to, when needsReview. */
+  reviewNotes: z.array(z.string()).optional(),
 });
 
 /**
  * What the LLM is asked to return: the script minus the fields code owns (promptVersion, quotedLines).
  * Built from the unrefined object because zod refuses .omit() on a refined schema.
  */
-export const ScriptDraft = ScriptFields.omit({ promptVersion: true, quotedLines: true });
+export const ScriptDraft = ScriptFields.omit({ promptVersion: true, quotedLines: true, needsReview: true, reviewNotes: true });
 export type ScriptDraft = z.infer<typeof ScriptDraft>;
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** First script prompt that writes blocking and continuity (F18). Older scripts get defaults when parsed. */
+export const BLOCKING_SINCE_PROMPT = 8;
+
+/** A script from a prompt before script-v8, or from a hand-built/bench source that never wrote blocking. */
+export function predatesBlocking(promptVersion: unknown): boolean {
+  const m = typeof promptVersion === "string" ? /^script-v(\d+)$/.exec(promptVersion) : null;
+  return !m || Number(m[1]) < BLOCKING_SINCE_PROMPT;
+}
+
+const names = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+/**
+ * Scripts written before F18 have no blocking or continuity. Each shot and cut gets defaultBlocking, each shot a
+ * neutral screen direction ("start" for s1). Fields that are present are kept. script-v8+ scripts are left alone, so
+ * a new script without blocking still fails.
+ */
+export function migrateBlocking(raw: unknown): unknown {
+  if (!isObj(raw) || !predatesBlocking(raw.promptVersion) || !Array.isArray(raw.shots)) return raw;
+  const shots = raw.shots.map((sh: unknown, i: number) => {
+    if (!isObj(sh)) return sh;
+    const spoken = typeof sh.line === "string" && sh.line.trim() !== "";
+    const speaker = spoken && typeof sh.speaker === "string" ? sh.speaker : null;
+    const cuts = Array.isArray(sh.cuts)
+      ? sh.cuts.map((c: unknown) => (isObj(c) && !("blocking" in c) ? { ...c, blocking: defaultBlocking(names(c.onScreen), speaker) } : c))
+      : sh.cuts;
+    return {
+      ...sh,
+      ...(cuts !== undefined ? { cuts } : {}),
+      ...("blocking" in sh ? {} : { blocking: defaultBlocking(names(sh.onScreen), speaker) }),
+      ...("continuity" in sh ? {} : { continuity: { from: i === 0 ? "start" : "follows the previous shot", screenDirection: "neutral" } }),
+    };
+  });
+  return { ...raw, shots };
+}
 
 /**
  * Scripts written before F11 had one `character` and no speaker / onScreen. They still parse: the character becomes
@@ -250,7 +357,7 @@ const RefinedScript = ScriptFields
   });
 
 /** Parses current scripts and migrates pre-F11 single-`character` ones (manifests on disk stay readable). */
-export const Script = z.preprocess(migrateScript, RefinedScript);
+export const Script = z.preprocess((raw) => migrateBlocking(migrateScript(raw)), RefinedScript);
 export type Script = z.output<typeof RefinedScript>;
 
 /** The character who says a shot's line (a silent shot: the first one on screen). */
@@ -367,6 +474,16 @@ export const JudgeVerdict = z.object({
   issues: z.array(z.string()),
 });
 export type JudgeVerdict = z.infer<typeof JudgeVerdict>;
+
+/**
+ * What the continuity critic returns (F18). `ok` with problems listed is treated as an objection: code trusts the
+ * list, not the flag (a model that says ok and names a problem has found one).
+ */
+export const ContinuityVerdict = z.object({
+  ok: z.boolean(),
+  problems: z.array(z.string()),
+});
+export type ContinuityVerdict = z.infer<typeof ContinuityVerdict>;
 
 export const FinalVideo =z.object({
   path: nonEmpty("path"),

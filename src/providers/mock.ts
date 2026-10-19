@@ -70,32 +70,54 @@ async function withTmp<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 
 export type Responder = (prompt: string, ctx: { system: string; call: number }) => unknown;
 
-/** Canned LLM: a responder function, or a queue consumed one object per call. */
+/** What the mock continuity critic says when a test injects nothing (F18): no objection. */
+export const MOCK_CRITIC_OK = { ok: true, problems: [] as string[] };
+
+/**
+ * Canned LLM: a responder function, or a queue consumed one object per call. Continuity-critic calls (F18,
+ * `purpose: "continuity"`) are answered from `critic` instead, a queue of verdicts that ends in MOCK_CRITIC_OK, so
+ * writer queues and call counts stay as they were. Optional `criticCost` per call, so tests can see it in the manifest.
+ */
 export class MockLlm implements LlmProvider {
   readonly name = "mock-llm";
   readonly calls: { system: string; prompt: string; temperature?: number }[] = [];
+  readonly criticCalls: { system: string; prompt: string }[] = [];
   private readonly queue: unknown[];
   private readonly responder?: Responder;
+  private readonly critic: unknown[];
+  private readonly criticCost: number;
 
-  constructor(opts: { responder?: Responder; queue?: unknown[] } = {}) {
+  constructor(opts: { responder?: Responder; queue?: unknown[]; critic?: unknown[]; criticCost?: number } = {}) {
     this.responder = opts.responder;
     this.queue = [...(opts.queue ?? [])];
+    this.critic = [...(opts.critic ?? [])];
+    this.criticCost = opts.criticCost ?? 0;
   }
 
-  async generateJson<T>({ system, prompt, schema, temperature }: LlmRequest<T>): Promise<LlmResult<T>> {
+  async generateJson<T>(req: LlmRequest<T>): Promise<LlmResult<T>> {
+    const { system, prompt, schema, temperature } = req;
+    if (req.purpose === "continuity") {
+      this.criticCalls.push({ system, prompt });
+      return this.answer(schema, system, prompt, this.critic.length ? this.critic.shift() : MOCK_CRITIC_OK, this.criticCost);
+    }
     const call = this.calls.length;
     this.calls.push({ system, prompt, ...(temperature === undefined ? {} : { temperature }) });
     let raw: unknown;
     if (this.responder) raw = this.responder(prompt, { system, call });
     else if (this.queue.length > 0) raw = this.queue.shift();
     else throw new Error(`MockLlm: no canned response for call ${call}`);
+    return this.answer(schema, system, prompt, raw, 0);
+  }
+
+  private answer<T>(schema: LlmRequest<T>["schema"], system: string, prompt: string, reply: unknown, costUsd: number): LlmResult<T> {
+    let raw = reply;
     // Round-trip through JSON like a real model's text output would (drops undefined, functions, etc.).
     raw = JSON.parse(JSON.stringify(raw ?? null)) as unknown;
     const parsed = schema.safeParse(raw);
     // A rough token count (~4 chars per token) so traces of mock runs carry usage like live ones (F17).
     const text = JSON.stringify(raw);
     const meta = { usage: { input: Math.ceil((system.length + prompt.length) / 4), output: Math.ceil(text.length / 4) } };
-    const common = { raw, costUsd: 0, meta };
+    const common = { raw, costUsd, meta };
     return parsed.success ? { ok: true, data: parsed.data, ...common } : { ok: false, error: formatIssues(parsed.error), ...common };
   }
 }

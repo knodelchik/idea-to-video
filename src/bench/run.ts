@@ -22,7 +22,7 @@ import type {
   TtsProvider,
   VideoProvider,
 } from "../providers/index.ts";
-import type { Script, Shot } from "../schemas.ts";
+import { defaultBlocking, type Script, type Shot } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { clipSeconds, modelCostUsd, pathOf, type BenchModel, type BenchPath } from "./registry.ts";
 
@@ -61,6 +61,9 @@ export function benchShot(line: string, seconds: number): Shot {
     seconds,
     ...(line.trim() ? { speaker: "Mara" } : {}),
     onScreen: ["Mara"],
+    // F18: the same defaults an old script migrates to (one still subject facing the camera).
+    blocking: defaultBlocking(["Mara"], line.trim() ? "Mara" : null),
+    continuity: { from: "start", screenDirection: "neutral" },
   };
 }
 

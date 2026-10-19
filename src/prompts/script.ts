@@ -12,7 +12,10 @@ import { parseStoryboard, type Storyboard } from "../storyboard.ts";
 //     read at a distance (F12).
 // v6: cuts inside a shot (My Muse pacing); medium shots by default, close-ups for the emotional peak only (F13).
 // v7: the first cut must show a character; inserts only as cut 2 or 3 (F13, human note).
-export const SCRIPT_PROMPT_VERSION = "script-v7";
+// v8: think as a director first; blocking (subjects, movement toward a visible goal, pace, speaking) per shot and cut,
+//     continuity between shots, reaction cuts only after the line (F18, live 2026-10-19 castle and train).
+//     Must stay "script-v<n>": schemas.predatesBlocking reads the number.
+export const SCRIPT_PROMPT_VERSION = "script-v8";
 
 const sizes = CAMERAS.map((c) => `"${c}"`).join(", ");
 
@@ -47,8 +50,9 @@ Cuts inside a shot ("cuts"):
 - The first cut is the opening frame: it must show at least one character. An insert (hands, an object, nobody on
   screen) may only be the second or third cut.
 - Cut grammar: a wide or full shot to set the place → a medium shot → a close-up on the emotional peak; or the speaker
-  → the listener's reaction while the line continues; inserts (hands, an object) are allowed. The speaker need not be
-  on screen in every cut: the line continues off-screen.
+  → the listener's reaction after the line has ended; inserts (hands, an object) are allowed.
+- Reaction shots come only after the speaker finishes. The listener stays silent with closed lips. A line is never
+  heard over a cut where another character's face is on screen, unless that character is shown from behind.
 - Never two identical sizes in a row. The shot's "camera" and "visual" equal its first cut's (the opening frame).
 - A shot under ${CUT_SHOT_MIN_SECONDS} seconds has no cuts. A shot keeps one "line" however many cuts it holds.
 
@@ -68,6 +72,27 @@ The spoken line:
 - Otherwise write one short line, 16 words or fewer, with numbers spelled out as words (no digits), on the shot it
   fits best. Lines are always English.
 - A shot without speech has "line": "".
+
+Blocking and continuity (think as a director first):
+- Before writing a shot, imagine the scene: where the camera stands, where each person is, where they go, what they
+  want to reach, and what the viewer must see to understand it. The goal of a movement must be visible in the frame.
+- Every shot and every cut has "blocking":
+  - "subjects": one entry per on-screen character: { "name", "position": "foreground" | "midground" | "background",
+    "side": "left" | "center" | "right", "facing": "camera" | "away" | "left" | "right" }.
+  - "movement": null when nobody moves, else { "who", "direction": "toward camera" | "away from camera" |
+    "left to right" | "right to left" | "none", "target", "targetPosition": { "position", "side" }, "pace" }.
+    "target" is a thing visible in frame ("the open door of the carriage"); when there is a target, set its position.
+  - "speaking": the name of the one person whose lips move here, or null. Everyone else is silent with closed lips.
+    In a spoken shot, the speaker is "speaking" in the shot and in the cut(s) that hold the line; a cut where someone
+    else is on screen and nobody speaks ("speaking": null) comes only after the line has ended.
+- Describe movement relative to the camera and to the goal ("runs from the foreground toward the open carriage door
+  in the background, right"), never just "runs toward the train". Write it the same way in "visual" and "motion".
+- Pace: "real-time" unless the idea asks for slow motion.
+- Every shot has "continuity": { "from", "screenDirection": "left to right" | "right to left" | "neutral" }. "from" is
+  "start" for s1; for later shots one sentence on how this shot follows the last moment of the previous one ("she
+  reached the gate at the end of s1; now she is inside the hall").
+- The end of shot N leads physically into shot N+1: if she enters the castle next, in this shot she moves toward its
+  gate, and the gate is in frame. Keep the same screenDirection between shots unless "from" says the character turned.
 
 Storyboards:
 - When the idea is written shot by shot, the user message lists the beats. Write exactly one shot per beat, in that

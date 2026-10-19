@@ -464,7 +464,8 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
       const { code, json, manifest } = await cli([IDEA, "--mock"], { overrides: priced, env: { MAX_COST_USD: "5" } });
       expect(code).toBe(0);
       const videoSeconds = priced.video.calls.reduce((s, c) => s + c.seconds, 0);
-      expect(json.costUsd).toBeCloseTo(0.015 + 3 * 0.04 + 0.3 * videoSeconds, 6);
+      // Two LLM calls (F18): the writer and the continuity critic, each priced 0.015.
+      expect(json.costUsd).toBeCloseTo(2 * 0.015 + 3 * 0.04 + 0.3 * videoSeconds, 6);
       expect(manifest?.costUsd).toBeCloseTo(json.costUsd, 6);
     },
     SLOW,

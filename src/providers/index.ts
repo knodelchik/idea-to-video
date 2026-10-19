@@ -36,6 +36,7 @@ export {
   MockVideo,
   MOCK_JUDGE_SCORE,
   MockJudge,
+  MOCK_CRITIC_OK,
 } from "./mock.ts";
 export { MOCK_DEFAULT_LINE, mentionsPlace, mockScriptResponder } from "./mock-script.ts";
 export type { JudgeScript } from "./mock.ts";

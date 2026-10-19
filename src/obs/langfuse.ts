@@ -47,6 +47,7 @@ export const OBSERVATION_NAMES = [
   "transcribe-audio",
   "judge-keyframe",
   "judge-clip",
+  "check-continuity",
   "lipsync",
   "assemble",
   "burn-subtitles",
@@ -65,6 +66,9 @@ const NODE_NAMES: Record<string, ObservationName> = {
   finalGate: "final-gate",
 };
 
+/** The continuity critic (F18) is an LLM call marked with its purpose. */
+const isContinuityCheck = (s: Span): boolean => s.kind === "llm" && s.request.purpose === "continuity";
+
 /** A judge span judged a keyframe when it sent one image; a clip otherwise (frames or video). */
 const isKeyframeJudge = (s: Span): boolean => s.request.image !== undefined;
 
@@ -76,7 +80,8 @@ export function observationName(s: Span): string {
     case "node":
       return NODE_NAMES[s.node] ?? kebab(s.node);
     case "llm":
-      return "write-script"; // the script writer is the pipeline's only text LLM call
+      // The script writer, or the continuity critic that reads its script (F18).
+      return isContinuityCheck(s) ? "check-continuity" : "write-script";
     case "image":
       return "generate-image";
     case "video":
@@ -100,7 +105,8 @@ export function observationName(s: Span): string {
 export function observationType(s: Span): ObservationType {
   if (s.cached) return "event";
   if (s.kind === "node") return s.node === "finalGate" ? "guardrail" : "span";
-  if (s.kind === "judge") return "evaluator";
+  // The continuity critic scores the script, like a judge scores a clip (F18).
+  if (s.kind === "judge" || isContinuityCheck(s)) return "evaluator";
   return "generation";
 }
 
@@ -348,7 +354,9 @@ export function planScores(m: RunManifest, spans: Span[]): PlannedScore[] {
       out.push({ name: `judge_${keyframe ? "keyframe" : "clip"}_${id}`, value: score, dataType: "NUMERIC", ...(comment ? { comment } : {}) });
     }
   }
-  if (shots.length) out.push({ name: "needs_review", value: shots.some(([, s]) => s?.needsReview) ? 1 : 0, dataType: "BOOLEAN" });
+  // A script the continuity critic still objected to (F18) needs review as much as a shot below the bar.
+  const review = m.script?.needsReview === true || shots.some(([, s]) => s?.needsReview);
+  if (shots.length || m.script?.needsReview) out.push({ name: "needs_review", value: review ? 1 : 0, dataType: "BOOLEAN" });
   out.push({ name: "cost_usd", value: m.costUsd, dataType: "NUMERIC" });
   return out;
 }

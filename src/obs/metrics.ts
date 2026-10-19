@@ -215,7 +215,8 @@ export function metrics(records: RunRecord[]): Metrics {
       scores,
       mean: scored.length ? round(scored.reduce((s, x) => s + x, 0) / scored.length, 3) : null,
       failures: judged.filter((a) => /^judge failed/.test(a.reason ?? "")).length,
-      needsReviewRate: rate(ms.filter((m) => Object.values(m.shots ?? {}).some((s) => s?.needsReview)).length, n),
+      // A run needs review when a shot missed the bar or the continuity critic still objected to its script (F18).
+      needsReviewRate: rate(ms.filter((m) => m.script?.needsReview === true || Object.values(m.shots ?? {}).some((s) => s?.needsReview)).length, n),
     },
     modelCalls: [...calls.values()].sort((a, b) => b.costUsd - a.costUsd || b.calls - a.calls),
     topFailures: [...failures.entries()]

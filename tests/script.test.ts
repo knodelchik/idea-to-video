@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { runPipeline } from "../src/graph.ts";
 import {
+  BudgetExceededError,
   createProviders,
+  type LlmProvider,
   MockImage,
   MockLlm,
   mockScriptResponder,
@@ -16,7 +18,7 @@ import { DEFAULT_SCRIPT_MODELS, GEMINI_PRICES, GeminiLlm, toGeminiSchema, type G
 import { DEFAULT_JUDGE_MODELS } from "../src/providers/gemini-judge.ts";
 import { firstPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../src/prompts/script.ts";
 import { IdeaRejectedError, preSpendProblems, ScriptError, scriptProblems, writeScript } from "../src/nodes/script.ts";
-import { isWide, Script, ScriptDraft, type Shot } from "../src/schemas.ts";
+import { defaultBlocking, isWide, Script, ScriptDraft, type Shot } from "../src/schemas.ts";
 import { differentSpeakers, quoteSpeakers } from "../src/speakers.ts";
 import { extractQuotedLines } from "../src/verbatim.ts";
 
@@ -24,10 +26,11 @@ const QUOTE = "Meet me where it all started.";
 const IDEA = `A tired barista finds a note in the tip jar. She reads it aloud: "${QUOTE}"`;
 const LOOK = "late twenties, tired brown eyes, dark hair in a messy bun, flour on her cheek, green apron over a grey tee";
 
+/** A shot; blocking and continuity follow the final id / onScreen / speaker / line unless `over` sets them (F18). */
 function shot(over: Partial<Shot> = {}): Shot {
-  return {
-    id: "s1",
-    camera: "close-up",
+  const s = {
+    id: "s1" as const,
+    camera: "close-up" as const,
     visual: "She unfolds a small note above the tip jar",
     motion: "slow push-in on her face",
     emotion: "hopeful disbelief",
@@ -36,6 +39,11 @@ function shot(over: Partial<Shot> = {}): Shot {
     speaker: "Maya",
     onScreen: ["Maya"],
     ...over,
+  };
+  return {
+    ...s,
+    blocking: over.blocking ?? defaultBlocking(s.onScreen, s.line.trim() && s.speaker ? s.speaker : null),
+    continuity: over.continuity ?? { from: s.id === "s1" ? "start" : "right after the previous shot", screenDirection: "neutral" },
   };
 }
 
@@ -288,7 +296,8 @@ describe("speakers (F11)", () => {
   });
 
   it("the prompt asks for 1–2 characters, one speaker per spoken shot, shot-reverse-shot and voiceDescription", () => {
-    expect(SCRIPT_PROMPT_VERSION).toBe("script-v7"); // F12 → v5, F13 (cuts) → v6, F13 opening cut shows a character → v7
+    // F12 → v5, F13 (cuts) → v6, F13 opening cut shows a character → v7, F18 blocking and continuity → v8
+    expect(SCRIPT_PROMPT_VERSION).toBe("script-v8");
     expect(SCRIPT_SYSTEM).toMatch(/should usually have 2–3 cuts/);
     expect(SCRIPT_SYSTEM).toMatch(/first cut is the opening frame: it must show at least one character/);
     expect(SCRIPT_SYSTEM).toMatch(/Never two identical sizes in a row/);
@@ -317,6 +326,8 @@ describe("writeScript", () => {
     expect(attempts.map((a) => [a.stage, a.n, a.ok, a.provider])).toEqual([
       ["script", 1, false, "mock-llm"],
       ["script", 2, true, "mock-llm"],
+      // F18: the continuity critic reads the script that passed the code checks.
+      ["continuity", 2, true, "mock-llm"],
     ]);
     expect(attempts[0]!.reason).toContain(problem);
     for (const a of attempts) expect(a.costUsd).toBe(0);
@@ -357,8 +368,7 @@ describe("writeScript", () => {
     const { script: s, attempts } = await writeScript(idea, { llm });
     expect(s.quotedLines).toEqual([]);
     expect(s.shots[0]!.line).toBe("You always said you'd come back to me.");
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0]!.ok).toBe(true);
+    expect(attempts.map((a) => [a.stage, a.ok])).toEqual([["script", true], ["continuity", true]]);
   });
 });
 
@@ -467,7 +477,7 @@ describe("several quoted lines per shot (F10 acceptance 3)", () => {
     const llm = new MockLlm({ queue: [d] });
     const { script: s, attempts } = await writeScript(THREE_IDEA, { llm });
     expect(s.quotedLines).toEqual(THREE);
-    expect(attempts.map((a) => a.ok)).toEqual([true]);
+    expect(attempts.map((a) => [a.stage, a.ok])).toEqual([["script", true], ["continuity", true]]);
   });
   it("the built-in mock writer packs three short quotes into two shots that pass", () => {
     const quoted = extractQuotedLines(THREE_IDEA);
@@ -490,8 +500,7 @@ describe("lip-sync limit note (F10)", () => {
     const idea = `A violinist says: "${line}"`;
     const d = draft([shot({ line, seconds: 10 }), shot({ id: "s2", line: "", seconds: 4 })]);
     const { attempts } = await writeScript(idea, { llm: new MockLlm({ queue: [d] }), lipsyncMaxSeconds: 5 });
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0]!.ok).toBe(true);
+    expect(attempts.map((a) => [a.stage, a.ok])).toEqual([["script", true], ["continuity", true]]);
     expect(attempts[0]!.reason).toMatch(/shot s1: .*lip-sync max 5 s: no lip-sync fallback for this line/);
     const plain = await writeScript(idea, { llm: new MockLlm({ queue: [d] }), lipsyncMaxSeconds: 10 });
     expect(plain.attempts[0]!.reason).toBeUndefined();
@@ -712,5 +721,283 @@ describe("storyboards (F12)", () => {
     };
     expect(await cutsOf(`On a bridge over the river she says: "${long}"`)).toEqual(["wide shot", "medium shot"]);
     expect(await cutsOf(`In her kitchen she says: "${long}"`)).toEqual(["medium close-up", "close-up"]);
+  });
+});
+
+// --- F18: blocking and continuity ---
+
+describe("blocking checks in scriptProblems (F18 acceptance 1)", () => {
+  const LINE = "Ticket, please. This train doesn't wait.";
+  const IDEA18 = `On a rainy night platform a young woman runs for the last train. A conductor blocks the carriage door and says: "${LINE}"`;
+  const OLENA = {
+    name: "Olena",
+    look: "a young woman in her twenties with short silver hair, a bright yellow raincoat and black rubber boots",
+    voice: { gender: "female" as const, age: "young" as const, tone: "breathless" },
+    voiceDescription: "breathless young female voice, mid-20s, light Ukrainian accent, quick",
+  };
+  const CONDUCTOR = {
+    name: "Conductor",
+    look: "a tired man in his sixties with a grey moustache, a navy conductor's uniform and a peaked cap",
+    voice: { gender: "male" as const, age: "older" as const, tone: "gruff" },
+    voiceDescription: "gruff low male voice, sixties, neutral accent, slow",
+  };
+  type B = Shot["blocking"];
+  const run: B = {
+    subjects: [{ name: "Olena", position: "foreground", side: "left", facing: "away" }],
+    movement: {
+      who: "Olena",
+      direction: "away from camera",
+      target: "the open door of the last carriage",
+      targetPosition: { position: "background", side: "right" },
+      pace: "real-time",
+    },
+    speaking: null,
+  };
+  const atDoor: B = {
+    subjects: [
+      { name: "Conductor", position: "midground", side: "center", facing: "camera" },
+      { name: "Olena", position: "foreground", side: "left", facing: "away" },
+    ],
+    movement: null,
+    speaking: "Conductor",
+  };
+  const reaction: B = { subjects: [{ name: "Olena", position: "midground", side: "center", facing: "camera" }], movement: null, speaking: null };
+  const s1 = (over: Partial<Shot> = {}): Shot =>
+    shot({
+      camera: "wide shot",
+      visual: "Olena runs from the foreground toward the open carriage door in the background, right",
+      line: "",
+      seconds: 4,
+      speaker: undefined,
+      onScreen: ["Olena"],
+      blocking: run,
+      continuity: { from: "start", screenDirection: "left to right" },
+      ...over,
+    });
+  const cuts = (c1: B = atDoor, c2: B = reaction): Shot["cuts"] => [
+    { camera: "medium shot", visual: "the conductor blocks the door, Olena seen from behind", onScreen: c1.subjects.map((s) => s.name), blocking: c1 },
+    { camera: "close-up", visual: "Olena's face after the line", onScreen: c2.subjects.map((s) => s.name), blocking: c2 },
+  ];
+  const s2 = (over: Partial<Shot> = {}): Shot =>
+    shot({
+      id: "s2",
+      camera: "medium shot",
+      visual: "the conductor blocks the carriage door",
+      line: LINE,
+      seconds: 8,
+      speaker: "Conductor",
+      onScreen: ["Conductor", "Olena"],
+      cuts: cuts(),
+      blocking: atDoor,
+      continuity: { from: "she reached the carriage door at the end of s1; now the conductor blocks it", screenDirection: "left to right" },
+      ...over,
+    });
+  const train = (a: Shot = s1(), b: Shot = s2()): Script => ({
+    ...script(draft([a, b]), [LINE]),
+    characters: [OLENA, CONDUCTOR],
+  });
+  const problems = (s: Script, idea = IDEA18) => scriptProblems(s, idea).join("\n");
+
+  it("a staged train script passes, and Script.parse agrees", () => {
+    expect(scriptProblems(train(), IDEA18)).toEqual([]);
+    expect(Script.safeParse(train()).success).toBe(true);
+  });
+
+  it("every on-screen name has a subject; movement.who and speaking are on screen", () => {
+    expect(problems(train(s1({ blocking: { ...run, subjects: [] } })))).toMatch(/shot s1: "Olena" is on screen but has no blocking\.subjects entry/);
+    const ghost = { ...run, movement: { ...run.movement!, who: "Conductor" } };
+    expect(problems(train(s1({ blocking: ghost })))).toMatch(/shot s1: blocking\.movement\.who "Conductor" is not on screen \["Olena"\]/);
+    expect(problems(train(s1({ blocking: { ...run, subjects: [...run.subjects, atDoor.subjects[0]!] } })))).toMatch(/blocking\.subjects has "Conductor", who is not in onScreen/);
+  });
+
+  it("slow-motion fails unless the idea asks for slow motion", () => {
+    const slow = s1({ blocking: { ...run, movement: { ...run.movement!, pace: "slow-motion" } } });
+    expect(problems(train(slow))).toMatch(/shot s1: blocking\.movement\.pace is "slow-motion" but the idea does not ask for slow motion; use "real-time"/);
+    expect(problems(train(slow), `${IDEA18} Show her run in slow motion.`)).not.toMatch(/slow-motion/);
+    expect(problems(train(slow), `${IDEA18} Her run is slow-mo.`)).not.toMatch(/slow-motion/);
+    // A cut is checked too.
+    const slowCut = { ...atDoor, movement: { who: "Conductor", direction: "toward camera" as const, pace: "slow-motion" as const } };
+    expect(problems(train(s1(), s2({ cuts: cuts(slowCut) })))).toMatch(/shot s2 cut 1: blocking\.movement\.pace is "slow-motion"/);
+  });
+
+  it("a line over a cut where another named character speaks or faces the camera fails", () => {
+    // The train bug: her lips move while his line plays.
+    expect(problems(train(s1(), s2({ cuts: cuts({ ...atDoor, speaking: "Olena" }) })))).toMatch(
+      /shot s2 cut 1: blocking\.speaking is "Olena", but only "Conductor" speaks in this shot/,
+    );
+    const facing = { ...atDoor, subjects: [atDoor.subjects[0]!, { ...atDoor.subjects[1]!, facing: "camera" as const }] };
+    expect(problems(train(s1(), s2({ cuts: cuts(facing) })))).toMatch(/shot s2 cut 1: "Conductor"'s line is heard over this cut, but "Olena" faces the camera/);
+    // A profile is still a face on screen; only from behind is allowed.
+    const profile = { ...atDoor, subjects: [atDoor.subjects[0]!, { ...atDoor.subjects[1]!, facing: "left" as const }] };
+    expect(problems(train(s1(), s2({ cuts: cuts(profile) })))).toMatch(/"Olena" faces left/);
+    // A reaction cut before the line has ended fails; after it, it passes (the good fixture).
+    const early = s2({ cuts: cuts(reaction, atDoor)!.map((c, i) => ({ ...c, camera: i === 0 ? "close-up" : "medium shot" })), camera: "close-up" });
+    expect(problems(train(s1(), early))).toMatch(/shot s2 cut 1: a cut where "Conductor" is not speaking comes before cut 2, which still holds the line/);
+    // No cut holds the line at all.
+    expect(problems(train(s1(), s2({ cuts: cuts({ ...atDoor, speaking: null }) })))).toMatch(/shot s2: no cut holds the line/);
+    // The shot-level speaking must be the speaker; a silent shot has none.
+    expect(problems(train(s1(), s2({ blocking: { ...atDoor, speaking: null } })))).toMatch(/shot s2: "Conductor" says the line, so blocking\.speaking must be "Conductor"/);
+    expect(problems(train(s1({ blocking: { ...run, speaking: "Olena" } })))).toMatch(/shot s1: the shot is silent, so blocking\.speaking must be null/);
+  });
+
+  it("opposite screenDirection in consecutive shots fails unless continuity.from says the character turned", () => {
+    const flip = (from: string) => s2({ continuity: { from, screenDirection: "right to left" } });
+    expect(problems(train(s1(), flip("she reached the door; the conductor blocks it")))).toMatch(
+      /shot s2: screenDirection "right to left" reverses s1's "left to right" with no turn in continuity\.from/,
+    );
+    expect(problems(train(s1(), flip("she turns back toward the platform as the conductor steps out")))).not.toMatch(/screenDirection/);
+    expect(problems(train(s1(), s2({ continuity: { from: "she reached the door", screenDirection: "neutral" } })))).not.toMatch(/screenDirection/);
+  });
+
+  it("s1 continuity is 'start'; later shots say how they follow", () => {
+    expect(problems(train(s1({ continuity: { from: "the platform", screenDirection: "left to right" } })))).toMatch(/shot s1: continuity\.from must be "start"/);
+    expect(problems(train(s1(), s2({ continuity: { from: "start", screenDirection: "left to right" } })))).toMatch(/shot s2: continuity\.from must say how this shot follows/);
+  });
+
+  it("the writer gets blocking problems back like the duration check, then passes", async () => {
+    const slow = s1({ blocking: { ...run, movement: { ...run.movement!, pace: "slow-motion" } } });
+    const toDraft = (s: Script): ScriptDraft => ({ title: s.title, logline: s.logline, setting: s.setting, characters: s.characters, shots: s.shots });
+    const llm = new MockLlm({ queue: [toDraft(train(slow)), toDraft(train())] });
+    const { attempts } = await writeScript(IDEA18, { llm });
+    expect(llm.calls[1]!.prompt).toMatch(/blocking\.movement\.pace is "slow-motion"/);
+    expect(attempts.map((a) => [a.stage, a.ok])).toEqual([["script", false], ["script", true], ["continuity", true]]);
+  });
+});
+
+describe("continuity critic (F18 acceptance 3)", () => {
+  const OBJECTION = "s1: she walks away from the gate, but s2 is inside the hall; have her move toward the gate, gate in frame";
+  const object = { ok: false, problems: [OBJECTION] };
+
+  it("a critic that objects once leads to a rewrite with its problems; the second verdict ok passes", async () => {
+    const llm = new MockLlm({ queue: [draft(), draft()], critic: [object, { ok: true, problems: [] }] });
+    const { script: s, attempts } = await writeScript(IDEA, { llm });
+    expect(llm.calls).toHaveLength(2);
+    expect(llm.criticCalls).toHaveLength(2);
+    expect(llm.calls[1]!.prompt).toContain(`continuity: ${OBJECTION}`);
+    expect(attempts.map((a) => [a.stage, a.n, a.ok])).toEqual([
+      ["script", 1, true],
+      ["continuity", 1, false],
+      ["script", 2, true],
+      ["continuity", 2, true],
+    ]);
+    expect(attempts[1]!.reason).toContain(OBJECTION);
+    expect(s.needsReview).toBeUndefined();
+  });
+
+  it("a critic that always objects: the script is kept, a continuity attempt holds the problems, needsReview", async () => {
+    const llm = new MockLlm({ queue: [draft(), draft(), draft()], critic: [object, object, object] });
+    const { script: s, attempts } = await writeScript(IDEA, { llm });
+    expect(llm.calls).toHaveLength(3); // the shared budget: 3 writer calls in total
+    expect(attempts.filter((a) => a.stage === "continuity").map((a) => a.ok)).toEqual([false, false, false]);
+    expect(attempts.at(-1)).toMatchObject({ stage: "continuity", n: 3, ok: false, reason: expect.stringContaining(OBJECTION) });
+    expect(s.needsReview).toBe(true);
+    expect(s.reviewNotes).toEqual([OBJECTION]);
+    expect(Script.parse(s).needsReview).toBe(true);
+    expect(s.shots[0]!.line).toBe(QUOTE);
+  });
+
+  it("critic objects on attempt 1, rewrites 2-3 fail the code checks: the attempt-1 script is kept with needsReview", async () => {
+    const paraphrased = draft([shot({ line: "Meet me where we first began." })]);
+    const llm = new MockLlm({ queue: [draft(), paraphrased, paraphrased], critic: [object] });
+    const { script: s, attempts } = await writeScript(IDEA, { llm });
+    expect(llm.calls).toHaveLength(3);
+    expect(llm.criticCalls).toHaveLength(1);
+    expect(attempts.map((a) => [a.stage, a.n, a.ok])).toEqual([
+      ["script", 1, true],
+      ["continuity", 1, false],
+      ["script", 2, false],
+      ["script", 3, false],
+    ]);
+    expect(s.shots[0]!.line).toBe(QUOTE);
+    expect(s.needsReview).toBe(true);
+    expect(s.reviewNotes).toEqual([OBJECTION]);
+    expect(Script.parse(s).needsReview).toBe(true);
+  });
+
+  it("an `ok` verdict that still lists a problem is an objection; an unreadable reply keeps the script for review", async () => {
+    const listed = new MockLlm({ queue: [draft(), draft()], critic: [{ ok: true, problems: [OBJECTION] }] });
+    expect((await writeScript(IDEA, { llm: listed })).attempts.map((a) => [a.stage, a.ok])).toEqual([
+      ["script", true],
+      ["continuity", false],
+      ["script", true],
+      ["continuity", true],
+    ]);
+    const garbled = new MockLlm({ queue: [draft()], critic: [{ verdict: "fine" }] });
+    const { script: s, attempts } = await writeScript(IDEA, { llm: garbled });
+    expect(garbled.calls).toHaveLength(1);
+    expect(attempts.at(-1)).toMatchObject({ stage: "continuity", ok: false, reason: expect.stringMatching(/continuity critic reply could not be read/) });
+    expect(s.needsReview).toBe(true);
+  });
+
+  it("a critic call that throws (503, budget refusal) keeps the code-valid script for review with every attempt", async () => {
+    for (const thrown of [new Error("GeminiLlm: all models unavailable: 503"), new BudgetExceededError("gemini", 0.01, 2.995, 3)]) {
+      const mock = new MockLlm({ queue: [draft(), draft()] });
+      const llm: LlmProvider = {
+        name: mock.name,
+        generateJson: async (req) => {
+          if (req.purpose === "continuity") throw thrown;
+          return { ...(await mock.generateJson(req)), costUsd: 0.015 };
+        },
+      };
+      const { script: s, attempts } = await writeScript(IDEA, { llm });
+      expect(mock.calls).toHaveLength(1); // no rewrite: the critic could not answer, it did not object
+      expect(attempts.map((a) => [a.stage, a.n, a.ok])).toEqual([
+        ["script", 1, true],
+        ["continuity", 1, false],
+      ]);
+      expect(attempts[0]!.costUsd).toBe(0.015);
+      expect(attempts[1]).toMatchObject({ costUsd: 0, reason: expect.stringContaining(`continuity critic call failed: ${thrown.message}`) });
+      expect(s.shots[0]!.line).toBe(QUOTE);
+      expect(s.needsReview).toBe(true);
+      expect(s.reviewNotes).toEqual([expect.stringContaining(thrown.message)]);
+    }
+  });
+
+  it("the critic reads the idea and the staging, with its own system prompt and purpose", async () => {
+    const llm = new MockLlm({ queue: [draft()] });
+    await writeScript(IDEA, { llm });
+    const c = llm.criticCalls[0]!;
+    expect(c.prompt).toContain(IDEA);
+    expect(c.prompt).toContain('"blocking"');
+    expect(c.prompt).toContain('"continuity"');
+    for (const what of [/Contradictions between shots/, /goal not visible/i, /line over another person's face/, /Pace that does not fit/, /confusing first shot/i]) {
+      expect(c.system).toMatch(what);
+    }
+    expect(c.system).toMatch(/\{"ok": boolean, "problems": string\[\]\}/);
+  });
+
+  it("the critic's cost is on its attempt and in the run manifest", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "itv-critic-"));
+    try {
+      const llm = new MockLlm({ responder: mockScriptResponder, criticCost: 0.0025 });
+      const providers = () => createProviders({ mode: "mock", env: {}, overrides: { llm } });
+      const { manifest } = await runPipeline({ idea: IDEA, mode: "mock" }, { providers, runsDir: dir, maxCostUsd: 1 });
+      expect(manifest.ok).toBe(true);
+      const critic = manifest.attempts.filter((a) => a.stage === "continuity");
+      expect(critic).toEqual([expect.objectContaining({ ok: true, costUsd: 0.0025, provider: "mock-llm" })]);
+      expect(manifest.costUsd).toBeCloseTo(0.0025, 6);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
+
+describe("mock writer writes blocking (F18 acceptance 4)", () => {
+  const TRAIN =
+    'Shot 1: wide shot of a rain-soaked train platform at night, an old station clock above shows 11:58; a young woman in a yellow raincoat with short silver hair runs toward the last train. Shot 2: inside the empty carriage a tired conductor in his sixties with a grey moustache blocks the door and says: "Ticket\'s $4.50, and this train left Kyiv in 1987 — it doesn\'t stop for anyone." Shot 3: she holds up a faded paper ticket and answers: "I bought this one thirty-eight years ago. You promised you\'d wait."';
+
+  it("the train storyboard: every shot and cut has blocking, s1 starts, pace real-time, speaking = speaker", async () => {
+    const { script: s, attempts } = await writeScript(TRAIN, { llm: new MockLlm({ responder: mockScriptResponder }) });
+    expect(attempts.map((a) => [a.stage, a.ok])).toEqual([["script", true], ["continuity", true]]);
+    expect(s.shots).toHaveLength(3);
+    expect(s.shots[0]!.continuity.from).toBe("start");
+    for (const shot of s.shots) {
+      for (const b of [shot.blocking, ...(shot.cuts ?? []).map((c) => c.blocking)]) {
+        expect(b.subjects.map((x) => x.name)).toEqual(shot.onScreen);
+        expect(b.subjects.every((x) => x.position === "midground" && x.side === "center" && x.facing === "camera")).toBe(true);
+        expect(b.movement?.pace).toBe("real-time");
+        expect(b.speaking).toBe(shot.line ? shot.speaker : null);
+      }
+    }
   });
 });

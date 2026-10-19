@@ -16,7 +16,7 @@ import {
   type IdeaResult,
 } from "../evals/metrics.ts";
 import { main as runMain, parseEvalArgs, resultsPath, selectIdeas } from "../evals/run.ts";
-import type { Attempt, RunManifest } from "../src/schemas.ts";
+import { defaultBlocking, type Attempt, type RunManifest } from "../src/schemas.ts";
 import { extractQuotedLines } from "../src/verbatim.ts";
 
 const words = (s: string) => s.split(/\s+/).filter(Boolean);
@@ -40,8 +40,8 @@ function manifest(over: Partial<RunManifest> = {}): RunManifest {
       setting: "s",
       characters: [{ name: "A", look: "x", voice: { gender: "female", age: "adult", tone: "calm" }, voiceDescription: "calm female voice" }],
       shots: [
-        { id: "s1", camera: "close-up", visual: "v", motion: "m", emotion: "e", line: "", seconds: 4, onScreen: ["A"] },
-        { id: "s2", camera: "close-up", visual: "v", motion: "m", emotion: "e", line: "Hello there.", seconds: 6, speaker: "A", onScreen: ["A"] },
+        { id: "s1", camera: "close-up", visual: "v", motion: "m", emotion: "e", line: "", seconds: 4, onScreen: ["A"], blocking: defaultBlocking(["A"], null), continuity: { from: "start", screenDirection: "neutral" } },
+        { id: "s2", camera: "close-up", visual: "v", motion: "m", emotion: "e", line: "Hello there.", seconds: 6, speaker: "A", onScreen: ["A"], blocking: defaultBlocking(["A"], "A"), continuity: { from: "right after s1", screenDirection: "neutral" } },
       ],
       quotedLines: ["Hello there."],
     },

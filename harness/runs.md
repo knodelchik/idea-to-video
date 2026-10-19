@@ -189,3 +189,18 @@
 2026-10-19 15:45:31 F17-langfuse-best-practices attempt 3: reviewer
 2026-10-19 15:49:15 F17-langfuse-best-practices PASSED on attempt 3 -> 41c86fb
 2026-10-19 15:49:15 all requested features passing
+2026-10-19 16:04:18 ### F18-blocking-continuity start (specs/F18-blocking-continuity.md)
+2026-10-19 16:04:18 F18-blocking-continuity attempt 1: implementer
+2026-10-19 16:22:49 F18-blocking-continuity attempt 1: gate
+2026-10-19 16:24:07 F18-blocking-continuity attempt 1: reviewer
+2026-10-19 16:29:20 F18-blocking-continuity attempt 1: REVIEW FAIL
+    - src/nodes/script.ts:368-380: a script that passed every code check but drew a continuity-critic objection is discarded if the later rewrites fail the code checks (e.g. a paraphrased line, wrong duration). The loop then ends at `throw new ScriptError`, so a run that succeeded before F18 now fails because of an advisory critic. This contradicts the spec's 'keep the script and record the problems with needsReview'. Fix: remember the last script that passed the code checks, with its critic problems, and return it with needsReview: true and reviewNotes instead of throwing.
+    - tests/script.test.ts (continuity critic block ~L865-939): no test for 'critic objects on attempt 1, attempts 2-3 fail the code checks → the attempt-1 script is kept with needsReview'. Add one.
+2026-10-19 16:29:20 F18-blocking-continuity attempt 2: implementer
+2026-10-19 16:32:41 F18-blocking-continuity attempt 2: gate
+2026-10-19 16:34:00 F18-blocking-continuity attempt 2: reviewer
+2026-10-19 16:38:26 F18-blocking-continuity attempt 2: REVIEW FAIL
+    - src/nodes/script.ts:391-410 (checkContinuity): the critic's llm.generateJson call is not wrapped in try/catch. An error thrown by the critic call (GeminiLlm 'all models unavailable' 503, another API error, or BudgetExceededError from withBudget) escapes writeScript. The code-valid script is discarded and the run fails; graph.attemptsOf then records a single $0 'pipeline' attempt, so the writer's attempts and cost are lost from the manifest. Reproduced with a provider whose critic call throws: writeScript threw 'GeminiLlm: all models unavailable: 503' and the error carried no attempts. This contradicts the Decisions/PROGRESS claim that the critic 'can never turn a passing run into a failing one'. Fix: catch errors from the critic call and treat them like an unreadable reply (keep the script with needsReview and a failed `continuity` attempt with the reason). If budget errors should still stop the run, rethrow them with the attempts so far attached. Add a test with a throwing critic.
+2026-10-19 16:38:26 F18-blocking-continuity attempt 3: implementer
+2026-10-19 16:44:44 F18-blocking-continuity attempt 3: gate
+2026-10-19 16:46:01 F18-blocking-continuity attempt 3: reviewer

@@ -151,7 +151,7 @@
     {
       "id": "F18-blocking-continuity",
       "spec": "specs/F18-blocking-continuity.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/schemas.test.ts tests/script.test.ts tests/visuals.test.ts tests/judge.test.ts",
         "npx tsx src/cli.ts \"Shot 1: wide shot of a rain-soaked train platform at night, an old station clock above shows 11:58; a young woman in a yellow raincoat with short silver hair runs toward the last train. Shot 2: inside the empty carriage a tired conductor in his sixties with a grey moustache blocks the door and says: \\\"Ticket's \\$4.50, and this train left Kyiv in 1987 — it doesn't stop for anyone.\\\" Shot 3: she holds up a faded paper ticket and answers: \\\"I bought this one thirty-eight years ago. You promised you'd wait.\\\"\" --mock --json"

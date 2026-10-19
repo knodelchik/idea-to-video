@@ -225,7 +225,7 @@ describe("trace: a mock CLI run writes runs/<id>/trace.jsonl", () => {
       expect(OBSERVATION_NAMES).toContain(n);
       expect(n).not.toMatch(/\d|mock|gemini|seedance|groq|fal/);
     }
-    expect(names).toEqual(new Set(["make-video", "write-script", "cast-portraits", "draw-keyframes", "render-shot", "generate-image", "generate-video", "transcribe-audio", "judge-keyframe", "judge-clip", "assemble", "burn-subtitles", "final-gate"]));
+    expect(names).toEqual(new Set(["make-video", "write-script", "check-continuity", "cast-portraits", "draw-keyframes", "render-shot", "generate-image", "generate-video", "transcribe-audio", "judge-keyframe", "judge-clip", "assemble", "burn-subtitles", "final-gate"]));
     // What the names used to carry is in metadata now.
     const shot = exported().find((s) => s.name === "generate-video")!;
     expect(json(shot, "langfuse.observation.metadata.shotId")).toMatch(/^s\d$/);
@@ -237,6 +237,10 @@ describe("trace: a mock CLI run writes runs/<id>/trace.jsonl", () => {
   it("F17 1. types: judges are evaluators, nodes spans, the final gate a guardrail, model calls generations", () => {
     const spans = exported();
     for (const s of spans.filter((x) => x.name.startsWith("judge-"))) expect(typeOf(s)).toBe("evaluator");
+    // F18: the continuity critic reads the script like a judge reads a clip.
+    const critic = spans.filter((x) => x.name === "check-continuity");
+    expect(critic.length).toBeGreaterThan(0);
+    for (const s of critic) expect(typeOf(s)).toBe("evaluator");
     expect(typeOf(spans.find((s) => s.name === "final-gate")!)).toBe("guardrail");
     for (const n of ["write-script", "cast-portraits", "draw-keyframes", "render-shot", "assemble", "burn-subtitles"]) {
       const nodes = spans.filter((s) => s.name === n && typeOf(s) !== "generation");

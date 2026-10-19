@@ -367,3 +367,34 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - Deps: `@opentelemetry/api` 1.9.1 and `@langfuse/core` 6.0.1 (for `getGlobalLogger`) are now direct, pinned deps.
   `pnpm-workspace.yaml` excludes exactly the four `@langfuse/*@6.0.1` from pnpm's release-age guard. Delete those
   entries after 2026-10-20 07:13 UTC (reason: spec Decisions → "Supply-chain guard").
+
+## F18 — Blocking and continuity: the script says where everyone is, where they move, and how shots connect
+- Every `Shot` and `Cut` has `blocking`:
+  - `subjects`: name, position, side, facing;
+  - `movement`: who, direction, target + `targetPosition`, pace, or `null`;
+  - `speaking`: one name, or `null`.
+
+  Every `Shot` also has `continuity`: `from`, `screenDirection`. Scripts from before `script-v8` get defaults when
+  parsed (`migrateBlocking`); a script-v8 script without blocking fails.
+- `src/blocking.ts` (`blockingProblems`, called from `scriptProblems`) checks the rules and sends each problem back to
+  the writer:
+  - subjects match `onScreen`;
+  - slow motion only when the idea asks;
+  - only the speaker speaks, reaction cuts come after the line, no other face toward the camera while it is heard
+    (inserts may carry the line);
+  - s1 is `"start"`;
+  - the 180° screen-direction rule.
+- After the code checks pass, a continuity critic runs: one LLM call (`purpose: "continuity"`,
+  `src/prompts/continuity.ts`). Its objections use the writer's 3 attempts. If it still objects on the last one, the
+  script is kept with `needsReview` + `reviewNotes`. The same happens when the rewrites it asked for fail the code checks:
+  the last script that passed them is kept for review. The same also happens when the critic call itself throws (a 503
+  on every model, an API error, a budget refusal): the attempt reads `continuity critic call failed: …`. The critic
+  never turns a passing run into a failing one. Each critic call is a `continuity` Attempt (with cost) and a
+  `check-continuity` evaluator in Langfuse.
+- Prompts: `script-v8` (director first), `visuals-v7` (staging sentences, per-cut "Only X speaks; Y stays silent with
+  closed lips.", "no slow motion", keyframe staging with the goal in frame) and `judge-v8` (positions, direction and
+  target, pace, lips per cut, who is in each cut). The shared wording is in `src/prompts/staging.ts`.
+- Tests:
+  - inject critic verdicts with `new MockLlm({ queue, critic: [{ ok: false, problems: [...] }], criticCost })`. The
+    default critic says ok, and its calls are logged in `llm.criticCalls`, not `llm.calls`;
+  - a staged train script for prompt tests is in `tests/fixtures/train-script.ts`.

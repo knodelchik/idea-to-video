@@ -3,7 +3,8 @@
  * words and formats are checked by code. Bump JUDGE_PROMPT_VERSION on any wording change: it is part of the key of
  * every cached verdict.
  */
-import { isWide, openingCastOf, openingOf, speakerOf, type Script, type Shot } from "../schemas.ts";
+import { isWide, openingCastOf, openingOf, speakerOf, type Blocking, type Script, type Shot } from "../schemas.ts";
+import { FACING, goalOf, movementPhrase, openingBlocking, slowMotionIn, speakingSentence, where } from "./staging.ts";
 
 // v2: references are the on-screen characters' portraits; the clip is judged against the speaker's portrait (F11).
 // v3: wide sizes are judged on recognisability, whole figures and a dominant setting, not on lip-sync (F12).
@@ -11,18 +12,55 @@ import { isWide, openingCastOf, openingOf, speakerOf, type Script, type Shot } f
 // v5: a cut shot's keyframe is judged against the opening cut's cast only (F13, human note).
 // v6: a planned camera move may take the character out of frame; the action must match the shot (live 2026-10-19).
 // v7: the clip judge watches the clip itself (video + audio) instead of 3 frames; it must not score the words (F14).
-export const JUDGE_PROMPT_VERSION = "judge-v7";
+// v8: blocking (F18): the keyframe is checked for positions and a visible goal; the clip for movement direction,
+//     real-time pace and who moves their lips; a cut clip lists who is in each cut (a planned reaction cut scored 1/10
+//     as "identity changed", live 2026-10-19).
+export const JUDGE_PROMPT_VERSION = "judge-v8";
 
 /** The judge may hear the clip, but whether the words are right is the verbatim gate's job (ASR + WER), not a VLM's. */
 const AUDIO_NOTE =
   "You may hear the audio, but speech is checked elsewhere: do not score the words, the voice or the lip-sync timing against the script.";
 
-/** Said to the clip judge when the shot has cuts: the framing changes on purpose; only identity must hold. */
+/**
+ * Said to the clip judge when the shot has cuts: the framing changes on purpose; only identity must hold. Each cut
+ * lists who is in it (F18), so a planned reaction cut to another person is not read as "the identity changed".
+ */
 function cutsNote(shot: Shot): string[] {
   if (!shot.cuts?.length) return [];
-  const sizes = shot.cuts.map((c, i) => `${i + 1}) ${oneLine(c.camera)}`).join(", ");
+  const sizes = shot.cuts
+    .map((c, i) => `${i + 1}) ${oneLine(c.camera)}: ${c.onScreen.length ? c.onScreen.map(oneLine).join(" and ") : "no people (an insert)"}`)
+    .join(", ");
   return [
-    `Note: this clip has ${shot.cuts.length} intended hard cuts (${sizes}); a change of framing or angle between cuts is not a failure, and a character only has to match where they are shown.`,
+    `Note: this clip has ${shot.cuts.length} intended hard cuts (${sizes}); a change of framing, angle or person between cuts as listed is not a failure, and a character only has to match where they are shown.`,
+  ];
+}
+
+/** Who stands where in a blocking, for the judge: "Olena in the foreground left, facing away". */
+const placed = (b: Blocking): string => b.subjects.map((s) => `${oneLine(s.name)} in ${where(s)}, ${FACING[s.facing]}`).join("; ");
+
+/** Keyframe staging item (F18): positions roughly as blocked, and the movement's goal already in frame. */
+function keyframeStaging(shot: Shot, n: number): string[] {
+  const b = openingBlocking(shot);
+  if (b.subjects.length === 0) return [];
+  const goal = goalOf(b.movement);
+  return [`${n}. Staging, roughly: ${placed(b)}.${goal ? ` The goal of the movement, ${goal}, is visible.` : ""}`];
+}
+
+/** Clip staging items (F18): direction and goal of each movement, pace, and who moves their lips (per cut). */
+function clipStaging(shot: Shot, script: Script, n: number): string[] {
+  const frames = shot.cuts?.length ? shot.cuts.map((c, i) => ({ at: `Cut ${i + 1}: `, b: c.blocking })) : [{ at: "", b: shot.blocking }];
+  const moves = frames
+    .filter((f) => f.b.movement && f.b.movement.direction !== "none")
+    .map((f) => `${f.at}${oneLine(f.b.movement!.who)} ${movementPhrase(f.b.movement!)}`);
+  const lips = frames.filter((f) => f.b.subjects.length > 0).map((f) => `${f.at}${speakingSentence(f.b, script)}`);
+  return [
+    moves.length
+      ? `${n}. Direction: ${moves.join("; ")}. The target must be visible; moving the other way (toward instead of away, or the reverse) is a failure.`
+      : `${n}. Direction: nobody is staged to travel; a character who walks or runs somewhere the shot does not ask for is a failure.`,
+    slowMotionIn(shot)
+      ? `${n + 1}. Pace: slow motion only where the staging asks for it.`
+      : `${n + 1}. Pace: real time, natural speed; any slow motion is a failure.`,
+    `${n + 2}. Lips: ${lips.join(" ")} A silent character whose lips move as if speaking is a failure.`,
   ];
 }
 
@@ -51,6 +89,7 @@ export function keyframeRubric(shot: Shot, script: Script): string {
     wide
       ? "6. Vertical composition: the place fills a portrait frame (tall architecture or landscape), the character small, nothing important cut off."
       : "6. Vertical composition: the subject fills a portrait frame, nothing important cut off.",
+    ...keyframeStaging(shot, 7),
   ].join("\n");
 }
 
@@ -74,6 +113,7 @@ export function clipRubric(shot: Shot, script: Script, opts: { video?: boolean }
       "3. Stable architecture and setting: walls, doors, stairs and horizon keep their shape between frames, no warping.",
       `4. Motion plausible for: ${oneLine(shot.motion)}.`,
       `5. The action matches the shot: ${oneLine(shot.visual)}. Check the direction of movement (toward or away from what), who does what, and where they go; say exactly what differs.`,
+      ...clipStaging(shot, script, 6),
       ...cutsNote(shot),
       ...audio,
     ].join("\n");
@@ -89,6 +129,7 @@ export function clipRubric(shot: Shot, script: Script, opts: { video?: boolean }
       : "3. Mouth region intact and natural in every frame; the character is silent.",
     `4. Motion plausible for: ${oneLine(shot.motion)}.`,
     `5. The action matches the shot: ${oneLine(shot.visual)}. Check the direction of movement, who does what, and where they go; say exactly what differs.`,
+    ...clipStaging(shot, script, 6),
     ...cutsNote(shot),
     ...audio,
   ].join("\n");

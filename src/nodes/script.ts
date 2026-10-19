@@ -3,9 +3,22 @@
  * Ideas that no script could satisfy (F10) are rejected before the first model call, so they cost nothing.
  */
 import { performance } from "node:perf_hooks";
-import type { LlmProvider } from "../providers/index.ts";
+import type { LlmProvider, LlmResult } from "../providers/index.ts";
 import { firstPrompt, retryPrompt, SCRIPT_PROMPT_VERSION, SCRIPT_SYSTEM } from "../prompts/script.ts";
-import { castProblems, formatIssues, MAX_SHOTS, Script, SCRIPT_SECONDS, ScriptDraft, SHOT_SECONDS, type Attempt, type Character } from "../schemas.ts";
+import { CONTINUITY_SYSTEM, continuityPrompt } from "../prompts/continuity.ts";
+import { blockingProblems } from "../blocking.ts";
+import {
+  castProblems,
+  ContinuityVerdict,
+  formatIssues,
+  MAX_SHOTS,
+  Script,
+  SCRIPT_SECONDS,
+  ScriptDraft,
+  SHOT_SECONDS,
+  type Attempt,
+  type Character,
+} from "../schemas.ts";
 import { differentSpeakers, quoteSpeakers, speakerRuns } from "../speakers.ts";
 import { parseStoryboard, quoteBeats, StoryboardError, type Storyboard } from "../storyboard.ts";
 import { extractQuotedLines, nonLatinLetters, QuoteError, splitDelivery, wordCount } from "../verbatim.ts";
@@ -163,6 +176,7 @@ export function scriptProblems(script: Script, idea: string): string[] {
   if (board) out.push(...storyboardProblems(script, idea, board, quoted, shotOf));
   out.push(...castProblems(script).map((p) => p.message));
   out.push(...speakerProblems(script, idea, quoted, shotOf));
+  out.push(...blockingProblems(script, idea));
   if (JSON.stringify(script.quotedLines) !== JSON.stringify(quoted)) {
     out.push(`quotedLines must be ${JSON.stringify(quoted)}, got ${JSON.stringify(script.quotedLines)}`);
   }
@@ -317,6 +331,9 @@ export async function writeScript(
   const attempts: Attempt[] = [];
   let problems: string[] = [];
   let previous: unknown;
+  // The last script that passed every code check but drew a critic objection. The critic is advisory: if the
+  // rewrites it asked for fail the code checks, this one is shipped for review rather than failing the run (F18).
+  let flagged: Script | undefined;
 
   for (let n = 1; n <= maxAttempts; n++) {
     const prompt = n === 1 ? firstPrompt(idea, quoted) : retryPrompt(idea, quoted, previous, problems);
@@ -351,7 +368,56 @@ export async function writeScript(
       costUsd: r.costUsd,
       ms,
     });
-    if (ok && script) return { script, attempts };
+    if (!ok || !script) continue;
+
+    // The code checks passed; now the story read (F18). Its objections share the writer's retry budget.
+    const critic = await checkContinuity(idea, script, llm, n);
+    attempts.push(critic.attempt);
+    if (critic.problems.length === 0) return { script, attempts };
+    flagged = { ...script, needsReview: true, reviewNotes: critic.problems };
+    // Last try (or a critic that could not answer): keep the script, flag it for a human, never drop it silently.
+    if (critic.failed || n === maxAttempts) return { script: flagged, attempts };
+    problems = critic.problems.map((p) => `continuity: ${p}`);
   }
+  if (flagged) return { script: flagged, attempts };
   throw new ScriptError(problems, attempts);
+}
+
+/**
+ * One cheap LLM read of the whole script (F18): contradictions between shots, goals out of frame, a line over another
+ * face, wrong pace, a confusing opening. Code trusts the problem list over the `ok` flag. A reply that fails its
+ * schema, or a call that throws, is recorded as a failed check (`failed`), never as a pass and never as a lost script.
+ */
+async function checkContinuity(
+  idea: string,
+  script: Script,
+  llm: LlmProvider,
+  n: number,
+): Promise<{ problems: string[]; failed: boolean; attempt: Attempt }> {
+  const t0 = performance.now();
+  let r: LlmResult<ContinuityVerdict>;
+  try {
+    r = await llm.generateJson({ system: CONTINUITY_SYSTEM, prompt: continuityPrompt(idea, script), schema: ContinuityVerdict, purpose: "continuity" });
+  } catch (e) {
+    // A thrown call (all models 503, an API error, a MAX_COST_USD refusal) is a check that could not run, not a
+    // failed script: keep the code-valid script for review instead of losing it and the writer's attempts. A budget
+    // refusal sent nothing, and the next paid stage meets the same cap, so the run still stops there.
+    const ms = Math.round(performance.now() - t0);
+    const paid = (e as { costUsd?: unknown } | null)?.costUsd;
+    const problems = [`continuity critic call failed: ${e instanceof Error ? e.message : String(e)}`];
+    const attempt: Attempt = { stage: "continuity", n, provider: llm.name, ok: false, reason: problems[0]!, costUsd: typeof paid === "number" ? paid : 0, ms };
+    return { problems, failed: true, attempt };
+  }
+  const ms = Math.round(performance.now() - t0);
+  const provider = r.model ? `${llm.name}:${r.model}` : llm.name;
+  const base = { stage: "continuity", n, provider, costUsd: r.costUsd, ms };
+  if (!r.ok) {
+    const problems = [`continuity critic reply could not be read: ${r.error.split("\n").join("; ")}`];
+    return { problems, failed: true, attempt: { ...base, ok: false, reason: problems[0]! } };
+  }
+  const problems = r.data.problems.map((p) => p.trim()).filter(Boolean);
+  // `ok: false` with an empty list is an objection without a reason: still an objection, said so.
+  if (!r.data.ok && problems.length === 0) problems.push("the continuity critic objected without naming a problem");
+  const reason = [...(r.notes ?? []), ...problems].join("; ");
+  return { problems, failed: false, attempt: { ...base, ok: problems.length === 0, ...(reason ? { reason } : {}) } };
 }

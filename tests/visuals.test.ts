@@ -51,7 +51,8 @@ import {
   type FetchLike,
 } from "../src/providers/index.ts";
 import { commandArgv, klingLipsyncCost } from "../src/providers/lipsync.ts";
-import { Attempt, Script, type Shot } from "../src/schemas.ts";
+import { Attempt, defaultBlocking, Script, type Shot } from "../src/schemas.ts";
+import { DOOR, TRAIN_SCRIPT } from "./fixtures/train-script.ts";
 
 const LINE = "I kept the watch. I kept everything.";
 
@@ -287,8 +288,9 @@ describe("Seedance prompt wording (F11 acceptance 3)", () => {
   });
 
   it("the prompt version was bumped", () => {
-    // Pinned to the current version: F12 bumped v3→v4, F13 (multi-cut shots) bumped v4→v5, the opening-cut keyframe v5→v6.
-    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v6");
+    // Pinned to the current version: F12 bumped v3→v4, F13 (multi-cut shots) bumped v4→v5, the opening-cut keyframe v5→v6,
+    // F18 blocking and pace v6→v7.
+    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v7");
   });
 });
 
@@ -1515,8 +1517,8 @@ describe("cuts inside a clip (F13)", () => {
   const CUT: Shot = {
     ...S1,
     cuts: [
-      { camera: "medium close-up", visual: S1.visual, onScreen: ["Dan"] },
-      { camera: "close-up", visual: "the old watch ticking in Dan's palm", onScreen: [] },
+      { camera: "medium close-up", visual: S1.visual, onScreen: ["Dan"], blocking: defaultBlocking(["Dan"], "Dan") },
+      { camera: "close-up", visual: "the old watch ticking in Dan's palm", onScreen: [], blocking: defaultBlocking([], null) },
     ],
   };
   const count = (p: string, s: string) => p.split(s).length - 1;
@@ -1532,18 +1534,19 @@ describe("cuts inside a clip (F13)", () => {
       expect(count(p, "says in English")).toBe(1);
       expect(count(p, `{${LINE}}`)).toBe(1);
       expect(p.indexOf(`Dan says in English: {${LINE}}`)).toBeGreaterThan(two);
-      expect(p).toMatch(/the line continues over the cuts/);
+      // F18: an insert shows no face, so the line may run over it (a reaction cut would come after the line).
+      expect(p).toMatch(/the line continues over the insert in shot 2/);
       expect(p).not.toMatch(/\}[^\s]/);
     }
   });
 
   it("speaker in every cut → no 'continues over the cuts'; the keyframe shows the first cut", () => {
-    const both: Shot = { ...CUT, cuts: [CUT.cuts![0]!, { camera: "close-up", visual: "Dan's eyes, wet", onScreen: ["Dan"] }] };
-    expect(talkingPrompt(both, SCRIPT)).not.toMatch(/continues over the cuts/);
+    const both: Shot = { ...CUT, cuts: [CUT.cuts![0]!, { camera: "close-up", visual: "Dan's eyes, wet", onScreen: ["Dan"], blocking: defaultBlocking(["Dan"], "Dan") }] };
+    expect(talkingPrompt(both, SCRIPT)).not.toMatch(/continues over|has ended before/);
     const opening: Shot = {
       ...CUT,
       camera: "wide shot",
-      cuts: [{ camera: "wide shot", visual: "Dan tiny on the roof edge", onScreen: ["Dan"] }, CUT.cuts![0]!],
+      cuts: [{ camera: "wide shot", visual: "Dan tiny on the roof edge", onScreen: ["Dan"], blocking: defaultBlocking(["Dan"], "Dan") }, CUT.cuts![0]!],
     };
     const k = keyframePrompt(opening, SCRIPT);
     expect(k).toContain("Shot: wide shot. Dan tiny on the roof edge.");
@@ -1557,8 +1560,8 @@ describe("cuts inside a clip (F13)", () => {
     seconds: 8,
     onScreen: ["Mara", "Leo"],
     cuts: [
-      { camera: "medium shot", visual: "Leo listens at the table, eyes down", onScreen: ["Leo"] },
-      { camera: "close-up", visual: "Mara's face under the lamp", onScreen: ["Mara"] },
+      { camera: "medium shot", visual: "Leo listens at the table, eyes down", onScreen: ["Leo"], blocking: defaultBlocking(["Leo"], null) },
+      { camera: "close-up", visual: "Mara's face under the lamp", onScreen: ["Mara"], blocking: defaultBlocking(["Mara"], "Mara") },
     ],
   };
 
@@ -1593,8 +1596,8 @@ describe("cuts inside a clip (F13)", () => {
       ...LISTENER_FIRST,
       camera: "wide shot",
       cuts: [
-        { camera: "wide shot", visual: "the kitchen, both at the table, small under the lamp", onScreen: ["Leo", "Mara"] },
-        { camera: "close-up", visual: "Mara's face under the lamp", onScreen: ["Mara"] },
+        { camera: "wide shot", visual: "the kitchen, both at the table, small under the lamp", onScreen: ["Leo", "Mara"], blocking: defaultBlocking(["Leo", "Mara"], "Mara") },
+        { camera: "close-up", visual: "Mara's face under the lamp", onScreen: ["Mara"], blocking: defaultBlocking(["Mara"], "Mara") },
       ],
     };
     const k = keyframePrompt(wideFirst, DUO);
@@ -1620,4 +1623,50 @@ describe("cuts inside a clip (F13)", () => {
     expect(fallback.reason).toMatch(/voice-over without lip-sync \(the clip has cuts/);
     expect(fallback.provider).toBe(r.tts.name);
   }, 60_000);
+});
+
+describe("blocking in the video and keyframe prompts (F18 acceptance 2)", () => {
+  const [RUN, DOOR_SHOT] = TRAIN_SCRIPT.shots as [Shot, Shot];
+
+  it("the video prompt has the staging sentence with direction, target and position, after the size and camera move", () => {
+    for (const p of [talkingPrompt(RUN, TRAIN_SCRIPT), textToVideoPrompt(RUN, TRAIN_SCRIPT)]) {
+      const staging = `Olena in the foreground left, facing away, moves away from the camera in real time toward ${DOOR} in the background right.`;
+      expect(p).toContain(staging);
+      expect(p).toContain("The open door of the last carriage is visible in the background right.");
+      expect(p.indexOf(staging)).toBeGreaterThan(p.indexOf("Locked-off camera"));
+    }
+    expect(talkingPrompt(RUN, TRAIN_SCRIPT).indexOf("Shot size: wide shot.")).toBeLessThan(talkingPrompt(RUN, TRAIN_SCRIPT).indexOf("Olena in the foreground left"));
+  });
+
+  it("every shot says 'no slow motion'; a requested slow motion says so instead", () => {
+    for (const shot of TRAIN_SCRIPT.shots) {
+      expect(talkingPrompt(shot, TRAIN_SCRIPT)).toContain("Real-time speed, natural pace, no slow motion.");
+      expect(textToVideoPrompt(shot, TRAIN_SCRIPT)).toContain("Real-time speed, natural pace, no slow motion.");
+    }
+    const slow: Shot = { ...RUN, blocking: { ...RUN.blocking, movement: { ...RUN.blocking.movement!, pace: "slow-motion" } } };
+    const p = talkingPrompt(slow, TRAIN_SCRIPT);
+    expect(p).not.toContain("no slow motion");
+    expect(p).toContain("moves away from the camera in slow motion");
+  });
+
+  it("cut shots: per cut 'Only X speaks; Y stays silent with closed lips', and the line ends before the reaction cut", () => {
+    const p = talkingPrompt(DOOR_SHOT, TRAIN_SCRIPT);
+    const one = p.indexOf("Shot 1: medium shot");
+    const two = p.indexOf("Shot 2: close-up");
+    const only = p.indexOf("Only Conductor speaks; Olena stays silent with closed lips.");
+    expect(only).toBeGreaterThan(one);
+    expect(only).toBeLessThan(two);
+    expect(p).toContain("Olena in the foreground left, facing away.");
+    expect(p.indexOf("Nobody speaks here; Olena stays silent with closed lips.")).toBeGreaterThan(two);
+    expect(p).toMatch(/the line is spoken in shot 1 and has ended before shot 2\. Conductor says in English: \{Ticket, please\. This train doesn't wait\.\}/);
+    expect(p).not.toMatch(/continues over/);
+    expect(p).toMatch(/Avoid generating subtitles, captions, a logo or a watermark\.$/);
+  });
+
+  it("the keyframe prompt places the opening subjects and names the movement's target", () => {
+    const k = keyframePrompt(RUN, TRAIN_SCRIPT);
+    expect(k).toContain(`Staging: Olena in the foreground left, facing away; ${DOOR} visible in the background right.`);
+    // The cut shot's keyframe uses its first cut's blocking.
+    expect(keyframePrompt(DOOR_SHOT, TRAIN_SCRIPT)).toContain("Staging: Conductor in the midground center, facing the camera; Olena in the foreground left, facing away.");
+  });
 });

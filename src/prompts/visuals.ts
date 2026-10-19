@@ -7,6 +7,7 @@
  * references as `@Image N (noun)` in upload order, one camera move, and the constraint tail last.
  */
 import { castOf, isWide, openingCastOf, openingOf, speakerOf, type Character, type Cut, type Script, type Shot } from "../schemas.ts";
+import { openingStaging, paceSentence, plain, speakingSentence, stagingSentences, type Naming } from "./staging.ts";
 import { splitDelivery } from "../verbatim.ts";
 import { issuesNote } from "./judge.ts";
 
@@ -16,7 +17,9 @@ import { issuesNote } from "./judge.ts";
 // v5: a shot with cuts is written as Seedance's multi-shot list "Shot 1: … Shot 2: …", the dialogue once after it;
 //     the keyframe shows the first cut (F13).
 // v6: the keyframe of a cut shot names only the first cut's cast (F13, human note).
-export const VISUALS_PROMPT_VERSION = "visuals-v6";
+// v7: blocking as plain staging sentences after the size and camera move, "Only X speaks" per cut, a pace sentence on
+//     every shot, the keyframe placed by the opening blocking with the movement's goal in frame (F18).
+export const VISUALS_PROMPT_VERSION = "visuals-v7";
 
 const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
 /** A field as one sentence: single-spaced, ending in exactly one full stop (unless it ends in ! or ?). */
@@ -72,13 +75,16 @@ export function keyframePrompt(shot: Shot, script: Script): string {
     ...cast.map((c) => `${oneLine(c.name)}, ${sentence(c.look)}`),
     `Setting: ${sentence(script.setting)}`,
     `Shot: ${camera}. ${sentence(visual)}`,
+    openingStaging(shot),
     `Emotion: ${sentence(shot.emotion)}`,
     same,
     isWide(camera)
       ? `${wideFraming(cast, plain)} Photoreal, cinematic, vertical 9:16, no text, no watermark.`
       : "Photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed, no text, no watermark.",
     NO_WRITING,
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export interface VideoPromptOpts {
@@ -86,9 +92,6 @@ export interface VideoPromptOpts {
   issues?: string[];
 }
 
-/** How a character is named in the body: with its `@Image N (Name)` tag when its portrait is a reference. */
-type Naming = (c: Character) => string;
-const plain: Naming = (c) => oneLine(c.name);
 
 const isSpoken = (shot: Shot): boolean => splitDelivery(shot.line).spoken !== "";
 
@@ -129,23 +132,30 @@ function body(shot: Shot, script: Script, name: Naming): string[] {
   const cast = castOf(script, shot);
   const subject = wide ? [wideFraming(cast, name)] : [];
   const action = `${sentence(shot.visual)} ${sentence(shot.motion)}`;
+  // F18: staging after the size and the camera move, then the pace, so direction and goal are explicit.
+  const staging = [...stagingSentences(shot.blocking, script, name), paceSentence(shot)];
   if (spoken === "") {
     const who = cast.map(name).join(" and ");
-    return [size, camera, ...subject, action, `Emotion: ${delivery}. ${who} ${cast.length === 1 ? "is" : "are"} silent, mouth closed.`, NO_WRITING];
+    return [size, camera, ...subject, action, ...staging, `Emotion: ${delivery}. ${who} ${cast.length === 1 ? "is" : "are"} silent, mouth closed.`, NO_WRITING];
   }
   const [speaker, ...listeners] = cast;
   // Emoji are not words either: a model asked to "say" 🚀 may improvise one (F10).
   const said = tags.length || emoji ? spoken : shot.line;
+  // Blocking may turn the speaker away (seen from behind); then "looks toward the camera" would contradict it.
+  const faces = shot.blocking.subjects.find((s) => s.name === speaker!.name)?.facing ?? "camera";
   // Wide: the line is heard, not lip-read, so no "looks toward the camera"; the delivery gets its own sentence so
   // the dialogue sentence stays `Name, small in frame, says in English: {line}`.
   const line = wide
     ? `Delivery: ${delivery}. ${name(speaker!)}, small in frame, says in English: {${said}}`
-    : `${name(speaker!)} looks toward the camera and, ${delivery}, says in English: {${said}}`;
+    : faces === "camera"
+      ? `${name(speaker!)} looks toward the camera and, ${delivery}, says in English: {${said}}`
+      : `Delivery: ${delivery}. ${name(speaker!)} says in English: {${said}}`;
   return [
     size,
     camera,
     ...subject,
     action,
+    ...staging,
     ...listeners.map((c) => `${name(c)} listens in silence, mouth closed.`),
     `Voice: ${sentence(speaker!.voiceDescription)}`,
     line,
@@ -167,25 +177,44 @@ function cutCast(c: Cut, script: Script, name: Naming): string {
 }
 
 /**
- * A shot with cuts (F13), Seedance's multi-shot form: `Shot 1: <size>, <move>, <visual>. Shot 2: …`, then the
- * dialogue sentence once, after the list. When the speaker is not in every cut the line is said to run over them.
+ * A shot with cuts (F13), Seedance's multi-shot form: `Shot 1: <size>, <move>, <visual>. <staging> Only X speaks; …`
+ * per cut (F18), then the dialogue sentence once, after the list. When some cuts don't hold the line, the prompt says
+ * which cuts do and that the line has ended before the others (reaction cuts come after the line, never over it).
  */
 function cutBody(shot: Shot, cuts: Cut[], script: Script, name: Naming): string[] {
   const { spoken, tags, emoji } = splitDelivery(shot.line);
   const delivery = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
-  const list = cuts.map((c, i) => `Shot ${i + 1}: ${c.camera}, ${cutMove(c)}, ${oneLine(c.visual).replace(/[.\s]+$/, "")}.${cutCast(c, script, name)}`);
+  const list = cuts.map((c, i) =>
+    [
+      `Shot ${i + 1}: ${c.camera}, ${cutMove(c)}, ${oneLine(c.visual).replace(/[.\s]+$/, "")}.${cutCast(c, script, name)}`,
+      ...stagingSentences(c.blocking, script, name),
+      ...(c.blocking.subjects.length ? [speakingSentence(c.blocking, script, name)] : []),
+    ].join(" "),
+  );
   const intro = `${cuts.length} cuts in one continuous scene, same place, light and wardrobe, hard cuts between them.`;
   if (spoken === "") {
-    return [intro, ...list, `Emotion: ${delivery}. Nobody speaks; mouths closed.`, NO_WRITING];
+    return [intro, ...list, paceSentence(shot), `Emotion: ${delivery}. Nobody speaks; mouths closed.`, NO_WRITING];
   }
   const speaker = speakerOf(script, shot);
-  const everywhere = cuts.every((c) => c.onScreen.includes(speaker.name));
+  // Which cuts hold the line (F18): reactions (people, nobody speaking) come after it; inserts show no face, so the
+  // line may run over them.
+  const nums = (pick: (c: Cut) => boolean) => cuts.map((c, i) => (pick(c) ? i + 1 : 0)).filter((i) => i > 0);
+  const holding = nums((c) => c.blocking.speaking === speaker.name);
+  const reactions = nums((c) => c.blocking.speaking !== speaker.name && c.onScreen.length > 0);
+  const inserts = nums((c) => c.blocking.speaking !== speaker.name && c.onScreen.length === 0);
+  const when = [
+    ...(holding.length && reactions.length ? [`the line is spoken in shot ${holding.join(" and ")} and has ended before shot ${reactions.join(" and ")}`] : []),
+    ...(inserts.length ? [`the line continues over the insert in shot ${inserts.join(" and ")}`] : []),
+  ]
+    .map((x) => `; ${x}`)
+    .join("");
   const said = tags.length || emoji ? spoken : shot.line;
   return [
     intro,
     ...list,
+    paceSentence(shot),
     `Voice: ${sentence(speaker.voiceDescription)}`,
-    `Delivery: ${delivery}${everywhere ? "" : "; the line continues over the cuts"}. ${name(speaker)} says in English: {${said}}`,
+    `Delivery: ${delivery}${when}. ${name(speaker)} says in English: {${said}}`,
     NO_WRITING,
   ];
 }

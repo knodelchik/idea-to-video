@@ -30,7 +30,8 @@ import {
   createProviders,
   type AnimateRequest,
 } from "../src/providers/index.ts";
-import { JudgeVerdict, RunManifest, Script } from "../src/schemas.ts";
+import { JudgeVerdict, RunManifest, Script, type Shot } from "../src/schemas.ts";
+import { DOOR, TRAIN_SCRIPT } from "./fixtures/train-script.ts";
 
 const LINE = "I kept the watch. I kept everything.";
 const SCRIPT = Script.parse({
@@ -463,7 +464,7 @@ describe("clip rubric v6 (live 2026-10-19)", () => {
       ],
       quotedLines: [],
     });
-    expect(JUDGE_PROMPT_VERSION).toBe("judge-v7");
+    expect(JUDGE_PROMPT_VERSION).toBe("judge-v8"); // F18 bumped it; the v6 rules below still hold
     const wide = clipRubric(script.shots[0]!, script);
     expect(wide).toMatch(/Leaving the frame because of the planned camera move is fine/);
     expect(wide).not.toMatch(/in every frame by its look/);
@@ -484,7 +485,7 @@ describe("F14: the clip judge watches the video", () => {
   });
 
   it("v7 rubric: 'Watch this vertical video clip', keeps both v6 rules, does not score the words", () => {
-    expect(JUDGE_PROMPT_VERSION).toBe("judge-v7");
+    expect(JUDGE_PROMPT_VERSION).toBe("judge-v8"); // F18 bumped it; the v7 rules below still hold
     for (const shot of LYRA.shots) {
       const r = clipRubric(shot, LYRA, { video: true });
       expect(r).toMatch(/^Watch this vertical video clip/);
@@ -611,4 +612,38 @@ describe("F14: the clip judge watches the video", () => {
     },
     SLOW,
   );
+});
+
+describe("judge-v8: blocking in the rubrics (F18 acceptance 2)", () => {
+  const [RUN, DOOR_SHOT] = TRAIN_SCRIPT.shots as [Shot, Shot];
+
+  it("is judge-v8", () => {
+    expect(JUDGE_PROMPT_VERSION).toBe("judge-v8");
+  });
+
+  it("keyframe: subjects roughly where blocking puts them, and the movement target visible", () => {
+    const r = keyframeRubric(RUN, TRAIN_SCRIPT);
+    expect(r).toContain("7. Staging, roughly: Olena in the foreground left, facing away.");
+    expect(r).toContain(`The goal of the movement, ${DOOR} in the background right, is visible.`);
+  });
+
+  it("clip: the direction with its target, real-time pace, and only the speaker's lips move", () => {
+    for (const video of [true, false]) {
+      const r = clipRubric(RUN, TRAIN_SCRIPT, { video });
+      expect(r).toContain(`Direction: Olena moves away from the camera in real time toward ${DOOR} in the background right. The target must be visible; moving the other way`);
+      expect(r).toContain("Pace: real time, natural speed; any slow motion is a failure.");
+      expect(r).toMatch(/Lips: Nobody speaks here; Olena stays silent with closed lips\. A silent character whose lips move as if speaking is a failure\./);
+    }
+    const slow: Shot = { ...RUN, blocking: { ...RUN.blocking, movement: { ...RUN.blocking.movement!, pace: "slow-motion" } } };
+    expect(clipRubric(slow, TRAIN_SCRIPT)).toContain("Pace: slow motion only where the staging asks for it.");
+  });
+
+  it("cut shots: the rubric names each cut's people and the lips rule per cut (a planned reaction cut is not an identity change)", () => {
+    const r = clipRubric(DOOR_SHOT, TRAIN_SCRIPT, { video: true });
+    expect(r).toContain("2 intended hard cuts (1) medium shot: Conductor and Olena, 2) close-up: Olena)");
+    expect(r).toMatch(/change of framing, angle or person between cuts as listed is not a failure/);
+    expect(r).toContain("Lips: Cut 1: Only Conductor speaks; Olena stays silent with closed lips. Cut 2: Nobody speaks here; Olena stays silent with closed lips.");
+    expect(r).toContain("Direction: nobody is staged to travel");
+    expect(keyframeRubric(DOOR_SHOT, TRAIN_SCRIPT)).toContain("Staging, roughly: Conductor in the midground center, facing the camera; Olena in the foreground left, facing away.");
+  });
 });

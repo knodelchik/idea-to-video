@@ -10,6 +10,7 @@ import {
   VerbatimResult,
   CAMERAS,
   castOf,
+  defaultBlocking,
   formatIssues,
   isWide,
   speakerOf,
@@ -39,6 +40,8 @@ const shot = (over: Partial<z.input<typeof Shot>> = {}): z.input<typeof Shot> =>
   seconds: 5,
   speaker: "Mara",
   onScreen: ["Mara"],
+  blocking: defaultBlocking(["Mara"], "Mara"),
+  continuity: { from: "start", screenDirection: "neutral" },
   ...over,
 });
 
@@ -336,7 +339,7 @@ describe("Attempt and RunManifest", () => {
 });
 
 describe("cuts inside a clip (F13 acceptance 1)", () => {
-  const cut = (camera: string, onScreen: string[] = ["Mara"]) => ({ camera, visual: `Mara, ${camera}`, onScreen });
+  const cut = (camera: string, onScreen: string[] = ["Mara"]) => ({ camera, visual: `Mara, ${camera}`, onScreen, blocking: defaultBlocking(onScreen, "Mara") });
   const two = [cut("wide shot"), cut("medium shot")];
   const cutShot = (over: Partial<z.input<typeof Shot>> = {}) =>
     shot({ camera: "wide shot", seconds: 6, cuts: two as z.input<typeof Shot>["cuts"], ...over });
@@ -384,5 +387,68 @@ describe("cuts inside a clip (F13 acceptance 1)", () => {
     const subs = { file: "f.mp4", cues: [{ start: 0.4, end: 1.6, text: "Meet me" }], timing: "asr" };
     expect(RunManifest.parse({ ...base, subtitles: subs }).subtitles?.cues[0]?.text).toBe("Meet me");
     expect(() => RunManifest.parse({ ...base, subtitles: { ...subs, cues: [{ start: 2, end: 1, text: "x" }] } })).toThrow();
+  });
+});
+
+describe("blocking and continuity (F18 acceptance 1: contract)", () => {
+  const strip = (s: z.input<typeof Shot>) => {
+    const { blocking: _b, continuity: _c, ...rest } = s;
+    return rest;
+  };
+  const v8 = (over: ScriptInput = {}) => script({ promptVersion: "script-v8", ...over });
+
+  it("a shot without blocking or continuity fails; a script-v8 script is not migrated", () => {
+    expect(errorsOf(Shot, strip(shot()))).toMatch(/blocking/);
+    expect(errorsOf(Shot, { ...shot(), continuity: undefined })).toMatch(/continuity/);
+    const bare = v8({ shots: [strip(shot()), strip(shot({ id: "s2", line: "", seconds: 4, speaker: undefined }))] });
+    expect(errorsOf(Script, bare)).toMatch(/shots\.0\.blocking/);
+    expect(errorsOf(Script, v8())).toBe("");
+    // A cut needs its own blocking too.
+    const cut = (camera: string) => ({ camera, visual: "Mara", onScreen: ["Mara"] });
+    expect(errorsOf(Shot, shot({ camera: "wide shot", seconds: 6, cuts: [cut("wide shot"), cut("medium shot")] as never }))).toMatch(/cuts\.0\.blocking/);
+  });
+
+  it("a movement target without a position fails; with one it parses", () => {
+    const move = { who: "Mara", direction: "away from camera", target: "the open carriage door", pace: "real-time" };
+    const b = (m: object) => shot({ blocking: { ...defaultBlocking(["Mara"], "Mara"), movement: m as never } });
+    expect(errorsOf(Shot, b(move))).toMatch(/movement\.targetPosition: movement\.target is set, so movement\.targetPosition/);
+    expect(errorsOf(Shot, b({ ...move, targetPosition: { position: "background", side: "right" } }))).toBe("");
+    expect(errorsOf(Shot, b({ ...move, pace: "fast" }))).toMatch(/pace/);
+  });
+
+  it("old scripts migrate: defaults per shot and cut, s1 'start', neutral direction; parsing stays idempotent", () => {
+    const old = Script.parse(script({ promptVersion: "script-v7", shots: [strip(shot()), strip(shot({ id: "s2", line: "", seconds: 4, speaker: undefined }))] }));
+    expect(old.shots[0]!.blocking).toEqual({
+      subjects: [{ name: "Mara", position: "midground", side: "center", facing: "camera" }],
+      movement: null,
+      speaking: "Mara",
+    });
+    expect(old.shots[1]!.blocking.speaking).toBeNull();
+    expect(old.shots.map((s) => s.continuity)).toEqual([
+      { from: "start", screenDirection: "neutral" },
+      { from: "follows the previous shot", screenDirection: "neutral" },
+    ]);
+    expect(Script.parse(old)).toEqual(old);
+    // Pre-F11 (single `character`) and pre-F18 cut scripts migrate too; a listener-only cut gets speaking null.
+    expect(Script.parse(legacy()).shots[0]!.blocking.speaking).toBe("Mara");
+    const cutOld = Script.parse(
+      script({
+        promptVersion: "script-v7",
+        characters: [character, son],
+        shots: [
+          {
+            ...strip(shot({ camera: "medium shot", seconds: 8, onScreen: ["Mara", "Leo"] })),
+            cuts: [
+              { camera: "medium shot", visual: "Mara speaks", onScreen: ["Mara"] },
+              { camera: "close-up", visual: "Leo listens", onScreen: ["Leo"] },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(cutOld.shots[0]!.cuts!.map((c) => c.blocking.speaking)).toEqual(["Mara", null]);
+    // An old manifest still parses.
+    const m = RunManifest.parse({ runId: "old", idea: "i", mode: "mock", createdAt: "2026-10-16T12:00:00.000Z", script: legacy(), attempts: [], costUsd: 0, ok: true });
+    expect(m.script?.shots[0]!.continuity.from).toBe("start");
   });
 });
