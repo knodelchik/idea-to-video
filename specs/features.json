@@ -121,6 +121,24 @@
         "npx vitest run tests/judge.test.ts tests/visuals.test.ts",
         "npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: \"Meet me where it started.\"' --mock --json"
       ]
+    },
+    {
+      "id": "F16-observability",
+      "spec": "specs/F16-observability.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/obs.test.ts",
+        "npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: \"Meet me where it started.\"' --mock --json",
+        "pnpm -s metrics"
+      ]
+    },
+    {
+      "id": "F15-web-demo",
+      "spec": "specs/F15-web-demo.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/web.test.ts"
+      ]
     }
   ]
 }
