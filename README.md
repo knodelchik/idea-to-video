@@ -16,7 +16,7 @@ Requires Node ≥ 22, pnpm, and ffmpeg/ffprobe on `PATH`.
 ```sh
 pnpm install
 pnpm make 'A tired barista finds a note in the tip jar: "Meet me where it started."'   # mock mode, $0
-pnpm verify                                                                             # typecheck + 250 tests + mock e2e
+pnpm verify                                                                             # typecheck + ~400 tests + mock e2e
 ```
 
 Mock mode runs the whole graph with local ffmpeg stand-ins for every model. Mock audio and video carry transcript
@@ -37,12 +37,22 @@ pnpm make "<idea>" --live --json          # last stdout line: { ok, runId, final
 | --- | --- | --- |
 | `GEMINI_API_KEY` | script writer, quality judge, fallback TTS, images if `IMAGE_PROVIDER=gemini` | yes (free tier works) |
 | `GROQ_API_KEY` | Whisper ASR for the verbatim gate | yes (free tier works) |
-| `FAL_KEY` **or** `ARK_API_KEY` | Seedance 2.0 video (fal or BytePlus ModelArk, `SEEDANCE_TRANSPORT`), Seedream / Nano Banana images, Kling lip-sync fallback | yes, one of them |
+| `OPENROUTER_API_KEY` **or** `FAL_KEY` **or** `ARK_API_KEY` | Seedance 2.0 video (`SEEDANCE_TRANSPORT=openrouter\|fal\|byteplus`), Seedream / Nano Banana images (`IMAGE_PROVIDER`), Kling lip-sync fallback (fal) | yes, one of them; the examples were made via OpenRouter |
 | `ELEVENLABS_API_KEY` | second fallback TTS engine | optional |
 | `LIPSYNC_CMD` | a local open-source lip-sync model (e.g. LatentSync) instead of fal Kling | optional |
 
 All settings are listed with comments in [.env.example](.env.example). `MAX_COST_USD` (default 3) is checked
 **before every paid call**, retries included, so a retry loop can't run past it.
+
+## Examples
+
+Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to each file has every attempt and cost.
+
+| File | Idea | Length | Cost |
+| --- | --- | --- | --- |
+| `examples/02-dialogue-mother-son.mp4` | two speakers: "Open it after I leave." / "Mom, are you sick?" | 10.2 s | $1.01 |
+| `examples/03-watchmaker-numbers.mp4` | "It stopped in 1987, at 3:15 a.m., and so did I." | 11.5 s | $1.18 |
+| `examples/01-barista.mp4` | first live run, one speaker | 10.5 s | $1.07 |
 
 ## How it works
 
@@ -60,13 +70,21 @@ idea ─► writeScript ─► cast ─► drawKeyframes ─► shot (one per sh
   back to the model with the exact errors (max 3 tries).
 - **Verbatim gate** (`src/verbatim.ts`): text is normalised (case, punctuation, numbers → words, `& $ %` spelled
   out) and compared token by token with Levenshtein. WER must be exactly 0. Quoted lines in the idea are extracted
-  by code, never by the LLM.
+  by code, never by the LLM. Numbers, times, money and abbreviations accept any honest reading ("1987" =
+  "nineteen eighty-seven", "3:15 a.m." = "3.15am", but "1987" ≠ "1988"). A line that can't be spoken (not English,
+  emoji only, over 15 s) is rejected **before** any paid call.
 - **Native speech first, fallback second:** Seedance 2.0 speaks the line from the prompt. If ASR hears a different
   line, it retries (`maxNative`). If that also fails, the line is synthesized by TTS, checked by ASR before use, and
   put on the clip by a lip-sync model. In that branch the audio is the source of truth.
 - **Quality judge:** a VLM (Gemini) scores keyframes and clips against a rubric. A keyframe below 7 is redrawn with the
   judge's issues added to the prompt (max 2 extra). A clip below 5 is regenerated once, only if the budget allows.
   Otherwise the best take is kept and flagged `needsReview`.
+- **One or two characters:** each has a portrait and a written voice; each spoken shot has one `speaker`, so a
+  dialogue becomes shot / reverse shot. Seedance prompts follow its official guide (`Name says in English: {line}`,
+  `@Image 1 (Name)` references, audio policy first, constraints last; see `docs/research/seedance-playbook.md`).
+- **Real-face filter:** Seedance refuses photoreal images that "may contain a real person", including our own
+  generated keyframes. Refusals cost $0, so a shot steps down: keyframe as first frame → portrait + keyframe as
+  references → portraits only → text only. Portraits-only was checked live and keeps the face.
 - **Nothing silent:** every retry, fallback, judge score and cost goes into `manifest.attempts[]`.
 - **Idempotent:** every generated file is content-addressed (`once()`), so a re-run with the same inputs costs $0.
 
@@ -74,6 +92,7 @@ idea ─► writeScript ─► cast ─► drawKeyframes ─► shot (one per sh
 
 ```sh
 npx tsx evals/run.ts --mock --limit 3                  # 10 fixed ideas (numbers, names, curly quotes, a 15-word line…)
+npx tsx evals/run.ts --mock --set hard                 # 19 hard ideas: dialogue, years/times/money, diacritics, emoji, Ukrainian…
 pnpm eval:compare evals/results/a.json evals/results/b.json   # exits 1 on a regression
 npx tsx scripts/bench.ts --mock                        # same keyframe + line through several video models
 ```
@@ -100,8 +119,8 @@ specs/features.json ─► implementer agent (claude -p) ─► gate: scripts/ve
   end-to-end run, and a separate reviewer agent must pass the change.
 - Claude Code hooks (`.claude/hooks/`) stop agents from spending money (`--live`, paid API hosts), reading `.env`,
   editing the gate, or pushing. A Stop hook won't let an agent finish while `verify` is red.
-- Result: 9 features, 15 implementer runs, 6 reviewer rejections (all real bugs), 1 feature BLOCKED and fixed by a
-  human note in the spec.
+- Result: 11 features, 21 implementer runs, 10 reviewer rejections (all real bugs), 1 feature BLOCKED and fixed by a
+  human note in the spec. F10/F11 came from a $0 stress test of 19 hard ideas (`docs/hard-ideas-report.md`).
 
 ## Repo map
 
@@ -120,6 +139,7 @@ specs/features.json ─► implementer agent (claude -p) ─► gate: scripts/ve
 
 - English lines only. No major video model officially supports Ukrainian speech yet, and the ASR gate would need a
   per-language normaliser.
-- Live adapters were checked against the providers' docs and request-shape tests. The pipeline was mostly
-  developed against mocks, and only a handful of live runs were paid for (see `runs/` and the examples).
+- The pipeline was developed against mocks; only a handful of live runs were paid for (`examples/`, each with its
+  manifest). When every image rung is refused, a shot falls back to text-to-video and the face can drift between
+  shots.
 - Lip-sync fallback via fal Kling caps a lipsynced clip at `LIPSYNC_MAX_SECONDS` (10 s).
