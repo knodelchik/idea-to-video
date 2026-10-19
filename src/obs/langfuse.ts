@@ -28,7 +28,8 @@ export function langfuseFromEnv(env: Env): LangfuseConfig | undefined {
   const publicKey = env.LANGFUSE_PUBLIC_KEY?.trim();
   const secretKey = env.LANGFUSE_SECRET_KEY?.trim();
   if (!publicKey || !secretKey) return undefined;
-  const host = (env.LANGFUSE_HOST?.trim() || LANGFUSE_EU_HOST).replace(/\/+$/, "");
+  // LANGFUSE_BASE_URL is the current SDK's name (the self-hosted project page shows it); LANGFUSE_HOST is the older one.
+  const host = (env.LANGFUSE_BASE_URL?.trim() || env.LANGFUSE_HOST?.trim() || LANGFUSE_EU_HOST).replace(/\/+$/, "");
   return { publicKey, secretKey, host };
 }
 

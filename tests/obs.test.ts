@@ -392,6 +392,9 @@ describe("Langfuse export", () => {
     expect(langfuseFromEnv({ LANGFUSE_SECRET_KEY: "sk" })).toBeUndefined();
     expect(langfuseFromEnv(LF_ENV)).toEqual({ publicKey: LF_ENV.LANGFUSE_PUBLIC_KEY, secretKey: LF_ENV.LANGFUSE_SECRET_KEY, host: LANGFUSE_EU_HOST });
     expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_HOST: "https://us.cloud.langfuse.com/" })?.host).toBe("https://us.cloud.langfuse.com");
+    // The current SDK's name wins, so a self-hosted URL set as LANGFUSE_BASE_URL is used (live 2026-10-19: a 401 from the cloud).
+    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_BASE_URL: "https://lf.example.test/" })?.host).toBe("https://lf.example.test");
+    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_BASE_URL: "https://lf.example.test", LANGFUSE_HOST: "https://old.example.test" })?.host).toBe("https://lf.example.test");
   });
 
   it("generations carry usage; a network error is a result, not a throw; an echoed key is redacted", async () => {
