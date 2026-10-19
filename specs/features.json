@@ -112,6 +112,15 @@
         "npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: \"Meet me where it started.\"' --mock --json",
         "npx tsx src/cli.ts '1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: \"Hello? Is anyone still here?\"' --mock --json"
       ]
+    },
+    {
+      "id": "F14-judge-sees-video",
+      "spec": "specs/F14-judge-sees-video.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/judge.test.ts tests/visuals.test.ts",
+        "npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: \"Meet me where it started.\"' --mock --json"
+      ]
     }
   ]
 }
