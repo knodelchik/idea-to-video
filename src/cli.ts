@@ -4,16 +4,18 @@
  */
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { estimateRunUsd, runPipeline, type Mode, type RunOutcome } from "./graph.ts";
+import { estimateRunUsd, REDO_STEPS, runPipeline, type Mode, type RedoStep, type RunOutcome } from "./graph.ts";
 import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
 
-export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json] [--no-subtitles]`;
+export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step>]] [--json] [--no-subtitles]`;
 
 export interface CliArgs {
   idea?: string;
   mode?: Mode;
   resume?: string;
+  /** With --resume: redo the run from this step (content-addressed artifacts are reused). */
+  redo?: RedoStep;
   json: boolean;
   /** Present (false) only with --no-subtitles (F13); default is on. */
   subtitles?: false;
@@ -40,6 +42,10 @@ export function parseArgs(argv: string[]): CliArgs {
       const id = argv[++i];
       if (!id || id.startsWith("--")) throw new Error("--resume needs a run id");
       out.resume = id;
+    } else if (a === "--redo") {
+      const step = argv[++i];
+      if (!step || !(REDO_STEPS as readonly string[]).includes(step)) throw new Error(`--redo needs a step: ${REDO_STEPS.join(", ")}`);
+      out.redo = step as RedoStep;
     } else if (a.startsWith("--")) throw new Error(`unknown flag ${a}`);
     else positional.push(a);
   }
@@ -48,6 +54,7 @@ export function parseArgs(argv: string[]): CliArgs {
   if (!out.resume && !out.idea?.trim()) throw new Error("an idea is required");
   if (out.resume && out.idea) throw new Error("--resume continues a stored run; don't pass an idea with it");
   if (out.resume && out.mode) throw new Error("--resume uses the run's own mode; drop --mock/--live");
+  if (out.redo && !out.resume) throw new Error("--redo needs --resume <runId>");
   return out;
 }
 
@@ -105,7 +112,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
 
   let outcome: RunOutcome;
   try {
-    outcome = await runPipeline(args.resume ? { resume: args.resume } : { idea: args.idea!, mode: args.mode ?? "mock" }, {
+    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock" }, {
       providers: makeProviders,
       runsDir: resolve(deps.runsDir ?? "runs"),
       maxCostUsd,

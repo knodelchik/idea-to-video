@@ -465,7 +465,16 @@ async function previousFailures(path: string, checkpointed: number): Promise<Att
   }
 }
 
-export type RunRequest ={ idea: string; mode: Mode } | { resume: string };
+/** Graph steps a finished run can be redone from (`--redo`), in order. */
+export const REDO_STEPS = ["writeScript", "cast", "drawKeyframes", "shot", "assemble", "burnSubtitles", "finalGate"] as const;
+export type RedoStep = (typeof REDO_STEPS)[number];
+
+/**
+ * `redo`: replay a stored run from the checkpoint just before that step, as a new branch of the same thread. Every
+ * artifact is content-addressed, so steps whose inputs did not change reuse their files for $0 (a paid clip is never
+ * bought twice); only what changed, e.g. a fixed prompt or a new rule, runs again.
+ */
+export type RunRequest = { idea: string; mode: Mode } | { resume: string; redo?: RedoStep };
 
 export interface RunOutcome {
   manifest: RunManifest;
@@ -486,7 +495,21 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
     let state: RunStateValues;
     /** Failed attempts of the crashed process: in its manifest but never in the checkpoint. */
     let carried: Attempt[] = [];
-    if ("resume" in req) {
+    let streamConfig: { configurable: Record<string, unknown> } = config;
+    if ("resume" in req && req.redo) {
+      let fork: Awaited<ReturnType<typeof app.getState>> | undefined;
+      for await (const snap of app.getStateHistory(config)) {
+        if (snap.next.includes(req.redo)) {
+          fork = snap;
+          break; // newest first: the last time the run was about to enter that step
+        }
+      }
+      if (!fork) throw new Error(`run ${runId} never reached step ${req.redo}; nothing to redo from`);
+      state = fork.values as RunStateValues;
+      input = null;
+      streamConfig = fork.config as typeof streamConfig;
+      deps.log?.(`redoing ${runId} (${state.mode}) from ${req.redo}; unchanged artifacts are reused`);
+    } else if ("resume" in req) {
       const snap = await app.getState(config);
       state = snap.values as RunStateValues;
       if (!state.idea) throw new Error(`no checkpoint for run ${runId} in ${deps.runsDir}`);
@@ -513,7 +536,7 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
 
     let error: string | undefined;
     try {
-      const stream = await app.stream(input, { ...config, streamMode: "values" });
+      const stream = await app.stream(input, { ...streamConfig, streamMode: "values" });
       for await (const values of stream) {
         state = values as RunStateValues;
         await write(toManifest(state, { attempts: carried }));

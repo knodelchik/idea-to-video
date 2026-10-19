@@ -94,6 +94,9 @@ describe("cli args", () => {
     expect(() => parseArgs(["--resume"])).toThrow(/needs a run id/);
     expect(() => parseArgs(["a", "b"])).toThrow(/one idea/);
     expect(() => parseArgs(["--resume", "r1", "--mock"])).toThrow(/own mode/);
+    expect(parseArgs(["--resume", "r1", "--redo", "shot"])).toEqual({ resume: "r1", redo: "shot", json: false });
+    expect(() => parseArgs(["--resume", "r1", "--redo", "nope"])).toThrow(/--redo needs a step/);
+    expect(() => parseArgs(["idea", "--redo", "shot"])).toThrow(/--redo needs --resume/);
   });
   it("usage errors exit 2 without running anything", async () => {
     const err: string[] = [];
@@ -348,6 +351,24 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
       expect(resumed.manifest?.attempts.filter((a) => a.stage === "script")).toHaveLength(1);
       expect(resumed.manifest?.attempts.some((a) => a.reason?.includes("simulated crash"))).toBe(true);
       expect(resumed.manifest?.error).toBeUndefined();
+    },
+    SLOW,
+  );
+
+  it(
+    "2b. --redo shot replays a finished run from the shots: no script, image or video call, files reused",
+    async () => {
+      const first = await cli([IDEA, "--mock"], {});
+      expect(first.json.ok).toBe(true);
+      const again = { llm: new MockLlm({ responder: mockScriptResponder }), image: new MockImage(), video: new MockVideo() };
+      const redone = await cli(["--resume", first.json.runId, "--redo", "shot"], { overrides: again });
+      expect(redone.code).toBe(0);
+      expect(redone.json.ok).toBe(true);
+      expect(redone.json.runId).toBe(first.json.runId);
+      expect(again.llm.calls).toHaveLength(0);
+      expect(again.image.calls).toHaveLength(0);
+      expect(again.video.calls).toHaveLength(0); // content-addressed clips: a paid clip is never bought twice
+      expect(redone.manifest?.attempts.filter((a) => a.stage === "video").every((a) => /reused cached clip/.test(a.reason ?? ""))).toBe(true);
     },
     SLOW,
   );
