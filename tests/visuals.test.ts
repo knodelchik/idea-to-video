@@ -474,15 +474,31 @@ describe("talkingShot", () => {
     expect(shot.attempts[0]).toMatchObject({ stage: "video", n: 1, ok: false, reason: expect.stringMatching(/keyframe refused.*real person.*reference-to-video/) });
   }, 60_000);
 
-  it("references refused too → text-to-video; a third refusal is not retried", async () => {
+  it("portrait + keyframe refused → portraits only (live 2026-10-19); then text-to-video", async () => {
     const dir = fresh();
     const kf = await keyframeFor(dir);
+    const portrait = (await castCharacter(SCRIPT, { image: new MockImage(), dir })).path;
     const rp = "may contain real person";
-    const ok = rig(new MockVideo({ faults: [{ call: 0, reject: rp }, { call: 1, reject: rp }] }));
-    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait: kf, ...ok });
+    const two = rig(new MockVideo({ faults: [{ call: 0, reject: rp }, { call: 1, reject: rp }] }));
+    const shot = await talkingShot(S1, kf, { script: SCRIPT, dir, maxNative: 2, portrait, ...two });
     expect(shot.verbatim?.pass).toBe(true);
-    expect(ok.video.calls.map((c) => [c.textOnly ?? false, c.refs?.length ?? 0])).toEqual([[false, 0], [true, 2], [true, 0]]);
-    expect(ok.video.calls[2]!.prompt).not.toMatch(/@Image/);
+    expect(two.video.calls.map((c) => c.refs ?? [])).toEqual([[], [portrait, kf], [portrait]]);
+    expect(two.video.calls[2]!.textOnly).toBe(true);
+    expect(two.video.calls[2]!.prompt).toMatch(/@Image 1 \(Dan\) is the face reference for Dan/);
+    expect(two.video.calls[2]!.prompt).not.toMatch(/opening frame/);
+    expect(shot.attempts[1]).toMatchObject({ ok: false, reason: expect.stringMatching(/reference images refused.*portraits only/) });
+
+    const dir3 = fresh();
+    const kf3 = await keyframeFor(dir3);
+    const three = rig(new MockVideo({ faults: [0, 1, 2].map((call) => ({ call, reject: rp })) }));
+    const last = await talkingShot(S1, kf3, { script: SCRIPT, dir: dir3, maxNative: 2, portrait, ...three });
+    expect(last.verbatim?.pass).toBe(true);
+    expect(three.video.calls.map((c) => [c.textOnly ?? false, c.refs?.length ?? 0])).toEqual([[false, 0], [true, 2], [true, 1], [true, 0]]);
+    expect(three.video.calls[3]!.prompt).not.toMatch(/@Image/);
+  }, 60_000);
+
+  it("without a portrait: references refused too → text-to-video; a third refusal is not retried", async () => {
+    const rp = "may contain real person";
 
     const dir2 = fresh();
     const kf2 = await keyframeFor(dir2);

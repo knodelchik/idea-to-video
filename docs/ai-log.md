@@ -177,3 +177,6 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   portrait-as-reference) were refused as a possible real person in all 4 shots, so every shot fell back to
   text-to-video: the watchmaker's face drifts between his two shots. The earlier refs probe passed with a looser
   portrait; the F11 official headshot spec (front, plain grey) looks more like an ID photo. Open question, not fixed.
+- [live] Probe for $0.37: the same watchmaker portrait sent **alone** as a reference was accepted and the face held
+  exactly (loupe, vest, hair). So the refusal of "portrait + keyframe" came from the keyframe, not the portrait. The
+  ladder gained a rung: frame → portrait + keyframe → portraits only → text. Tests updated.

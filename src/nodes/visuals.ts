@@ -237,17 +237,17 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   /**
    * How the keyframe reaches the video model. `frame`: as the first frame (best). After a real-person refusal,
    * `refs`: no first frame; the speaker's portrait, other on-screen portraits, then the keyframe as references.
-   * After another refusal, `text`: words only. The mode only ever steps down, and later takes of this shot keep it.
+   * After another refusal, `portraits`: the portraits alone (live 2026-10-19: Seedance refused portrait + keyframe
+   * but accepted the same portrait alone, and kept the face). Then `text`: words only. The mode only ever steps
+   * down, and later takes of this shot keep it.
    */
-  const ladder = ["frame", "refs", "text"] as const;
-  let mode: (typeof ladder)[number] = "frame";
-  const refList = [
-    ...(opts.portrait ? shotPortraits(shot, script, opts.portrait).map((p) => ({ label: p.name, path: p.path })) : []),
-    { label: OPENING_FRAME, path: keyframe },
-  ];
-  const refsFor = (): string[] => refList.map((r) => r.path);
+  const portraitRefs = opts.portrait ? shotPortraits(shot, script, opts.portrait).map((p) => ({ label: p.name, path: p.path })) : [];
+  const ladder = portraitRefs.length ? (["frame", "refs", "portraits", "text"] as const) : (["frame", "refs", "text"] as const);
+  let mode: "frame" | "refs" | "portraits" | "text" = "frame";
+  const refList = (m: typeof mode) => (m === "refs" ? [...portraitRefs, { label: OPENING_FRAME, path: keyframe }] : m === "portraits" ? portraitRefs : []);
+  const refsFor = (m: typeof mode): string[] => refList(m).map((r) => r.path);
   const promptFor = (m: typeof mode): string =>
-    m === "frame" ? prompt : textToVideoPrompt(shot, script, { issues, ...(m === "refs" ? { refs: refList.map((r) => r.label) } : {}) });
+    m === "frame" ? prompt : textToVideoPrompt(shot, script, { issues, ...(refList(m).length ? { refs: refList(m).map((r) => r.label) } : {}) });
   const take = opts.take ?? 1;
   if (!Number.isInteger(take) || take < 1) throw new RangeError(`take must be an integer >= 1, got ${take}`);
   const record = (a: Omit<Attempt, "shotId">) => attempts.push({ ...a, shotId });
@@ -290,7 +290,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   const animate = async (n: number, line: string | undefined): Promise<Clip> => {
     const variant = n - 1;
     const p = promptFor(mode);
-    const refs = mode === "refs" ? refsFor() : [];
+    const refs = refsFor(mode);
     const input = mode === "frame" ? { file: keyframe } : mode;
     const key = await contentKey("clip", video.name, VISUALS_PROMPT_VERSION, input, ...refs.map((file) => ({ file })), p, line, seconds, variant);
     const t0 = performance.now();
@@ -313,7 +313,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       return { path: made.path, seconds: measured, hasAudio, costUsd: made.result?.costUsd ?? 0, cached: made.cached };
     } catch (e) {
       const policy = e instanceof PolicyRejectedError;
-      const next = ladder[ladder.indexOf(mode) + 1];
+      const next = (ladder as readonly (typeof mode)[])[(ladder as readonly (typeof mode)[]).indexOf(mode) + 1];
       if (policy && e.realPerson && next) {
         // An input image, not the scene, was refused: step down to fewer images and try the same take again.
         // Identity then rests on the references, or only on the written look; the judge still compares to the portrait.
@@ -322,7 +322,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
           n,
           provider: video.name,
           ok: false,
-          reason: `${mode === "frame" ? "keyframe" : "reference images"} refused as a possible real person (${e.detail.slice(0, 160)}); retrying as ${next === "refs" ? "reference-to-video" : "text-to-video"}`,
+          reason: `${mode === "frame" ? "keyframe" : "reference images"} refused as a possible real person (${e.detail.slice(0, 160)}); retrying as ${next === "refs" ? "reference-to-video" : next === "portraits" ? "reference-to-video with the portraits only" : "text-to-video"}`,
           costUsd: 0,
           ms: ms(t0),
         });
