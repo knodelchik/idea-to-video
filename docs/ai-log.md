@@ -171,3 +171,9 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   correct script. 'When he walks in, his wife says … He answers' gave he/he, which hid the 'Mom' bug → caught
   by the attempt-2 reviewer with tsx → a leading as/when/while/… clause up to its comma is dropped before
   looking for the subject. Both ideas are tests in tests/script.test.ts.
+- [live] 2026-10-19, two hard ideas after F10/F11 ($1.01 + $1.18). Both ok on the first native take, WER 0. The watch
+  line was heard as "1987 at 3.15am" and passed only because of the F10 alternative readings (before F10 it would
+  have failed after paying). The dialogue gave two characters with two voices. But both rungs (keyframe and
+  portrait-as-reference) were refused as a possible real person in all 4 shots, so every shot fell back to
+  text-to-video: the watchmaker's face drifts between his two shots. The earlier refs probe passed with a looser
+  portrait; the F11 official headshot spec (front, plain grey) looks more like an ID photo. Open question, not fixed.

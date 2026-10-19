@@ -1,0 +1,287 @@
+{
+  "runId": "20261019-071826-381687",
+  "idea": "At the kitchen table, a mother slides an envelope to her son. She says: \"Open it after I leave.\" He looks up and asks: \"Mom, are you sick?\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T07:18:26.716Z",
+  "script": {
+    "promptVersion": "script-v4",
+    "title": "The Unopened Letter",
+    "logline": "A mother hands her adult son a mysterious envelope with parting instructions, sparking his sudden dread.",
+    "setting": "A dimly lit, quiet kitchen over a worn wooden table in the evening.",
+    "characters": [
+      {
+        "name": "Elena",
+        "look": "Woman in her early fifties with tired hazel eyes, silver-streaked dark hair tied in a loose bun, wearing a soft beige knit cardigan, and a faint scar along her left brow.",
+        "voice": {
+          "gender": "female",
+          "age": "adult",
+          "tone": "gentle and sorrowful"
+        },
+        "voiceDescription": "Hushed, raspy female voice, early 50s, subtle Midwestern accent, slow and deliberate pace."
+      },
+      {
+        "name": "Lucas",
+        "look": "Young man in his early twenties with messy wavy brown hair, sharp angular jaw, wearing a faded navy crewneck sweatshirt, and a small dark mole beside his right eye.",
+        "voice": {
+          "gender": "male",
+          "age": "young",
+          "tone": "anxious and trembling"
+        },
+        "voiceDescription": "Youthful, cracking male voice, early 20s, neutral American accent, hurried and anxious."
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "close-up",
+        "visual": "Elena slides a plain white envelope across the table with trembling fingers, her eyes glistening as she holds back tears.",
+        "motion": "Slow tilt up from her trembling hands on the envelope to her strained, compassionate face.",
+        "emotion": "tender sorrow",
+        "line": "Open it after I leave.",
+        "seconds": 5,
+        "speaker": "Elena",
+        "onScreen": [
+          "Elena"
+        ]
+      },
+      {
+        "id": "s2",
+        "camera": "close-up",
+        "visual": "Lucas glances down toward the envelope on the table, then snaps his gaze up to his mother with sudden panic in his eyes.",
+        "motion": "Slight camera push-in focusing closely on his searching, terrified eyes.",
+        "emotion": "sudden dread",
+        "line": "Mom, are you sick?",
+        "seconds": 5,
+        "speaker": "Lucas",
+        "onScreen": [
+          "Lucas"
+        ]
+      }
+    ],
+    "quotedLines": [
+      "Open it after I leave.",
+      "Mom, are you sick?"
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-071826-381687/clip-s1-2d029d26b92054fe.mp4",
+      "seconds": 5.088,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 3.6,
+      "speechEnd": 5.24,
+      "verbatim": {
+        "expected": "open it after i leave",
+        "heard": "open it after i leave",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 8,
+      "needsReview": false
+    },
+    "s2": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-071826-381687/clip-s2-bdc732803361cdaf.mp4",
+      "seconds": 5.088,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 3.64,
+      "speechEnd": 4.76,
+      "verbatim": {
+        "expected": "mom are you sick",
+        "heard": "mom are you sick",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 9,
+      "clipScore": 10,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.00716175,
+      "ms": 56676
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11344
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 9951
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 9627
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0007926000000000001,
+      "ms": 5043,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 12926
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 9/10 >= 7; model gemini-3.5-flash",
+      "costUsd": 0.003627,
+      "ms": 5155,
+      "score": 9
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 8029
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as text-to-video",
+      "costUsd": 0,
+      "ms": 5960
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.45768833333333336,
+      "ms": 141583
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 8/10 >= 5; issues: minor facial feature inconsistency with reference portrait; model gemini-3.5-flash",
+      "costUsd": 0.006882,
+      "ms": 7723,
+      "score": 8
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 5364
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as text-to-video",
+      "costUsd": 0,
+      "ms": 8272
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.45768833333333336,
+      "ms": 163002
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0014337,
+      "ms": 5454,
+      "score": 10
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "2 shot(s): 5.10 s + 5.10 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 3489
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.00031244380245333336,
+      "ms": 587
+    }
+  ],
+  "costUsd": 1.007586,
+  "final": {
+    "path": "/Users/bogdan/idea-to-video/runs/20261019-071826-381687/final.mp4",
+    "seconds": 10.233008,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "open it after i leave mom are you sick",
+    "heard": "open it after i leave mom are you sick",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "Open it after I leave. Mom, are you sick?",
+    "heard": "Open it after I leave. Mom, are you sick?"
+  },
+  "ok": true
+}

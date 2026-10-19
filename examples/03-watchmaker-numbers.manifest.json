@@ -1,0 +1,259 @@
+{
+  "runId": "20261019-071826-7ce904",
+  "idea": "An old watchmaker holds up a stopped pocket watch in his dim workshop. He says quietly: \"It stopped in 1987, at 3:15 a.m., and so did I.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T07:18:26.716Z",
+  "script": {
+    "promptVersion": "script-v4",
+    "title": "Frozen Time",
+    "logline": "An aging watchmaker confronts a lifetime of suspended grief while clutching a pocket watch that stopped decades ago.",
+    "setting": "Dim, dust-mote-filled horology workshop crowded with antique clock pendulums, brass gears, and warm amber workbench lamplight.",
+    "characters": [
+      {
+        "name": "Arthur",
+        "look": "Late-seventies craftsman with deep crow's feet, wispy white comb-over hair, wearing a threadbare tweed vest over a rolled-sleeve canvas shirt, with a thick magnifying jeweler's loupe resting on his furrowed forehead.",
+        "voice": {
+          "gender": "male",
+          "age": "older",
+          "tone": "gravelly and fragile"
+        },
+        "voiceDescription": "Husky rasping older male voice, late-70s, weary British accent, slow and reflective."
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "medium close-up",
+        "visual": "Arthur sits beneath a warm desk lamp, gently raising a tarnished silver pocket watch beside his cheek, his solemn gaze fixed on the frozen clock face.",
+        "motion": "Slow push-in toward Arthur as he lifts the watch into the amber lamplight.",
+        "emotion": "solemn and haunted",
+        "line": "It stopped in 1987, at 3:15 a.m., and so did I.",
+        "seconds": 6.5,
+        "speaker": "Arthur",
+        "onScreen": [
+          "Arthur"
+        ]
+      },
+      {
+        "id": "s2",
+        "camera": "close-up",
+        "visual": "Tight on Arthur's weathered face as his calloused thumb gently traces the cracked crystal face of the pocket watch, eyes glistening under the faint light.",
+        "motion": "Subtle handheld drift lingering on Arthur's damp eyes and trembling chin.",
+        "emotion": "aching grief and stillness",
+        "line": "",
+        "seconds": 4.5,
+        "onScreen": [
+          "Arthur"
+        ]
+      }
+    ],
+    "quotedLines": [
+      "It stopped in 1987, at 3:15 a.m., and so did I."
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-071826-7ce904/clip-s1-c943e84d52c79c3a.mp4",
+      "seconds": 7.104,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.74,
+      "speechEnd": 6.62,
+      "verbatim": {
+        "expected": "it stopped in nineteen eighty seven at three fifteen am and so did i",
+        "heard": "it stopped in nineteen eighty seven at three fifteen am and so did i",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 7,
+      "needsReview": false
+    },
+    "s2": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-071826-7ce904/clip-s2-2051bc602ce570e1.mp4",
+      "seconds": 5.088,
+      "hasAudio": true,
+      "audio": "silent",
+      "keyframeScore": 8,
+      "clipScore": 5,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.00983625,
+      "ms": 47159
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 18380
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11708
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.000804,
+      "ms": 4193,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11254
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 8/10 >= 7; issues: unnatural finger placement on pocket watch; model gemini-3.5-flash",
+      "costUsd": 0.0068055,
+      "ms": 10300,
+      "score": 8
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 7937
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as text-to-video",
+      "costUsd": 0,
+      "ms": 9663
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.6391283333333334,
+      "ms": 135787
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 7/10 >= 5; issues: goggles added to forehead instead of reference jeweler's loupe; character face differs slightly from reference portrait; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0015153,
+      "ms": 5269,
+      "score": 7
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 7810
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as text-to-video",
+      "costUsd": 0,
+      "ms": 8144
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate",
+      "costUsd": 0.45738,
+      "ms": 204314
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 5/10 >= 5; issues: character does not match reference portrait (wears double goggles instead of single jeweler's loupe, facial structure differs); model gemini-3.5-flash",
+      "costUsd": 0.00540375,
+      "ms": 5852,
+      "score": 5
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "2 shot(s): 7.03 s + 4.50 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 4626
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.00035256953088,
+      "ms": 563
+    }
+  ],
+  "costUsd": 1.175226,
+  "final": {
+    "path": "/Users/bogdan/idea-to-video/runs/20261019-071826-7ce904/final.mp4",
+    "seconds": 11.533333,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "it stopped in nineteen eighty seven at three fifteen am and so did i",
+    "heard": "it stopped in nineteen eighty seven at three fifteen am and so did i",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "It stopped in 1987, at 3:15 a.m., and so did I.",
+    "heard": "It stopped in 1987 at 3.15am, and so did I."
+  },
+  "ok": true
+}
