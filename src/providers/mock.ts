@@ -262,7 +262,7 @@ export class MockJudge implements JudgeProvider {
 
   async judgeVideo(req: JudgeVideoRequest): Promise<JudgeResult> {
     this.calls.push({ kind: "video", ...req });
-    for (const p of [...req.frames, ...(req.refs ?? [])]) await access(p);
+    for (const p of [...req.frames, ...(req.refs ?? []), ...(req.video ? [req.video] : [])]) await access(p);
     return this.reply(this.scripts.video.shift());
   }
 

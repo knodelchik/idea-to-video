@@ -3,9 +3,23 @@
  * spent + in-flight estimates past the cap is refused before any request leaves the machine. Parallel shots
  * reserve their estimate, so two concurrent calls can't both squeeze under the cap.
  */
-import type { Providers } from "./types.ts";
+import type { JudgeProvider, JudgeVideoRequest, Providers } from "./types.ts";
 
 export const DEFAULT_MAX_COST_USD = 3;
+/** Clip length assumed for a video judge request that doesn't say (the longest shot a script allows). */
+const JUDGE_VIDEO_SECONDS_FALLBACK = 15;
+
+/**
+ * A clip judged as video may fall back to its frames (F14), so reserve the dearer of the two. The fallback is a
+ * second request only after a 400, which Gemini does not bill, so the max is the worst case, not the sum.
+ */
+export function judgeVideoEstimate(judge: JudgeProvider, req: JudgeVideoRequest): number {
+  const refs = req.refs?.length ?? 0;
+  const frames = judge.estimateUsd?.({ images: req.frames.length + refs, rubric: req.rubric }) ?? 0;
+  if (!req.video) return frames;
+  const video = judge.estimateUsd?.({ images: refs, rubric: req.rubric, videoSeconds: req.seconds ?? JUDGE_VIDEO_SECONDS_FALLBACK }) ?? 0;
+  return Math.max(frames, video);
+}
 
 export class BudgetExceededError extends Error {
   constructor(
@@ -119,7 +133,7 @@ export function withBudget(p: Providers, budget: Budget): Providers {
       judgeVideo: (req) =>
         budget.guard(
           judge.name,
-          judge.estimateUsd?.({ images: req.frames.length + (req.refs?.length ?? 0), rubric: req.rubric }) ?? 0,
+          judgeVideoEstimate(judge, req),
           () => judge.judgeVideo(req),
         ),
       estimateUsd: (req) => judge.estimateUsd?.(req) ?? 0,

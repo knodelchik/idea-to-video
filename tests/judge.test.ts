@@ -463,11 +463,152 @@ describe("clip rubric v6 (live 2026-10-19)", () => {
       ],
       quotedLines: [],
     });
-    expect(JUDGE_PROMPT_VERSION).toBe("judge-v6");
+    expect(JUDGE_PROMPT_VERSION).toBe("judge-v7");
     const wide = clipRubric(script.shots[0]!, script);
     expect(wide).toMatch(/Leaving the frame because of the planned camera move is fine/);
     expect(wide).not.toMatch(/in every frame by its look/);
     expect(wide).toMatch(/action matches the shot: Lyra advances toward the iron gate\. Check the direction of movement/);
     expect(clipRubric(script.shots[1]!, script)).toMatch(/action matches the shot: Lyra turns away/);
   });
+});
+
+describe("F14: the clip judge watches the video", () => {
+  const LYRA = Script.parse({
+    promptVersion: "t", title: "t", logline: "t", setting: "a cliff",
+    characters: [{ name: "Lyra", look: "crimson cloak, long white braid", voice: { gender: "female", age: "young", tone: "cold" }, voiceDescription: "cold young female voice" }],
+    shots: [
+      { id: "s1", camera: "wide shot", visual: "Lyra advances toward the iron gate", motion: "slow tilt-up to the battlements", emotion: "resolve", line: "", seconds: 5, onScreen: ["Lyra"] },
+      { id: "s2", camera: "medium shot", visual: "Lyra turns away", motion: "still", emotion: "cold", line: "Go.", seconds: 4, speaker: "Lyra", onScreen: ["Lyra"] },
+    ],
+    quotedLines: [],
+  });
+
+  it("v7 rubric: 'Watch this vertical video clip', keeps both v6 rules, does not score the words", () => {
+    expect(JUDGE_PROMPT_VERSION).toBe("judge-v7");
+    for (const shot of LYRA.shots) {
+      const r = clipRubric(shot, LYRA, { video: true });
+      expect(r).toMatch(/^Watch this vertical video clip/);
+      expect(r).not.toMatch(/these frames/);
+      expect(r).toMatch(/action matches the shot: .*Check the direction of movement/);
+      expect(r).toMatch(/speech is checked elsewhere.*do not score the words/i);
+    }
+    expect(clipRubric(LYRA.shots[0]!, LYRA, { video: true })).toMatch(/Leaving the frame because of the planned camera move is fine/);
+    // Frames-only callers (the bench) keep the frames wording and no audio note.
+    const frames = clipRubric(LYRA.shots[0]!, LYRA);
+    expect(frames).toMatch(/^Judge these frames/);
+    expect(frames).not.toMatch(/do not score the words/i);
+  });
+
+  async function rig(opts: { replies: (() => unknown)[]; size?: number }) {
+    const dir = fresh();
+    const img = (await new MockImage().generate({ prompt: "f", out: join(root, `img-v-${++n}.png`) })).path;
+    const kf = await portraitIn(dir);
+    const clip = (await talkingShot(S1, kf, { ...shotRig(dir, {}), maxNative: 1 })).path;
+    const seen: { contents: { parts: Record<string, unknown>[] }[] }[] = [];
+    const client: GenAiClient = {
+      models: {
+        generateContent: async (params) => {
+          seen.push(params as never);
+          return opts.replies.shift()!() as never;
+        },
+      },
+    };
+    const j = new GeminiJudge({
+      client,
+      models: ["gemini-2.5-flash"],
+      ...(opts.size !== undefined ? { fileSize: async () => opts.size! } : {}),
+    });
+    return { j, seen, img, clip };
+  }
+  const ok = () => ({ text: JSON.stringify({ score: 7, issues: [] }), usageMetadata: { promptTokenCount: 5000, candidatesTokenCount: 50 } });
+  const inlineParts = (p: { contents: { parts: Record<string, unknown>[] }[] }) =>
+    p.contents[0]!.parts.filter((x) => "inlineData" in x) as { inlineData: { mimeType: string; data: string }; videoMetadata?: { fps?: number } }[];
+
+  it(
+    "Gemini: one video/mp4 inline part with videoMetadata.fps 4, no frame images",
+    async () => {
+      const { j, seen, img, clip } = await rig({ replies: [ok] });
+      const r = await j.judgeVideo({ frames: [img, img, img], video: clip, seconds: 6, rubric: "R" });
+      expect(r.score).toBe(7);
+      expect(seen).toHaveLength(1);
+      const parts = inlineParts(seen[0]!);
+      expect(parts).toHaveLength(1);
+      expect(parts[0]!.inlineData.mimeType).toBe("video/mp4");
+      expect(parts[0]!.videoMetadata?.fps).toBe(4);
+      expect(Buffer.from(parts[0]!.inlineData.data, "base64").equals(await readFile(clip))).toBe(true);
+      expect(r.notes ?? []).not.toContain(expect.stringMatching(/frames instead/));
+      // With refs: the video part plus the portrait, still no frames.
+      const again = await rig({ replies: [ok] });
+      await again.j.judgeVideo({ frames: [again.img], video: again.clip, rubric: "R", refs: [again.img] });
+      expect(inlineParts(again.seen[0]!).map((p) => p.inlineData.mimeType)).toEqual(["video/mp4", "image/png"]);
+    },
+    SLOW,
+  );
+
+  it(
+    "Gemini: a video over 18 MB is judged on frames, and the notes say why",
+    async () => {
+      const { j, seen, img, clip } = await rig({ replies: [ok], size: 19 * 1024 * 1024 });
+      const r = await j.judgeVideo({ frames: [img, img, img], video: clip, rubric: "R" });
+      expect(seen).toHaveLength(1);
+      const parts = inlineParts(seen[0]!);
+      expect(parts.map((p) => p.inlineData.mimeType)).toEqual(["image/png", "image/png", "image/png"]);
+      expect(parts.some((p) => p.videoMetadata)).toBe(false);
+      expect(r.notes?.join(" ")).toMatch(/video .*19\.0 MB.*over the 18 MB inline limit.*judged 3 frames instead/);
+    },
+    SLOW,
+  );
+
+  it(
+    "Gemini: a 400 naming the video part falls back to frames, recorded; an unrelated 400 still throws",
+    async () => {
+      const bad = () => {
+        throw Object.assign(new Error("Request contains an invalid argument: video_metadata is not supported for inline_data video/mp4"), { status: 400 });
+      };
+      const { j, seen, img, clip } = await rig({ replies: [bad, ok] });
+      const r = await j.judgeVideo({ frames: [img, img, img], video: clip, rubric: "R" });
+      expect(r.score).toBe(7);
+      expect(seen).toHaveLength(2);
+      expect(inlineParts(seen[1]!).map((p) => p.inlineData.mimeType)).toEqual(["image/png", "image/png", "image/png"]);
+      expect(r.notes?.join(" ")).toMatch(/video rejected \(400\).*video_metadata.*judged 3 frames instead/);
+
+      const other = () => {
+        throw Object.assign(new Error("API key not valid"), { status: 400 });
+      };
+      const b = await rig({ replies: [other, ok] });
+      await expect(b.j.judgeVideo({ frames: [b.img], video: b.clip, rubric: "R" })).rejects.toThrow(/API key/);
+      expect(b.seen).toHaveLength(1);
+    },
+    SLOW,
+  );
+
+  it("estimateUsd: a video costs 258 tokens per sampled frame (4 fps) + 32 per second of audio", async () => {
+    const j = new GeminiJudge({ client: { models: { generateContent: async () => ({}) } }, models: ["gemini-2.5-flash"] });
+    const base = j.estimateUsd({ images: 1, rubric: "R" });
+    const withVideo = j.estimateUsd({ images: 1, rubric: "R", videoSeconds: 10 });
+    expect(withVideo - base).toBeCloseTo(((10 * 4 * 258 + 10 * 32) * 0.3) / 1e6, 10);
+  });
+
+  it(
+    "2. judgedTalkingShot passes the clip as `video` (and still the frames); the mock judge records it",
+    async () => {
+      const dir = fresh();
+      const portrait = await portraitIn(dir);
+      const r0 = shotRig(dir, {});
+      const r = await judgedTalkingShot(S1, portrait, { ...r0, portrait });
+      const call = r0.judge.calls.find((c) => c.kind === "video")!;
+      expect(call.kind === "video" && call.video).toBe(r.path);
+      expect(call.kind === "video" && call.frames).toHaveLength(3);
+      expect(call.kind === "video" && call.seconds).toBeGreaterThan(0);
+      expect(call.rubric).toBe(clipRubric(S1, SCRIPT, { video: true }));
+      // The cached verdict is keyed by the clip file: judging the same take again reuses it.
+      const again = await judge(
+        "clip",
+        { paths: call.kind === "video" ? call.frames : [], refs: [portrait], video: r.path },
+        { judge: r0.judge, rubric: call.rubric, min: 5, dir, shotId: "s1", n: 1, subject: r.path },
+      );
+      expect(again.attempt.reason).toMatch(/reused cached verdict/);
+    },
+    SLOW,
+  );
 });

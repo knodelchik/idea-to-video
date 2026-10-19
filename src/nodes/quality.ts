@@ -68,7 +68,8 @@ export interface Judged {
  */
 export async function judge(
   what: "keyframe" | "clip",
-  files: { paths: string[]; refs: string[] },
+  /** `video`/`seconds`: the clip itself, sent to a judge that can watch it; `paths` (its frames) stay the fallback (F14). */
+  files: { paths: string[]; refs: string[]; video?: string; seconds?: number },
   ctx: {
     judge: JudgeProvider;
     rubric: string;
@@ -78,7 +79,8 @@ export async function judge(
     n: number;
     /**
      * The judged artifact (a clip, when `paths` are its frames). Its content-addressed name joins the key: two
-     * takes are separate judgements even if their sampled frames happen to be identical.
+     * takes are separate judgements even if their sampled frames happen to be identical. Kept with
+     * `files.video` too: two takes can have identical bytes (a mock, a deterministic model) yet differ by prompt.
      */
     subject?: string;
   },
@@ -88,13 +90,20 @@ export async function judge(
   const base = { stage: "judge", shotId, n, provider: j.name };
   try {
     const subject = ctx.subject ? basename(ctx.subject) : null;
-    const files_ = [...files.paths, ...files.refs].map((file) => ({ file }));
-    const key = await contentKey("judge", j.name, JUDGE_PROMPT_VERSION, what, rubric, subject, ...files_);
+    // The clip's own bytes join the key when it is sent as video: the verdict is about that file.
+    const files_ = [...files.paths, ...files.refs, ...(files.video ? [files.video] : [])].map((file) => ({ file }));
+    const key = await contentKey("judge", j.name, JUDGE_PROMPT_VERSION, what, rubric, subject, files.video ? "video" : "frames", ...files_);
     const made = await once(join(dir, `judge-${what}-${shotId}-${key}.json`), async (tmp) => {
       const r =
         what === "keyframe"
           ? await j.judgeImage({ path: files.paths[0]!, rubric, refs: files.refs })
-          : await j.judgeVideo({ frames: files.paths, rubric, refs: files.refs });
+          : await j.judgeVideo({
+              frames: files.paths,
+              rubric,
+              refs: files.refs,
+              ...(files.video ? { video: files.video } : {}),
+              ...(files.seconds !== undefined ? { seconds: files.seconds } : {}),
+            });
       await writeFile(tmp, JSON.stringify({ score: r.score, issues: r.issues }));
       return r;
     });
@@ -210,17 +219,22 @@ export function regenEstimateUsd(shot: Shot, keyframe: string, opts: JudgedShotO
   const tries = video.capabilities.nativeSpeech ? maxNative : 1;
   // A wide shot's fallback is a voice-over, not a lip-sync (F12).
   const sync = shot.line.trim() && !isWide(shot.camera) ? (lipsync.estimateUsd?.({ video: "", audio: "", out: "" }) ?? 0) : 0;
-  const judging = j.estimateUsd?.({ images: CLIP_FRAMES + 1, rubric: clipRubric(shot, script) }) ?? 0;
+  const rubric = clipRubric(shot, script, { video: true });
+  // The clip goes as video (F14), but may fall back to its frames: count the dearer of the two.
+  const judging = Math.max(
+    j.estimateUsd?.({ images: 1, rubric, videoSeconds: seconds }) ?? 0,
+    j.estimateUsd?.({ images: CLIP_FRAMES + 1, rubric }) ?? 0,
+  );
   return take * tries + sync + judging;
 }
 
 /**
- * talkingShot (verbatim-gated) → judge 3 frames against the portrait → under `min`, one more take if the budget
- * allows. A failing second take never loses the first: it was gated and paid for.
+ * talkingShot (verbatim-gated) → judge the clip (as video, its 3 frames as the fallback) against the portrait →
+ * under `min`, one more take if the budget allows. A failing second take never loses the first: it was gated and paid for.
  */
 export async function judgedTalkingShot(shot: Shot, keyframe: string, opts: JudgedShotOpts): Promise<JudgedShot> {
   const { judge: j, dir, min = DEFAULT_CLIP_MIN } = opts;
-  const rubric = clipRubric(shot, opts.script);
+  const rubric = clipRubric(shot, opts.script, { video: true });
   const portrait = portraitOf(opts.portrait, speakerOf(opts.script, shot).name);
   const attempts: Attempt[] = [];
   const judgeClip = async (r: TalkingShot, n: number) => {
@@ -231,7 +245,7 @@ export async function judgedTalkingShot(shot: Shot, keyframe: string, opts: Judg
       const attempt: Attempt = { stage: "judge", shotId: shot.id, n, provider: "ffmpeg", ok: false, reason: `judge failed on clip (counted as not passing): frame extraction: ${errMsg(e)}`, costUsd: 0, ms: 0 };
       return { pass: false, attempt } as Judged;
     }
-    return judge("clip", { paths: frames, refs: [portrait] }, { judge: j, rubric, min, dir, shotId: shot.id, n, subject: r.path });
+    return judge("clip", { paths: frames, refs: [portrait], video: r.path, seconds: r.seconds }, { judge: j, rubric, min, dir, shotId: shot.id, n, subject: r.path });
   };
 
   const first = await talkingShot(shot, keyframe, { ...opts, take: 1 });

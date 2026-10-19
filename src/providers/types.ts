@@ -142,10 +142,14 @@ export interface JudgeImageRequest {
   refs?: string[];
 }
 export interface JudgeVideoRequest {
-  /** Frames sampled evenly from the clip, in order. */
+  /** Frames sampled evenly from the clip, in order. The fallback when the clip itself can't be sent (F14). */
   frames: string[];
   rubric: string;
   refs?: string[];
+  /** The clip itself (mp4). A provider that can watch video judges this instead of `frames` (F14). */
+  video?: string;
+  /** Clip length in seconds, for the cost estimate of a video request. */
+  seconds?: number;
 }
 /** Parsed through `JudgeVerdict`. A reply that fails it makes the provider throw `JudgeOutputError` (with its cost). */
 export interface JudgeResult {
@@ -161,7 +165,8 @@ export interface JudgeProvider {
   readonly name: string;
   judgeImage(req: JudgeImageRequest): Promise<JudgeResult>;
   judgeVideo(req: JudgeVideoRequest): Promise<JudgeResult>;
-  estimateUsd?(req: { images: number; rubric: string }): number;
+  /** `videoSeconds`: a clip sent as video, priced per sampled frame plus audio. */
+  estimateUsd?(req: { images: number; rubric: string; videoSeconds?: number }): number;
 }
 
 export interface Providers {

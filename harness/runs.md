@@ -153,3 +153,7 @@
 2026-10-19 13:03:45 F13-subtitles-multicut attempt 2: reviewer
 2026-10-19 13:08:27 F13-subtitles-multicut PASSED on attempt 2 -> 71ab359
 2026-10-19 13:08:27 all requested features passing
+2026-10-19 14:01:34 ### F14-judge-sees-video start (specs/F14-judge-sees-video.md)
+2026-10-19 14:01:34 F14-judge-sees-video attempt 1: implementer
+2026-10-19 14:08:39 F14-judge-sees-video attempt 1: gate
+2026-10-19 14:10:01 F14-judge-sees-video attempt 1: reviewer

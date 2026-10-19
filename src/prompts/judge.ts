@@ -10,7 +10,12 @@ import { isWide, openingCastOf, openingOf, speakerOf, type Script, type Shot } f
 // v4: a clip with cuts (F13) is told its hard cuts are intended, so a change of framing is not a failure.
 // v5: a cut shot's keyframe is judged against the opening cut's cast only (F13, human note).
 // v6: a planned camera move may take the character out of frame; the action must match the shot (live 2026-10-19).
-export const JUDGE_PROMPT_VERSION = "judge-v6";
+// v7: the clip judge watches the clip itself (video + audio) instead of 3 frames; it must not score the words (F14).
+export const JUDGE_PROMPT_VERSION = "judge-v7";
+
+/** The judge may hear the clip, but whether the words are right is the verbatim gate's job (ASR + WER), not a VLM's. */
+const AUDIO_NOTE =
+  "You may hear the audio, but speech is checked elsewhere: do not score the words, the voice or the lip-sync timing against the script.";
 
 /** Said to the clip judge when the shot has cuts: the framing changes on purpose; only identity must hold. */
 function cutsNote(shot: Shot): string[] {
@@ -49,24 +54,34 @@ export function keyframeRubric(shot: Shot, script: Script): string {
   ].join("\n");
 }
 
-/** A clip, seen as a few evenly sampled frames, with the speaker's portrait (silent shot: first on screen) as reference. */
-export function clipRubric(shot: Shot, script: Script): string {
+/**
+ * A clip, with the speaker's portrait (silent shot: first on screen) as reference. `video`: the judge watches the clip
+ * itself (F14, what the pipeline sends); otherwise it sees a few evenly sampled frames (the bench).
+ */
+export function clipRubric(shot: Shot, script: Script, opts: { video?: boolean } = {}): string {
   const speaking = shot.line.trim() !== "";
   const c = speakerOf(script, shot);
+  const video = opts.video === true;
+  const audio = video ? [AUDIO_NOTE] : [];
   if (isWide(shot.camera)) {
     // The face is too small to judge a mouth; at a distance the failures are extra or melting figures and wobbling buildings.
     return [
-      "Judge these frames, sampled in order from one vertical wide-shot video clip, the character small in frame. Check, and list every failure as an issue:",
+      video
+        ? "Watch this vertical video clip, a wide shot with the character small in frame. Check, and list every failure as an issue:"
+        : "Judge these frames, sampled in order from one vertical wide-shot video clip, the character small in frame. Check, and list every failure as an issue:",
       `1. The ${speaking ? "speaker" : "main character"}, ${oneLine(c.name)}, is recognisable by its look (hair, outfit, silhouette: ${oneLine(c.look)}) whenever in view. Leaving the frame because of the planned camera move is fine, not a failure; a figure that vanishes or changes while the camera keeps the spot in view is.`,
       "2. No duplicated, merging or melting figures: the same number of people in every frame, each anatomically whole.",
       "3. Stable architecture and setting: walls, doors, stairs and horizon keep their shape between frames, no warping.",
       `4. Motion plausible for: ${oneLine(shot.motion)}.`,
       `5. The action matches the shot: ${oneLine(shot.visual)}. Check the direction of movement (toward or away from what), who does what, and where they go; say exactly what differs.`,
       ...cutsNote(shot),
+      ...audio,
     ].join("\n");
   }
   return [
-    "Judge these frames, sampled in order from one vertical video clip. Check, and list every failure as an issue:",
+    video
+      ? "Watch this vertical video clip. Check, and list every failure as an issue:"
+      : "Judge these frames, sampled in order from one vertical video clip. Check, and list every failure as an issue:",
     `1. The ${speaking ? "speaker" : "main character"}, ${oneLine(c.name)}, is the same person as the reference portrait in every frame (${oneLine(c.look)}).`,
     "2. No warping or morphing: face, hands and background stay stable and coherent between frames.",
     speaking
@@ -75,6 +90,7 @@ export function clipRubric(shot: Shot, script: Script): string {
     `4. Motion plausible for: ${oneLine(shot.motion)}.`,
     `5. The action matches the shot: ${oneLine(shot.visual)}. Check the direction of movement, who does what, and where they go; say exactly what differs.`,
     ...cutsNote(shot),
+    ...audio,
   ].join("\n");
 }
 

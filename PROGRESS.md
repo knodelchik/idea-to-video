@@ -295,3 +295,17 @@ Append-only log, one entry per feature, written by the implementer agent and com
   on-screen portrait. A first cut with `onScreen: []` is rejected; inserts only as cut 2 or 3.
 - Try: `npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: "Meet me where it started."' --mock --json`,
   then the same with `--no-subtitles`, and compare the lower third.
+
+## F14 — The clip judge watches the video, not 3 frames
+- `judgedTalkingShot` sends the clip itself to the judge (`JudgeVideoRequest.video` + `seconds`). The 3 extracted
+  frames still go along as the fallback. `MockJudge.calls` records `video`.
+- `GeminiJudge.judgeVideo` sends one inline `video/mp4` part with `videoMetadata.fps = 4`, plus the portrait. If
+  the clip is over 18 MB, or Gemini returns a 400 naming the video, it judges the frames instead and puts why in
+  the verdict notes, so the reason reaches the attempt in the manifest.
+- `estimateUsd({ …, videoSeconds })` prices video at 258 tokens per sampled frame plus 32 per second of audio. The
+  budget guard and `regenEstimateUsd` reserve the dearer of the video and frames paths.
+- Rubric `judge-v7`: `clipRubric(shot, script, { video: true })` says "Watch this vertical video clip", keeps the
+  v6 camera-move and action-match rules, and tells the judge not to score the words. The bench keeps the frames
+  wording.
+- The cached clip verdict is keyed by the clip's bytes and name, the rubric and the judge prompt version, so a
+  resumed run doesn't pay to re-judge a take.

@@ -234,3 +234,4 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   did not flag that she walks away from the gate instead of toward it. Only gemini-3.5-flash-lite answered
   (flash was 429). Lesson: a 3-frame VLM judge can't tell a camera move from a vanishing figure. Fixing that needs
   more frames plus the motion text, or a stronger model; calibrating the judge against human scores is the real fix.
+- [F14] Dropped `subject` (the clip's content-addressed name) from the clip verdict's cache key, assuming the clip's bytes in the key made it redundant → test 3b failed: mock takes 1 and 2 have identical bytes, so take 2 reused take 1's verdict (scores [2, 2] instead of [2, 7]) → kept `subject` alongside the bytes. Also: the current Gemini video docs show `processing: { fps }`, but that is the Interactions-API type; `generateContent` parts use `videoMetadata.fps` (checked in the installed SDK's .d.ts, not the web page).
