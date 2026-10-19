@@ -31,10 +31,9 @@ import {
   HttpError,
   isTransientHttp,
   withBudget,
-  type FetchLike,
   type Providers,
 } from "./providers/index.ts";
-import { exportToLangfuse, type LangfuseConfig } from "./obs/langfuse.ts";
+import { exportToLangfuse, type LangfuseConfig, type LangfuseTestHooks } from "./obs/langfuse.ts";
 import { JsonlSink, newSpanId, withTraceContext } from "./obs/trace.ts";
 import { withTrace } from "./obs/with-trace.ts";
 import {
@@ -173,8 +172,8 @@ export interface PipelineDeps {
   subtitles?: boolean;
   /** Values that must never reach a trace line (API keys from env); replaced before writing (F16). */
   secrets?: string[];
-  /** Langfuse export at run end (F16). Absent = off: nothing is sent. */
-  langfuse?: { config: LangfuseConfig; fetch?: FetchLike };
+  /** Langfuse export at run end (F16, SDK since F17). Absent = off: the SDK is never loaded, nothing is sent. */
+  langfuse?: { config: LangfuseConfig } & LangfuseTestHooks;
 }
 
 interface Ctx {
@@ -591,15 +590,17 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
     const leftover = [...carried, ...[...ctx.failed.values()].flat()];
     if (error === undefined && state.ok === undefined) error = "run ended before the final gate";
     const notes: string[] = [];
+    let manifest = toManifest(state, { attempts: leftover, notes, ...(error !== undefined ? { error } : {}) });
     if (deps.langfuse) {
-      // Never fails the run: a broken export is a note, and the local trace.jsonl still has every span.
-      const r = await exportToLangfuse(sink.spans, { runId, idea: state.idea, ...deps.langfuse });
+      // After the manifest: the trace's output and scores come from it. Never fails the run: a broken export is a
+      // note, and the local trace.jsonl still has every span. The SDK flushes and shuts down before this returns.
+      const r = await exportToLangfuse(sink.spans, manifest, deps.langfuse);
       if (!r.ok) {
         notes.push(`langfuse export failed (non-fatal): ${r.error}`);
         deps.log?.(`! langfuse export failed (non-fatal): ${r.error}`);
+        manifest = toManifest(state, { attempts: leftover, notes, ...(error !== undefined ? { error } : {}) });
       }
     }
-    const manifest = toManifest(state, { attempts: leftover, notes, ...(error !== undefined ? { error } : {}) });
     await write(manifest);
     return { manifest, manifestPath: path };
   } finally {

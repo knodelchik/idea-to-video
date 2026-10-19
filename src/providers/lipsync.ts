@@ -37,7 +37,7 @@ export class FalKlingLipsync implements LipsyncProvider {
     const input = { video_url: await falUpload(fal, video), audio_url: await falUpload(fal, audio) };
     const { data } = await fal.subscribe(KLING_LIPSYNC_ENDPOINT, { input }).catch((e: unknown) => rethrowFalPolicy(this.name, e));
     await download(this.name, falVideoUrl(KLING_LIPSYNC_ENDPOINT, data), out, this.deps.fetch ?? (globalThis.fetch as FetchLike));
-    return { path: out, costUsd: klingLipsyncCost(seconds) };
+    return { path: out, costUsd: klingLipsyncCost(seconds), model: KLING_LIPSYNC_ENDPOINT };
   }
 }
 

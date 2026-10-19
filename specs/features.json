@@ -143,7 +143,7 @@
     {
       "id": "F17-langfuse-best-practices",
       "spec": "specs/F17-langfuse-best-practices.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/obs.test.ts tests/langfuse.test.ts"
       ]

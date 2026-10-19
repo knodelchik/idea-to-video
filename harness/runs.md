@@ -171,3 +171,19 @@
 2026-10-19 14:59:37 F15-web-demo attempt 1: reviewer
 2026-10-19 15:04:02 F15-web-demo PASSED on attempt 1 -> 3a7611d
 2026-10-19 15:04:02 all requested features passing
+2026-10-19 15:04:23 ### F17-langfuse-best-practices start (specs/F17-langfuse-best-practices.md)
+2026-10-19 15:04:23 F17-langfuse-best-practices attempt 1: implementer
+2026-10-19 15:25:35 F17-langfuse-best-practices attempt 1: gate
+2026-10-19 15:26:35 F17-langfuse-best-practices attempt 1: reviewer
+2026-10-19 15:31:32 F17-langfuse-best-practices attempt 1: REVIEW FAIL
+    - src/obs/langfuse-sdk.ts (sendTrace, the `await client.shutdown()` in the finally block): a failed score upload is dropped without any record. In @langfuse/client 6.0.1, ScoreManager.sendBatch (node_modules/@langfuse/client/dist/index.mjs:2187-2207) catches HTTP and network errors and partial rejections, logs them with its own logger and returns. Those errors never reach OTel `diag`, so collectErrors() misses them and the manifest gets no note. Example: if the scores endpoint returns 401/500 or rejects a score while OTLP succeeds, exportToLangfuse returns ok:true and the scores are lost. That breaks hard rule 6 and the Decisions claim 'Export failures become a manifest note'. Fix: capture the Langfuse logger's errors while shutting the client down (the SDK's global logger config, or a custom logger) and turn them into the redacted note. Add a test with a score client whose flush logs or fails.
+    - pnpm-workspace.yaml:6-10: `minimumReleaseAgeExclude` was added for @langfuse/client, core, otel and tracing 6.0.1. This bypasses pnpm's release-age supply-chain guard, and the spec's Decisions section doesn't mention it (CLAUDE.md rule 8, and Decisions must be honest). Either record why the bypass is needed or remove it.
+2026-10-19 15:31:32 F17-langfuse-best-practices attempt 2: implementer
+2026-10-19 15:35:13 F17-langfuse-best-practices attempt 2: gate
+2026-10-19 15:36:44 F17-langfuse-best-practices attempt 2: reviewer
+2026-10-19 15:41:19 F17-langfuse-best-practices attempt 2: REVIEW FAIL
+    - pnpm-workspace.yaml:6-10: minimumReleaseAgeExclude for @langfuse/{client,core,otel,tracing}@6.0.1 switches off pnpm's release-age supply-chain guard and is still not recorded or justified in specs/F17-langfuse-best-practices.md Decisions. This breaks CLAUDE.md rule 8 and the requirement that Decisions be honest. It was raised in the attempt-1 review and has not been addressed.
+    - package.json:30: '@langfuse/core': '6.0.1' is a new direct dependency, used for getGlobalLogger in src/obs/langfuse-sdk.ts:15, with no line in Decisions. specs/F17-langfuse-best-practices.md:129 lists only @opentelemetry/api as new, so this breaks rule 8.
+2026-10-19 15:41:19 F17-langfuse-best-practices attempt 3: implementer
+2026-10-19 15:44:41 F17-langfuse-best-practices attempt 3: gate
+2026-10-19 15:45:31 F17-langfuse-best-practices attempt 3: reviewer

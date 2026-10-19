@@ -345,3 +345,25 @@ Append-only log, one entry per feature, written by the implementer agent and com
 - Deploy: `deploy/Dockerfile` (node:22-bookworm-slim, ffmpeg, pnpm via corepack, `.env` guard), root
   `.dockerignore`, `deploy/docker-compose.yml` (`itv-web` on the external `coolify` network, Traefik labels,
   `TRUST_PROXY=1`) and `deploy/README.md` (env, `tar | ssh`, build/start, the nightly image prune).
+
+## F17 — Langfuse tracing by the book: official SDK, readable traces, scores
+- `src/obs/langfuse.ts` (pure) plans one trace per run from `trace.jsonl` spans + the manifest: root `agent`
+  `make-video` (input = idea, output = `{ ok, finalPath, seconds, wer, costUsd, error? }`), stable verb-first names
+  (`OBSERVATION_NAMES`), the most specific type (generation / evaluator / guardrail / event for cache hits), real model
+  ids, usage per unit, our cost as `costDetails.total`, ERROR / real-face WARNING levels, role-labelled LLM and judge input.
+- `src/obs/langfuse-sdk.ts` is loaded only with `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY`. It replays the plan
+  through `@langfuse/tracing` + `@langfuse/otel` on an isolated `NodeTracerProvider`, posts scores with
+  `@langfuse/client` (`verbatim_wer`, `verbatim_pass`, `judge_keyframe_<shot>`, `judge_clip_<shot>`, `needs_review`,
+  `cost_usd`), then `forceFlush()` + `shutdown()` before `runPipeline` returns.
+- Environment `development` (mock) / `production` (live); tags `mode:*`, `storyboard`, `dialogue`, `wide`,
+  `subtitles`; `sessionId = runId`, so a `--redo` is a new trace in the same session. Base URL from
+  `LANGFUSE_BASE_URL`, then `LANGFUSE_HOST`, then the EU cloud.
+- A failed export (OTLP 500, network) is caught through OTel `diag` and becomes a redacted, non-fatal manifest note.
+- Provider results gained optional `model` (and `AsrResult.seconds`); live adapters fill them in. Tests inject
+  `CliDeps.langfuse = { exporter, scores }` (an `InMemorySpanExporter` and a fake client): `tests/langfuse.test.ts`,
+  plus the F17 block in `tests/obs.test.ts`.
+- Live check (acceptance 5) is for the human: run a mock with the keys set, then
+  `GET /api/public/v2/observations?traceId=<id>`.
+- Deps: `@opentelemetry/api` 1.9.1 and `@langfuse/core` 6.0.1 (for `getGlobalLogger`) are now direct, pinned deps.
+  `pnpm-workspace.yaml` excludes exactly the four `@langfuse/*@6.0.1` from pnpm's release-age guard. Delete those
+  entries after 2026-10-20 07:13 UTC (reason: spec Decisions → "Supply-chain guard").

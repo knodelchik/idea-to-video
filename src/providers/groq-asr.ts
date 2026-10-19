@@ -83,6 +83,6 @@ export class GroqAsr implements AsrProvider {
       .map((w) => ({ word: w.word.trim(), start: Math.max(0, w.start), end: Math.max(0, w.end, w.start) }))
       .filter((w) => w.word !== "");
     const billed = Math.max(MIN_BILLED_SECONDS, body.duration ?? words.at(-1)?.end ?? 0);
-    return { text: body.text.trim(), words, costUsd: (billed / 3600) * GROQ_USD_PER_HOUR };
+    return { text: body.text.trim(), words, costUsd: (billed / 3600) * GROQ_USD_PER_HOUR, model: this.model, seconds: billed };
   }
 }

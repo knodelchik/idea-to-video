@@ -131,7 +131,11 @@ export function withTrace(p: Providers, sink: TraceSink): Providers {
           asr.name,
           async () => ({ media: await fileRef(req.path) }),
           () => asr.transcribe(req),
-          (r) => ({ costUsd: r.costUsd, response: { ...clipText(r.text), words: r.words.length } }),
+          (r) => ({
+            costUsd: r.costUsd,
+            model: r.model,
+            response: { ...clipText(r.text), words: r.words.length, ...(r.seconds !== undefined ? { seconds: r.seconds } : {}) },
+          }),
         ),
     },
     image: {
@@ -144,7 +148,7 @@ export function withTrace(p: Providers, sink: TraceSink): Providers {
           image.name,
           async () => ({ prompt: req.prompt, refs: await fileRefs(req.refs), ...(req.variant ? { variant: req.variant } : {}) }),
           () => image.generate(req),
-          (r) => ({ costUsd: r.costUsd, response: { path: finalPath(r.path) } }),
+          (r) => ({ costUsd: r.costUsd, model: r.model, response: { path: finalPath(r.path) } }),
         ),
     },
     video: {
@@ -168,7 +172,7 @@ export function withTrace(p: Providers, sink: TraceSink): Providers {
             ...(req.variant !== undefined ? { variant: req.variant } : {}),
           }),
           () => video.animate(req),
-          (r) => ({ costUsd: r.costUsd, response: { path: finalPath(r.path), seconds: r.seconds, hasAudio: r.hasAudio } }),
+          (r) => ({ costUsd: r.costUsd, model: r.model, response: { path: finalPath(r.path), seconds: r.seconds, hasAudio: r.hasAudio } }),
         ),
     },
     lipsync: {
@@ -184,7 +188,7 @@ export function withTrace(p: Providers, sink: TraceSink): Providers {
           lipsync.name,
           async () => ({ video: await fileRef(req.video), audio: await fileRef(req.audio) }),
           () => lipsync.sync(req),
-          (r) => ({ costUsd: r.costUsd, response: { path: finalPath(r.path) } }),
+          (r) => ({ costUsd: r.costUsd, model: r.model, response: { path: finalPath(r.path) } }),
         ),
     },
     talking: {
@@ -198,7 +202,7 @@ export function withTrace(p: Providers, sink: TraceSink): Providers {
           talking.name,
           async () => ({ prompt: req.prompt, mode: "talking", image: await fileRef(req.image), audio: await fileRef(req.audio) }),
           () => talking.talk(req),
-          (r) => ({ costUsd: r.costUsd, response: { path: finalPath(r.path) } }),
+          (r) => ({ costUsd: r.costUsd, model: r.model, response: { path: finalPath(r.path) } }),
         ),
     },
     judge: {

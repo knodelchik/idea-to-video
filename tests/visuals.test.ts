@@ -903,7 +903,8 @@ describe("live adapters (acceptance 7, no network)", () => {
       expect(await readFile(out)).toEqual(VIDEO_BYTES);
       // Length and audio are measured on the downloaded file, not echoed from the request; cost is per requested s.
       expect(p.probed).toEqual([out]);
-      expect(r).toEqual({ path: out, seconds: 7.04, hasAudio: false, costUsd: 7 * 0.3034 });
+      // The model id is the endpoint called (F17: the trace's generation model).
+      expect(r).toEqual({ path: out, seconds: 7.04, hasAudio: false, costUsd: 7 * 0.3034, model: "bytedance/seedance-2.0/image-to-video" });
     });
 
     it("fast tier uses the fast endpoint and price", async () => {

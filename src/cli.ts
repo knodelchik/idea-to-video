@@ -6,8 +6,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { estimateRunUsd, REDO_STEPS, runPipeline, type Mode, type RedoStep, type RunOutcome } from "./graph.ts";
 import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
-import { createProviders, maxCostFromEnv, type Env, type FetchLike, type Providers } from "./providers/index.ts";
-import { langfuseFromEnv } from "./obs/langfuse.ts";
+import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
+import { langfuseFromEnv, type LangfuseTestHooks } from "./obs/langfuse.ts";
 
 export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step>]] [--json] [--no-subtitles] [--run-id <id>] [-- "<idea>"]`;
 
@@ -83,8 +83,8 @@ export interface CliDeps {
   stderr?: (line: string) => void;
   retry?: { initialInterval?: number; maxAttempts?: number; jitter?: boolean };
   beforeNode?: (node: string, shotId?: string) => void | Promise<void>;
-  /** Fetch for the Langfuse export (tests pass a fake). */
-  fetch?: FetchLike;
+  /** Langfuse test seams: an in-memory span exporter and a fake score client (live runs pass neither). */
+  langfuse?: LangfuseTestHooks;
 }
 
 /** Env values that look like credentials (…_KEY, …_SECRET, …_TOKEN): never written to a trace (F16). */
@@ -135,6 +135,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
     return p;
   };
 
+  // Read from the env the caller loaded (`tsx --env-file-if-exists=.env`), and only now: the SDK loads only with keys.
   const langfuse = langfuseFromEnv(env);
   let outcome: RunOutcome;
   try {
@@ -146,7 +147,8 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
       quality,
       subtitles: args.subtitles !== false && subtitlesFromEnv(env),
       secrets: secretsFromEnv(env),
-      ...(langfuse ? { langfuse: { config: langfuse, ...(deps.fetch ? { fetch: deps.fetch } : {}) } } : {}),
+      // The export flushes and shuts the SDK down inside runPipeline, so everything is sent before main returns.
+      ...(langfuse ? { langfuse: { config: langfuse, ...deps.langfuse } } : {}),
       ...(deps.retry ? { retry: deps.retry } : {}),
       ...(deps.beforeNode ? { beforeNode: deps.beforeNode } : {}),
       log: err,

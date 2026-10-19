@@ -47,7 +47,7 @@ export class FalKlingAvatar implements TalkingProvider {
     await download(this.name, falVideoUrl(this.endpoint, data), out, this.deps.fetch ?? (globalThis.fetch as FetchLike));
     // Billed on output length: use the file's measured length, not the reply's claim (hard rule 4).
     const { seconds } = await (this.deps.probe ?? ffprobe)(out);
-    return { path: out, costUsd: seconds * KLING_AVATAR_USD_PER_SECOND[this.tier] };
+    return { path: out, costUsd: seconds * KLING_AVATAR_USD_PER_SECOND[this.tier], model: this.endpoint };
   }
 }
 

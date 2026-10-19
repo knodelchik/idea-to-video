@@ -3,9 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { InMemorySpanExporter, NodeTracerProvider, type ReadableSpan } from "@opentelemetry/sdk-trace-node";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { main, secretsFromEnv } from "../src/cli.ts";
-import { exportToLangfuse, LANGFUSE_EU_HOST, langfuseFromEnv, OTLP_PATH, otelTraceId, toOtlp, type OtlpBody } from "../src/obs/langfuse.ts";
+import { LANGFUSE_EU_HOST, langfuseFromEnv, OBSERVATION_NAMES, sdkLoads, type ScoreClient } from "../src/obs/langfuse.ts";
 import { loadRuns, main as metricsMain, parseTrace } from "../src/obs/metrics-cli.ts";
 import { metrics, normaliseReason } from "../src/obs/metrics.ts";
 import { clipText, finalPath, JsonlSink, MemorySink, TEXT_LIMIT, withTraceContext, type Span } from "../src/obs/trace.ts";
@@ -32,8 +33,44 @@ const FAKE_ENV = {
   ELEVENLABS_API_KEY: "el-FAKE-key-9876543210",
 };
 const LF_ENV = { LANGFUSE_PUBLIC_KEY: "pk-lf-test-0123456789", LANGFUSE_SECRET_KEY: "sk-lf-test-9876543210" };
-const attr = (s: OtlpBody["resourceSpans"][number]["scopeSpans"][number]["spans"][number], key: string) =>
-  s.attributes.find((a) => a.key === key)?.value as { stringValue?: string } | undefined;
+const attr = (s: ReadableSpan, key: string): unknown => s.attributes[key];
+/** Langfuse attributes hold JSON, except a plain string input/output, which the SDK stores as is. */
+const json = (s: ReadableSpan, key: string): unknown => {
+  const v = s.attributes[key];
+  if (typeof v !== "string") return undefined;
+  try {
+    return JSON.parse(v) as unknown;
+  } catch {
+    return v;
+  }
+};
+
+/** A fake `LangfuseClient`: records scores, counts shutdowns (a plain counter: mock state is reset between tests). */
+function fakeScores() {
+  const created: Parameters<ScoreClient["score"]["create"]>[0][] = [];
+  const state = { shutdowns: 0 };
+  const client: ScoreClient = {
+    score: { create: (s) => void created.push(s) },
+    shutdown: async () => {
+      state.shutdowns++;
+    },
+  };
+  return { client, created, state };
+}
+
+/** `InMemorySpanExporter.shutdown()` clears what it holds, and the export always shuts down: keep the spans to assert. */
+class KeptSpanExporter extends InMemorySpanExporter {
+  override shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+/** An exporter whose every export fails, the way an OTLP 500 does. */
+class FailingExporter extends InMemorySpanExporter {
+  override export(_spans: ReadableSpan[], cb: (r: { code: number; error?: Error }) => void): void {
+    cb({ code: 1, error: new Error(`OTLP export failed: 500 for key ${LF_ENV.LANGFUSE_SECRET_KEY}`) });
+  }
+}
 
 let dir: string;
 beforeAll(async () => {
@@ -67,30 +104,32 @@ async function cli(argv: string[], deps: Parameters<typeof main>[1] = {}) {
   return { code, json, err, manifest, traceText, spans: parseTrace(traceText) };
 }
 
-/** A fetch that records calls and answers with `status`. */
-function fakeFetch(status = 200) {
-  const calls: { url: string; init: RequestInit }[] = [];
-  const f: FetchLike = async (url, init) => {
-    calls.push({ url, init });
-    return new Response(status === 200 ? "{}" : "internal error", { status });
-  };
-  return { f, calls };
-}
-
 // --- trace ---
 
 describe("trace: a mock CLI run writes runs/<id>/trace.jsonl", () => {
   let run: Awaited<ReturnType<typeof cli>>;
   let video: MockVideo;
   let judge: MockJudge;
-  const fetch = fakeFetch();
+  /** What the Langfuse SDK exported (F17): the OTel spans, as Langfuse would receive them. */
+  const exporter = new KeptSpanExporter();
+  const scores = fakeScores();
+  let flushedBeforeExit = { forceFlush: 0, shutdown: 0 };
 
   // One full pipeline run for the whole file (ffmpeg-heavy; more runs starve the parallel suites). It has fake API
-  // keys (acceptance 2) and Langfuse keys (acceptance 6); the redos below cover "no keys" and "Langfuse 500" cheaply.
+  // keys (F16 acceptance 2) and Langfuse keys; the redos below cover "no keys" and "Langfuse 500" cheaply.
   beforeAll(async () => {
     video = new MockVideo();
     judge = new MockJudge();
-    run = await cli([IDEA, "--mock"], { env: { ...FAKE_ENV, ...LF_ENV }, overrides: { video, judge }, fetch: fetch.f });
+    const forceFlush = vi.spyOn(NodeTracerProvider.prototype, "forceFlush");
+    const shutdown = vi.spyOn(NodeTracerProvider.prototype, "shutdown");
+    try {
+      run = await cli([IDEA, "--mock"], { env: { ...FAKE_ENV, ...LF_ENV }, overrides: { video, judge }, langfuse: { exporter, scores: scores.client } });
+      // Counted the moment main() returned: the CLI may exit right after.
+      flushedBeforeExit = { forceFlush: forceFlush.mock.calls.length, shutdown: shutdown.mock.calls.length };
+    } finally {
+      forceFlush.mockRestore();
+      shutdown.mockRestore();
+    }
     expect(run.code).toBe(0);
   }, SLOW);
 
@@ -156,61 +195,141 @@ describe("trace: a mock CLI run writes runs/<id>/trace.jsonl", () => {
     for (const line of run.traceText.trim().split("\n")) expect(line.length).toBeLessThan(64 * 1024);
   });
 
-  it("6. with keys: one batched POST to the ingestion endpoint holds a trace, node spans and generations", () => {
-    expect(fetch.calls).toHaveLength(1);
-    const { url, init } = fetch.calls[0]!;
-    expect(url).toBe(`${LANGFUSE_EU_HOST}${OTLP_PATH}`);
-    expect(init.method).toBe("POST");
-    const headers = init.headers as Record<string, string>;
-    expect(headers.authorization).toBe(`Basic ${Buffer.from(`${LF_ENV.LANGFUSE_PUBLIC_KEY}:${LF_ENV.LANGFUSE_SECRET_KEY}`).toString("base64")}`);
-    const body = JSON.parse(init.body as string) as OtlpBody;
-    const spans = body.resourceSpans[0]!.scopeSpans[0]!.spans;
-    // Exactly one trace: every span shares the run's trace id; the root carries the trace name.
-    expect(new Set(spans.map((s) => s.traceId))).toEqual(new Set([otelTraceId(run.json.runId)]));
-    const root = spans.find((s) => s.parentSpanId === undefined)!;
-    expect(attr(root, "langfuse.trace.name")?.stringValue).toBe("idea-to-video");
-    const type = (t: string) => spans.filter((s) => attr(s, "langfuse.observation.type")?.stringValue === t);
-    const nodes = type("span").filter((s) => s !== root);
-    const gens = type("generation");
-    expect(nodes.length).toBe(run.spans.filter((s) => s.kind === "node").length);
-    expect(gens.length).toBe(run.spans.filter((s) => s.kind !== "node").length);
-    for (const n of nodes) expect(n.parentSpanId).toBe(root.spanId);
-    const nodeIds = new Set(nodes.map((n) => n.spanId));
-    for (const g of gens) {
-      expect(nodeIds.has(g.parentSpanId!)).toBe(true);
-      expect(attr(g, "langfuse.observation.model.name")?.stringValue).toMatch(/^mock-/);
-      expect(JSON.parse(attr(g, "langfuse.observation.cost_details")!.stringValue!)).toEqual({ total: 0 });
+  // --- F17: Langfuse through the SDK, checked on the OTel spans it exported ---
+
+  const exported = () => exporter.getFinishedSpans();
+  const typeOf = (s: ReadableSpan) => attr(s, "langfuse.observation.type");
+  const rootOf = () => exported().find((s) => attr(s, "langfuse.observation.type") === "agent")!;
+
+  it("F17 1. one trace; the root is an agent named make-video, input = the idea, output has ok", () => {
+    const spans = exported();
+    expect(spans.length).toBe(run.spans.length + 1);
+    expect(new Set(spans.map((s) => s.spanContext().traceId)).size).toBe(1);
+    const root = rootOf();
+    expect(root.name).toBe("make-video");
+    expect(root.parentSpanContext).toBeUndefined();
+    expect(json(root, "langfuse.observation.input")).toBe(IDEA);
+    expect(json(root, "langfuse.observation.output")).toMatchObject({ ok: true, finalPath: run.manifest.final!.path, wer: 0, costUsd: 0 });
+    expect(json(root, "langfuse.trace.input")).toBe(IDEA);
+    // Trace-level attributes: name, session = run id (a --redo lands in the same session), tags from the script.
+    for (const s of spans.filter((x) => typeOf(x) !== "event")) {
+      expect(attr(s, "langfuse.trace.name")).toBe("make-video");
+      expect(attr(s, "session.id")).toBe(run.json.runId);
     }
-    // The keys go in the header only, never in the body.
-    expect(init.body as string).not.toContain(LF_ENV.LANGFUSE_SECRET_KEY);
+    expect(attr(root, "langfuse.trace.tags")).toEqual(expect.arrayContaining(["mode:mock", "subtitles"]));
+  });
+
+  it("F17 1. names come only from the stable list: no digits, no provider or model names", () => {
+    const names = new Set(exported().map((s) => s.name));
+    for (const n of names) {
+      expect(OBSERVATION_NAMES).toContain(n);
+      expect(n).not.toMatch(/\d|mock|gemini|seedance|groq|fal/);
+    }
+    expect(names).toEqual(new Set(["make-video", "write-script", "cast-portraits", "draw-keyframes", "render-shot", "generate-image", "generate-video", "transcribe-audio", "judge-keyframe", "judge-clip", "assemble", "burn-subtitles", "final-gate"]));
+    // What the names used to carry is in metadata now.
+    const shot = exported().find((s) => s.name === "generate-video")!;
+    expect(json(shot, "langfuse.observation.metadata.shotId")).toMatch(/^s\d$/);
+    expect(json(shot, "langfuse.observation.metadata.provider")).toBe("mock-video");
+    expect(json(shot, "langfuse.observation.metadata.mode")).toBe("frame");
+    expect(json(shot, "langfuse.observation.metadata.runId")).toBe(run.json.runId);
+  });
+
+  it("F17 1. types: judges are evaluators, nodes spans, the final gate a guardrail, model calls generations", () => {
+    const spans = exported();
+    for (const s of spans.filter((x) => x.name.startsWith("judge-"))) expect(typeOf(s)).toBe("evaluator");
+    expect(typeOf(spans.find((s) => s.name === "final-gate")!)).toBe("guardrail");
+    for (const n of ["write-script", "cast-portraits", "draw-keyframes", "render-shot", "assemble", "burn-subtitles"]) {
+      const nodes = spans.filter((s) => s.name === n && typeOf(s) !== "generation");
+      expect(nodes.length, n).toBeGreaterThan(0);
+      for (const s of nodes) expect(typeOf(s)).toBe("span");
+    }
+    for (const n of ["generate-image", "generate-video", "transcribe-audio"]) for (const s of spans.filter((x) => x.name === n)) expect(typeOf(s)).toBe("generation");
+    // Nodes hang off the root; calls off their node.
+    const root = rootOf();
+    for (const s of spans.filter((x) => typeOf(x) === "span" || typeOf(x) === "guardrail")) expect(s.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
+  });
+
+  it("F17 1. generations carry the model, usage and cost; LLM input is role-labelled messages", () => {
+    const gens = exported().filter((s) => typeOf(s) === "generation");
+    expect(gens.length).toBeGreaterThan(0);
+    for (const g of gens) {
+      expect(attr(g, "langfuse.observation.model.name"), g.name).toEqual(expect.any(String));
+      expect(Object.keys(json(g, "langfuse.observation.usage_details") as object).length, `${g.name} usage`).toBeGreaterThan(0);
+      expect(json(g, "langfuse.observation.cost_details")).toEqual({ total: 0 });
+    }
+    const llm = gens.find((g) => g.name === "write-script")!;
+    expect(json(llm, "langfuse.observation.usage_details")).toEqual({ input: expect.any(Number), output: expect.any(Number) });
+    const messages = json(llm, "langfuse.observation.input") as { role: string; content: string }[];
+    expect(messages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(messages[1]!.content.length).toBeGreaterThan(0);
+    const clip = gens.find((g) => g.name === "generate-video")!;
+    expect(json(clip, "langfuse.observation.usage_details")).toEqual({ video_seconds: expect.any(Number) });
+    // Media as file metadata, never bytes.
+    expect(json(clip, "langfuse.observation.input")).toMatchObject({ image: { type: "file", contentType: "image/png", sha256: expect.stringMatching(/^[0-9a-f]{64}$/) } });
+    const judged = exported().find((s) => s.name === "judge-clip")!;
+    const jm = json(judged, "langfuse.observation.input") as { role: string; content: unknown }[];
+    expect(jm[0]).toMatchObject({ role: "system", content: expect.stringMatching(/.{200}/s) });
+    expect(jm[1]!.role).toBe("user");
+  });
+
+  it("F17 1. environment is development for mock; no secret reaches Langfuse", () => {
+    for (const s of exported()) expect(attr(s, "langfuse.environment")).toBe("development");
+    const all = JSON.stringify(exported().map((s) => s.attributes));
+    for (const v of [...Object.values(FAKE_ENV), ...Object.values(LF_ENV)]) expect(all).not.toContain(v);
+    expect(all).not.toMatch(/authorization|base64,/i);
     expect(run.manifest.notes).toBeUndefined();
   });
 
+  it("F17 2. scores: verbatim_wer, verbatim_pass, judge_clip_s1, cost_usd on the exported trace", () => {
+    const traceId = rootOf().spanContext().traceId;
+    const byName = new Map(scores.created.map((s) => [s.name, s]));
+    expect(byName.get("verbatim_wer")).toMatchObject({ traceId, value: 0, dataType: "NUMERIC" });
+    expect(byName.get("verbatim_pass")).toMatchObject({ traceId, value: 1, dataType: "BOOLEAN" });
+    expect(byName.get("judge_clip_s1")).toMatchObject({ traceId, value: run.manifest.shots!.s1!.clipScore, dataType: "NUMERIC" });
+    expect(byName.get("cost_usd")).toMatchObject({ traceId, value: 0, dataType: "NUMERIC" });
+    expect(byName.get("needs_review")).toMatchObject({ dataType: "BOOLEAN" });
+    for (const s of scores.created) expect(s.environment).toBe("development");
+  });
+
+  it("F17 4. the CLI flushes and shuts the SDK down before main() returns", () => {
+    expect(flushedBeforeExit.forceFlush).toBeGreaterThanOrEqual(1);
+    expect(flushedBeforeExit.shutdown).toBeGreaterThanOrEqual(1);
+    expect(scores.state.shutdowns).toBe(1);
+  });
+
   it(
-    "6. a 500 from Langfuse leaves the run ok, with a note in the manifest",
+    "a failed Langfuse export (OTLP 500) leaves the run ok, with a redacted note in the manifest",
     async () => {
-      const down = fakeFetch(500);
-      const redone = await cli(["--resume", run.json.runId, "--redo", "finalGate"], { env: LF_ENV, fetch: down.f });
-      expect(down.calls).toHaveLength(1);
+      const redone = await cli(["--resume", run.json.runId, "--redo", "finalGate"], { env: LF_ENV, langfuse: { exporter: new FailingExporter(), scores: fakeScores().client } });
       expect(redone.code).toBe(0);
       expect(redone.manifest.ok).toBe(true);
-      expect(redone.manifest.notes).toEqual([expect.stringMatching(/^langfuse export failed \(non-fatal\): HTTP 500/)]);
+      expect(redone.manifest.notes).toEqual([expect.stringMatching(/^langfuse export failed \(non-fatal\): .*500/)]);
+      expect(redone.manifest.notes![0]).not.toContain(LF_ENV.LANGFUSE_SECRET_KEY);
       expect(redone.err.some((l) => /langfuse export failed/.test(l))).toBe(true);
     },
     SLOW,
   );
 
   it(
-    "4. --redo shot appends spans with cached: true for the reused clips (6. without keys: fetch never called)",
+    "4. --redo shot appends spans with cached: true for the reused clips (F17 3. without keys: no SDK, no network)",
     async () => {
       const prev = parseTrace(await readFile(join(dir, "runs", run.json.runId, "trace.jsonl"), "utf8"));
       const before = prev.length;
       const again = new MockVideo();
-      const off = fakeFetch();
-      const redone = await cli(["--resume", run.json.runId, "--redo", "shot"], { overrides: { video: again }, env: FAKE_ENV, fetch: off.f });
+      const loads = sdkLoads;
+      const net = vi.spyOn(globalThis, "fetch");
+      const unused = new KeptSpanExporter();
+      let redone: Awaited<ReturnType<typeof cli>>;
+      try {
+        redone = await cli(["--resume", run.json.runId, "--redo", "shot"], { overrides: { video: again }, env: FAKE_ENV, langfuse: { exporter: unused } });
+        expect(net).not.toHaveBeenCalled();
+      } finally {
+        net.mockRestore();
+      }
+      expect(sdkLoads).toBe(loads);
+      expect(unused.getFinishedSpans()).toHaveLength(0);
       expect(redone.code).toBe(0);
       expect(again.calls).toHaveLength(0);
-      expect(off.calls).toHaveLength(0);
       expect(redone.manifest.notes).toBeUndefined();
       // Appended: the first process's spans are all still there, in order.
       expect(redone.spans.slice(0, before)).toEqual(prev);
@@ -390,45 +509,10 @@ describe("Langfuse export", () => {
     expect(langfuseFromEnv({})).toBeUndefined();
     expect(langfuseFromEnv({ LANGFUSE_PUBLIC_KEY: "pk" })).toBeUndefined();
     expect(langfuseFromEnv({ LANGFUSE_SECRET_KEY: "sk" })).toBeUndefined();
-    expect(langfuseFromEnv(LF_ENV)).toEqual({ publicKey: LF_ENV.LANGFUSE_PUBLIC_KEY, secretKey: LF_ENV.LANGFUSE_SECRET_KEY, host: LANGFUSE_EU_HOST });
-    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_HOST: "https://us.cloud.langfuse.com/" })?.host).toBe("https://us.cloud.langfuse.com");
+    expect(langfuseFromEnv(LF_ENV)).toEqual({ publicKey: LF_ENV.LANGFUSE_PUBLIC_KEY, secretKey: LF_ENV.LANGFUSE_SECRET_KEY, baseUrl: LANGFUSE_EU_HOST });
+    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_HOST: "https://us.cloud.langfuse.com/" })?.baseUrl).toBe("https://us.cloud.langfuse.com");
     // The current SDK's name wins, so a self-hosted URL set as LANGFUSE_BASE_URL is used (live 2026-10-19: a 401 from the cloud).
-    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_BASE_URL: "https://lf.example.test/" })?.host).toBe("https://lf.example.test");
-    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_BASE_URL: "https://lf.example.test", LANGFUSE_HOST: "https://old.example.test" })?.host).toBe("https://lf.example.test");
-  });
-
-  it("generations carry usage; a network error is a result, not a throw; an echoed key is redacted", async () => {
-    const span: Span = {
-      id: "0123456789abcdef",
-      parentId: "fedcba9876543210",
-      runId: "r",
-      node: "writeScript",
-      kind: "llm",
-      provider: "gemini",
-      model: "gemini-3.8-flash",
-      startedAt: "2026-10-19T10:00:00.000Z",
-      ms: 1500,
-      ok: true,
-      costUsd: 0.01,
-      usage: { input: 10, output: 20, thinking: 5 },
-      request: { prompt: "p" },
-      response: { text: "{}" },
-    };
-    const body = toOtlp([span], { runId: "r" });
-    const gen = body.resourceSpans[0]!.scopeSpans[0]!.spans[1]!;
-    expect(JSON.parse(attr(gen, "langfuse.observation.usage_details")!.stringValue!)).toEqual({ input: 10, output: 20, thinking: 5 });
-    expect(attr(gen, "langfuse.observation.model.name")?.stringValue).toBe("gemini-3.8-flash");
-    expect(gen.endTimeUnixNano).toBe(String((Date.parse(span.startedAt) + 1500) * 1_000_000));
-    // Parent not in the batch → hangs off the root.
-    expect(gen.parentSpanId).toBe(body.resourceSpans[0]!.scopeSpans[0]!.spans[0]!.spanId);
-
-    const config = langfuseFromEnv(LF_ENV)!;
-    const down: FetchLike = async () => {
-      throw new TypeError("fetch failed");
-    };
-    expect(await exportToLangfuse([span], { runId: "r", config, fetch: down })).toEqual({ ok: false, error: "fetch failed" });
-    const echo: FetchLike = async () => new Response(`bad key ${LF_ENV.LANGFUSE_SECRET_KEY}`, { status: 401 });
-    const r = await exportToLangfuse([span], { runId: "r", config, fetch: echo });
-    expect(r).toEqual({ ok: false, error: "HTTP 401: bad key [redacted]" });
+    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_BASE_URL: "https://lf.example.test/" })?.baseUrl).toBe("https://lf.example.test");
+    expect(langfuseFromEnv({ ...LF_ENV, LANGFUSE_BASE_URL: "https://lf.example.test", LANGFUSE_HOST: "https://old.example.test" })?.baseUrl).toBe("https://lf.example.test");
   });
 });

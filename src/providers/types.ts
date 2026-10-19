@@ -74,7 +74,8 @@ export interface TtsProvider {
   estimateUsd?(req: TtsRequest): number;
 }
 
-export type AsrResult = Transcript & { costUsd: number };
+/** `model`: the model id that answered (F17, for the trace); `seconds`: the audio length it billed. */
+export type AsrResult = Transcript & { costUsd: number; model?: string; seconds?: number };
 export interface AsrProvider {
   readonly name: string;
   transcribe(req: { path: string }): Promise<AsrResult>;
@@ -88,10 +89,16 @@ export interface ImageRequest {
   out: string;
   variant?: number;
 }
+/** `model`: the model id that drew it (F17, for the trace). */
+export interface ImageResult {
+  path: string;
+  costUsd: number;
+  model?: string;
+}
 /** Always 9:16. */
 export interface ImageProvider {
   readonly name: string;
-  generate(req: ImageRequest): Promise<{ path: string; costUsd: number }>;
+  generate(req: ImageRequest): Promise<ImageResult>;
   estimateUsd?(req: ImageRequest): number;
 }
 
@@ -123,6 +130,8 @@ export interface AnimateResult {
   seconds: number;
   hasAudio: boolean;
   costUsd: number;
+  /** The model id that rendered it (F17, for the trace). */
+  model?: string;
 }
 export interface VideoProvider {
   readonly name: string;
@@ -138,14 +147,14 @@ export interface LipsyncProvider {
    * clip after the speech ends, or fails with a reason; it must never silently cut speech.
    */
   readonly maxSeconds: number;
-  sync(req: { video: string; audio: string; out: string }): Promise<{ path: string; costUsd: number }>;
+  sync(req: { video: string; audio: string; out: string }): Promise<{ path: string; costUsd: number; model?: string }>;
   estimateUsd?(req: { video: string; audio: string; out: string }): number;
 }
 
 /** Audio-driven avatar models: image + speech → talking clip. */
 export interface TalkingProvider {
   readonly name: string;
-  talk(req: { image: string; audio: string; prompt: string; out: string }): Promise<{ path: string; costUsd: number }>;
+  talk(req: { image: string; audio: string; prompt: string; out: string }): Promise<{ path: string; costUsd: number; model?: string }>;
   estimateUsd?(req: { image: string; audio: string; prompt: string; out: string }): number;
 }
 

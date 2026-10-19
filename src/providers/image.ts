@@ -55,7 +55,7 @@ export class FalNanoBananaImage implements ImageProvider {
     if (refs.length) input.image_urls = await Promise.all(refs.map((r) => falUpload(fal, r)));
     const { data } = await fal.subscribe(endpoint, { input }).catch((e: unknown) => rethrowFalPolicy(this.name, e));
     await download(this.name, falImageUrl(endpoint, data), out, fetchOf(this.deps.fetch));
-    return { path: out, costUsd: FAL_NANO_BANANA_USD };
+    return { path: out, costUsd: FAL_NANO_BANANA_USD, model: endpoint };
   }
 }
 
@@ -108,7 +108,7 @@ export class GeminiImage implements ImageProvider {
     const data = parts.filter((p) => /image/.test(p.type) && p.data).at(-1)?.data;
     if (!data) throw new Error(`${this.name}: response has no image`);
     await writeFile(req.out, Buffer.from(data, "base64"));
-    return { path: req.out, costUsd: GEMINI_IMAGE_USD };
+    return { path: req.out, costUsd: GEMINI_IMAGE_USD, model: this.opts.model ?? DEFAULT_GEMINI_IMAGE_MODEL };
   }
 }
 
@@ -155,7 +155,7 @@ export class SeedreamImage implements ImageProvider {
     if (first.b64_json) await writeFile(req.out, Buffer.from(first.b64_json, "base64"));
     else if (first.url) await download(this.name, first.url, req.out, f);
     else throw new Error(`${this.name}: response has neither b64_json nor url`);
-    return { path: req.out, costUsd: SEEDREAM_USD };
+    return { path: req.out, costUsd: SEEDREAM_USD, model: this.opts.model ?? DEFAULT_SEEDREAM_MODEL };
   }
 }
 
@@ -219,7 +219,7 @@ export class OpenRouterImage implements ImageProvider {
     const b64 = r.data[0]!.b64_json;
     if (!b64) throw new Error(`${this.name}: response has no b64_json`);
     await writeFile(req.out, Buffer.from(b64, "base64"));
-    return { path: req.out, costUsd: typeof r.usage?.cost === "number" ? r.usage.cost : this.estimateUsd() };
+    return { path: req.out, costUsd: typeof r.usage?.cost === "number" ? r.usage.cost : this.estimateUsd(), model: this.model };
   }
 }
 

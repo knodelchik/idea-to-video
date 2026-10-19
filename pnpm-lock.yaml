@@ -26,12 +26,18 @@ importers:
       '@langfuse/client':
         specifier: 6.0.1
         version: 6.0.1(@opentelemetry/api@1.9.1)
+      '@langfuse/core':
+        specifier: 6.0.1
+        version: 6.0.1(@opentelemetry/api@1.9.1)
       '@langfuse/otel':
         specifier: 6.0.1
         version: 6.0.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/otlp-exporter-base@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.9.1))
       '@langfuse/tracing':
         specifier: 6.0.1
         version: 6.0.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/api':
+        specifier: 1.9.1
+        version: 1.9.1
       '@opentelemetry/sdk-trace-node':
         specifier: 2.12.0
         version: 2.12.0(@opentelemetry/api@1.9.1)

@@ -84,7 +84,7 @@ export interface SeedanceTransport {
   /** List price per requested second, for the pre-call budget check. Absent → the dearest known rate. */
   readonly usdPerSecond?: number;
   /** `headers` are sent with the download (OpenRouter's content URL is not pre-signed). */
-  run(job: SeedanceJob): Promise<{ url: string; costUsd: number; headers?: Record<string, string> }>;
+  run(job: SeedanceJob): Promise<{ url: string; costUsd: number; headers?: Record<string, string>; model?: string }>;
 }
 
 // --- fal ---
@@ -116,7 +116,7 @@ export class FalSeedance implements SeedanceTransport {
     if (job.textOnly) throw new Error(`${this.name}: text-to-video is not wired for the fal transport; use openrouter or byteplus`);
     const input = this.input(job, await falUpload(this.opts.fal, job.image));
     const { data } = await this.opts.fal.subscribe(this.endpoint, { input }).catch((e: unknown) => rethrowFalPolicy(this.name, e));
-    return { url: falVideoUrl(this.endpoint, data), costUsd: job.seconds * FAL_SEEDANCE_USD_PER_SECOND[this.opts.tier ?? "standard"] };
+    return { url: falVideoUrl(this.endpoint, data), costUsd: job.seconds * FAL_SEEDANCE_USD_PER_SECOND[this.opts.tier ?? "standard"], model: this.endpoint };
   }
 }
 
@@ -211,7 +211,7 @@ export class BytePlusSeedance implements SeedanceTransport {
         // Billed on tokens; the reply's own count beats our size estimate when present.
         const tokens = t.usage?.completion_tokens;
         const costUsd = tokens ? (tokens * BYTEPLUS_SEEDANCE_USD_PER_MTOK[this.tier]) / 1e6 : job.seconds * this.usdPerSecond;
-        return { url: t.content.video_url, costUsd };
+        return { url: t.content.video_url, costUsd, model: this.opts.model ?? BYTEPLUS_SEEDANCE_MODELS[this.tier] };
       }
       if (t.status === "failed" || t.status === "cancelled" || t.status === "expired") {
         const why = [t.error?.code, t.error?.message].filter(Boolean).join(": ") || t.status;
@@ -338,7 +338,7 @@ export class OpenRouterSeedance implements SeedanceTransport {
         const estimate = seedanceTokens(w, h, job.seconds) * OPENROUTER_SEEDANCE_USD_PER_TOKEN[this.tier];
         // usage.cost is what OpenRouter charged; the token estimate is only for a reply without it.
         const costUsd = typeof t.usage?.cost === "number" ? t.usage.cost : estimate;
-        return { url: `${jobUrl}/content`, costUsd, headers: this.auth() };
+        return { url: `${jobUrl}/content`, costUsd, headers: this.auth(), model: this.model };
       }
       if (t.status === "failed" || t.status === "cancelled" || t.status === "expired") {
         const why = t.error || t.status;
@@ -368,7 +368,7 @@ export class SeedanceVideo implements VideoProvider {
       throw new RangeError(`${this.name}: ${req.seconds} s is not one of ${SEEDANCE_DURATIONS.join(", ")}`);
     }
     if (!req.textOnly) await readFile(req.image); // a missing keyframe is our bug: fail before paying for an upload
-    const { url, costUsd, headers } = await this.opts.transport.run({
+    const { url, costUsd, headers, model } = await this.opts.transport.run({
       image: req.image,
       prompt: req.prompt,
       seconds: req.seconds,
@@ -380,7 +380,7 @@ export class SeedanceVideo implements VideoProvider {
     // Report what came back, not what we asked for (hard rule 4): `generate_audio: true` is a request, not a
     // guarantee, and the returned length can differ from `duration`. Cost is billed on the requested length.
     const { seconds, hasAudio } = await (this.opts.probe ?? ffprobe)(req.out);
-    return { path: req.out, seconds, hasAudio, costUsd };
+    return { path: req.out, seconds, hasAudio, costUsd, ...(model ? { model } : {}) };
   }
 }
 

@@ -92,9 +92,11 @@ export class MockLlm implements LlmProvider {
     // Round-trip through JSON like a real model's text output would (drops undefined, functions, etc.).
     raw = JSON.parse(JSON.stringify(raw ?? null)) as unknown;
     const parsed = schema.safeParse(raw);
-    return parsed.success
-      ? { ok: true, data: parsed.data, raw, costUsd: 0 }
-      : { ok: false, error: formatIssues(parsed.error), raw, costUsd: 0 };
+    // A rough token count (~4 chars per token) so traces of mock runs carry usage like live ones (F17).
+    const text = JSON.stringify(raw);
+    const meta = { usage: { input: Math.ceil((system.length + prompt.length) / 4), output: Math.ceil(text.length / 4) } };
+    const common = { raw, costUsd: 0, meta };
+    return parsed.success ? { ok: true, data: parsed.data, ...common } : { ok: false, error: formatIssues(parsed.error), ...common };
   }
 }
 
@@ -152,7 +154,7 @@ export class MockAsr implements AsrProvider {
     for (const f of this.faults.filter((f) => f.call === call)) t = applyAsrFault(t, f);
     // Hear like a real ASR: an emoji or a bare "♥" is never transcribed, so mock mode can't hide an unspeakable line.
     const ws = t.words.filter((w) => speakable(w.word));
-    return { text: ws.map((w) => w.word).join(" "), words: ws, costUsd: 0 };
+    return { text: ws.map((w) => w.word).join(" "), words: ws, costUsd: 0, seconds: ws.at(-1)?.end ?? 0 };
   }
 }
 

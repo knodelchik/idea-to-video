@@ -165,7 +165,8 @@ describe("MockLlm", () => {
   it("serves a queue, parses through the schema, reports errors without throwing", async () => {
     const llm = new MockLlm({ queue: [{ title: "x", n: 1 }, { title: 3 }] });
     const ok = await llm.generateJson({ system: "s", prompt: "p1", schema: Shape });
-    expect(ok).toEqual({ ok: true, data: { title: "x", n: 1 }, raw: { title: "x", n: 1 }, costUsd: 0 });
+    // meta.usage: ~4 chars per token of system+prompt ("sp1") and of the JSON reply (F17: mock traces carry usage).
+    expect(ok).toEqual({ ok: true, data: { title: "x", n: 1 }, raw: { title: "x", n: 1 }, costUsd: 0, meta: { usage: { input: 1, output: 5 } } });
     const bad = await llm.generateJson({ system: "s", prompt: "p2", schema: Shape });
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.error).toMatch(/title/);
