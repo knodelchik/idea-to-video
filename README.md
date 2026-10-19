@@ -50,6 +50,7 @@ Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to
 
 | File | Idea | Length | Cost |
 | --- | --- | --- | --- |
+| `examples/05-castle-storyboard-wide.mp4` | storyboard in Ukrainian ("1 кадр … 2 кадр …"), wide shots, burned-in subtitles: "Hello? Is anyone still here?" | 9 s | $1.37 |
 | `examples/04-lighthouse-keeper-22s.mp4` | two long lines, 48 words; same face in both shots (portraits-only references) | 22 s | $2.08 |
 | `examples/02-dialogue-mother-son.mp4` | two speakers: "Open it after I leave." / "Mom, are you sick?" | 10.2 s | $1.01 |
 | `examples/03-watchmaker-numbers.mp4` | "It stopped in 1987, at 3:15 a.m., and so did I." | 11.5 s | $1.18 |

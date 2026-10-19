@@ -1,0 +1,394 @@
+{
+  "runId": "20261019-100954-a6de4f",
+  "idea": "1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: \"Hello? Is anyone still here?\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T10:09:54.973Z",
+  "script": {
+    "promptVersion": "script-v7",
+    "title": "The Empty Ballroom",
+    "logline": "A small girl in a red cloak breaches the doors of an abandoned castle ballroom to see if she is truly alone.",
+    "setting": "Cavernous gothic castle ballroom with colossal arched ceilings, decaying chandeliers, and massive dark oak doors.",
+    "characters": [
+      {
+        "name": "Clara",
+        "look": "Small pale ten-year-old girl with dark raven hair peeking from under an oversized, vibrant crimson hooded cloak, wearing scuffed brown boots.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "hesitant"
+        },
+        "voiceDescription": "Clear, quiet young female voice, mid-childhood, neutral accent, tentative and hushed."
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "full shot",
+        "visual": "Clara, a tiny figure in her bright crimson hooded cloak, plants her boots and heaves open a towering, ancient oak castle door.",
+        "motion": "Slow tilt up from Clara's small hands straining against the weathered timber to the immense gothic door frame cracking open.",
+        "emotion": "Tense anticipation",
+        "line": "",
+        "seconds": 4,
+        "onScreen": [
+          "Clara"
+        ]
+      },
+      {
+        "id": "s2",
+        "camera": "extreme wide shot",
+        "visual": "A monumental ballroom spans out with towering ribbed vaults and hanging cobwebbed chandeliers, with tiny Clara standing at the grand entryway dwarfed by the architecture.",
+        "motion": "Locked-off wide view capturing the scale of the endless hall as Clara steps forward into the dim moonlight.",
+        "emotion": "Awe and dread",
+        "line": "Hello? Is anyone still here?",
+        "seconds": 5,
+        "speaker": "Clara",
+        "onScreen": [
+          "Clara"
+        ]
+      }
+    ],
+    "quotedLines": [
+      "Hello? Is anyone still here?"
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-100954-a6de4f/clip-s1-e99018782bc8094a.mp4",
+      "seconds": 4.096,
+      "hasAudio": true,
+      "audio": "silent",
+      "keyframeScore": 10,
+      "needsReview": true
+    },
+    "s2": {
+      "path": "/Users/bogdan/idea-to-video/runs/20261019-100954-a6de4f/clip-s2-c616fcdd3b1385c8.mp4",
+      "seconds": 5.088,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 1.42,
+      "speechEnd": 4.46,
+      "verbatim": {
+        "expected": "hello is anyone still here",
+        "heard": "hello is anyone still here",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "needsReview": true
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.0111225,
+      "ms": 203071
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11550
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 10853
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash",
+      "costUsd": 0.003417,
+      "ms": 20396,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11469
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash",
+      "costUsd": 0.00396375,
+      "ms": 5996,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 6614
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 7234
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate",
+      "costUsd": 0.36666,
+      "ms": 134015
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "judge failed on clip (counted as not passing): gemini-judge(gemini-3.5-flash): judge output invalid: (root): Invalid input: expected object, received string",
+      "costUsd": 0.0034875,
+      "ms": 1699
+    },
+    {
+      "stage": "regen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "pipeline",
+      "ok": true,
+      "reason": "clip judge failed; regenerating the shot once (~$0.7461 worst case)",
+      "costUsd": 0,
+      "ms": 0
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 6864
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 5056
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate; reused cached clip",
+      "costUsd": 0,
+      "ms": 11980
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 2,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "judge failed on clip (counted as not passing): gemini-judge(gemini-3.5-flash): judge output invalid: (root): Invalid input: expected object, received string",
+      "costUsd": 0.0034875,
+      "ms": 1481
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 2,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "no clip reached 5/10 in 2 takes; kept take 1; needs review",
+      "costUsd": 0,
+      "ms": 0
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 7091
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 7628
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.45768833333333336,
+      "ms": 134749
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "judge failed on clip (counted as not passing): gemini-judge(gemini-3.5-flash): judge output invalid: (root): Invalid input: expected object, received string",
+      "costUsd": 0.00348525,
+      "ms": 1645
+    },
+    {
+      "stage": "regen",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "pipeline",
+      "ok": true,
+      "reason": "clip judge failed; regenerating the shot once (~$0.9276 worst case)",
+      "costUsd": 0,
+      "ms": 0
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 3,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 5624
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 3,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 8766
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 3,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.45768833333333336,
+      "ms": 165941
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 2,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "judge failed on clip (counted as not passing): gemini-judge(gemini-3.5-flash): judge output invalid: (root): Invalid input: expected object, received string",
+      "costUsd": 0.00348525,
+      "ms": 2173
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 2,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "no clip reached 5/10 in 2 takes; kept take 1; needs review",
+      "costUsd": 0,
+      "ms": 0
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "2 shot(s): 4.00 s + 5.00 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 2279
+    },
+    {
+      "stage": "subtitles",
+      "n": 1,
+      "provider": "groq-whisper+resvg+ffmpeg",
+      "ok": true,
+      "reason": "1 cue(s) of the verified line, timed by ASR words",
+      "costUsd": 0.00030833333333333337,
+      "ms": 2728
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.00030833333333333337,
+      "ms": 423
+    }
+  ],
+  "costUsd": 1.369102,
+  "final": {
+    "path": "/Users/bogdan/idea-to-video/runs/20261019-100954-a6de4f/final.mp4",
+    "seconds": 9,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "hello is anyone still here",
+    "heard": "hello is anyone still here",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "Hello? Is anyone still here?",
+    "heard": "Hello? Is anyone still here?"
+  },
+  "subtitles": {
+    "file": "/Users/bogdan/idea-to-video/runs/20261019-100954-a6de4f/subtitled-fb577119892ab0ad.mp4",
+    "cues": [
+      {
+        "start": 5.46,
+        "end": 9,
+        "text": "Hello? Is anyone still here?"
+      }
+    ],
+    "timing": "asr"
+  },
+  "ok": true
+}
