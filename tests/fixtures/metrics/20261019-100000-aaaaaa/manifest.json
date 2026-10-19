@@ -1,0 +1,41 @@
+{
+  "runId": "20261019-100000-aaaaaa",
+  "idea": "A king waits in his hall. He says: \"You came back.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T10:00:00.000Z",
+  "script": {
+    "promptVersion": "t",
+    "title": "t",
+    "logline": "t",
+    "setting": "a hall",
+    "characters": [
+      {
+        "name": "King",
+        "look": "grey beard, black fur mantle, iron crown, old man",
+        "voice": { "gender": "male", "age": "older", "tone": "grave" },
+        "voiceDescription": "deep old male voice"
+      }
+    ],
+    "shots": [
+      { "id": "s1", "camera": "wide shot", "visual": "a castle", "motion": "still", "emotion": "calm", "line": "", "seconds": 5, "onScreen": ["King"] },
+      { "id": "s2", "camera": "medium shot", "visual": "the king", "motion": "still", "emotion": "cold", "line": "You came back.", "seconds": 5, "speaker": "King", "onScreen": ["King"] }
+    ],
+    "quotedLines": ["You came back."]
+  },
+  "shots": {
+    "s1": { "path": "/runs/a/clip-s1.mp4", "seconds": 5, "hasAudio": true, "audio": "silent" },
+    "s2": { "path": "/runs/a/clip-s2.mp4", "seconds": 5, "hasAudio": true, "audio": "native", "clipScore": 8 }
+  },
+  "attempts": [
+    { "stage": "script", "n": 1, "provider": "gemini", "ok": true, "costUsd": 0.02, "ms": 3000 },
+    { "stage": "video", "shotId": "s1", "n": 1, "provider": "seedance", "ok": false, "reason": "keyframe refused as a possible real person (InputImageSensitiveContentDetected.PrivacyInformation); retrying as reference-to-video", "costUsd": 0, "ms": 2000 },
+    { "stage": "video", "shotId": "s1", "n": 1, "provider": "seedance", "ok": true, "reason": "silent shot: no verbatim gate", "costUsd": 0.2, "ms": 60000 },
+    { "stage": "listen", "shotId": "s1", "n": 1, "provider": "groq", "ok": true, "reason": "silent shot: no speech heard; ambient audio kept", "costUsd": 0.001, "ms": 500 },
+    { "stage": "video", "shotId": "s2", "n": 1, "provider": "seedance", "ok": true, "costUsd": 0.25, "ms": 70000 },
+    { "stage": "judge", "shotId": "s2", "n": 1, "provider": "gemini-judge", "ok": true, "score": 8, "reason": "clip score 8/10 >= 5", "costUsd": 0.009, "ms": 4000 },
+    { "stage": "final", "n": 1, "provider": "ffprobe+groq", "ok": true, "reason": "ignored words ASR heard in digital silence (hallucination, nothing was said there): \"Thank you for watching\"", "costUsd": 0.02, "ms": 900 }
+  ],
+  "costUsd": 0.5,
+  "verbatim": { "expected": "You came back.", "heard": "You came back.", "wer": 0, "ops": [], "pass": true },
+  "ok": true
+}

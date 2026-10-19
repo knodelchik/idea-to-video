@@ -434,6 +434,8 @@ export const RunManifest = z.object({
   subtitles: Subtitles.optional(),
   ok: z.boolean(),
   error: z.string().optional(),
+  /** Non-fatal run-level notes (F16: a failed Langfuse export). They never change `ok`. */
+  notes: z.array(z.string()).optional(),
 });
 export type RunManifest = z.infer<typeof RunManifest>;
 

@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
+import { recordCached, type CacheTrace } from "../obs/trace.ts";
 
 /** A part that is hashed by the *contents* of the file at `file`, not by its path. */
 export interface FilePart {
@@ -61,13 +62,18 @@ async function exists(p: string): Promise<boolean> {
  *   *before* the main file, so an existing `out` always has its sidecars.
  * - If `fn` throws, tmp and its companions are deleted: a crash never leaves a partial `out`.
  * - Concurrent calls for the same `out` in this process share one `fn` call.
+ * - `trace` (F16): `fn` is a provider call. A hit then records a `cached: true` span, so a redo's trace shows reuse.
  */
-export function once<T>(out: string, fn: (tmp: string) => Promise<T>): Promise<OnceResult<T>> {
+export function once<T>(out: string, fn: (tmp: string) => Promise<T>, trace?: CacheTrace): Promise<OnceResult<T>> {
+  const hit = (r: OnceResult<T>): OnceResult<T> => {
+    if (r.cached && trace) recordCached(trace, out);
+    return r;
+  };
   const running = inflight.get(out);
-  if (running) return running.then((r) => ({ ...r, cached: true, result: undefined })) as Promise<OnceResult<T>>;
+  if (running) return running.then((r) => hit({ ...r, cached: true, result: undefined } as OnceResult<T>));
   const p = doOnce(out, fn).finally(() => inflight.delete(out));
   inflight.set(out, p);
-  return p;
+  return p.then(hit);
 }
 
 async function doOnce<T>(out: string, fn: (tmp: string) => Promise<T>): Promise<OnceResult<T>> {

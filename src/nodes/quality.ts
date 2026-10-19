@@ -106,7 +106,7 @@ export async function judge(
             });
       await writeFile(tmp, JSON.stringify({ score: r.score, issues: r.issues }));
       return r;
-    });
+    }, { kind: "judge", provider: j.name, request: { rubric, what, ...(files.video ? { video: files.video } : { frames: files.paths }) } });
     // Re-parse even our own cache: a hand-edited or truncated file must not pass as a verdict.
     const verdict = JudgeVerdict.parse(JSON.parse(await readFile(made.path, "utf8")));
     const pass = verdict.score >= min;

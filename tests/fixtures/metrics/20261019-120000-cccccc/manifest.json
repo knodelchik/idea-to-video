@@ -1,0 +1,16 @@
+{
+  "runId": "20261019-120000-cccccc",
+  "idea": "Two brothers on a rooftop. One says: \"I kept the watch.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T12:00:00.000Z",
+  "attempts": [
+    { "stage": "script", "n": 1, "provider": "gemini", "ok": true, "costUsd": 0.02, "ms": 2500 },
+    { "stage": "video", "shotId": "s1", "n": 1, "provider": "seedance", "ok": false, "reason": "reference images refused as a possible real person (PrivacyInformation); retrying as reference-to-video with the portraits only", "costUsd": 0, "ms": 1200 },
+    { "stage": "video", "shotId": "s1", "n": 1, "provider": "seedance", "ok": false, "reason": "video error: HTTP 500 from https://api.example.com/v1/jobs/123", "costUsd": 0, "ms": 1000 },
+    { "stage": "retry", "shotId": "s1", "n": 1, "provider": "pipeline", "ok": false, "reason": "transient error in shot:s1 (try 1/3): HTTP 500; retrying with backoff", "costUsd": 0, "ms": 0 },
+    { "stage": "video", "shotId": "s1", "n": 1, "provider": "seedance", "ok": false, "reason": "video error: HTTP 500 from https://api.example.com/v1/jobs/456", "costUsd": 0.28, "ms": 1000 }
+  ],
+  "costUsd": 0.3,
+  "ok": false,
+  "error": "video error: HTTP 500 from https://api.example.com/v1/jobs/456"
+}

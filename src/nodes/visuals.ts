@@ -79,8 +79,10 @@ async function still(
   const v = variant ? [`variant:${variant}`] : [];
   const key = await contentKey(stage, image.name, VISUALS_PROMPT_VERSION, prompt, ...refs.map((file) => ({ file })), ...v);
   const name = shotId ? `${stage}-${shotId}-${key}.png` : `${stage}-${key}.png`;
-  const made = await once(join(dir, name), (tmp) =>
-    image.generate({ prompt, ...(refs.length ? { refs } : {}), out: tmp, ...(variant ? { variant } : {}) }),
+  const made = await once(
+    join(dir, name),
+    (tmp) => image.generate({ prompt, ...(refs.length ? { refs } : {}), out: tmp, ...(variant ? { variant } : {}) }),
+    { kind: "image", provider: image.name, request: { prompt } },
   );
   return {
     path: made.path,
@@ -324,17 +326,21 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     const path = await clipPath(mode, line, variant);
     const t0 = performance.now();
     try {
-      const made = await once(path, (tmp) =>
-        video.animate({
-          image: keyframe,
-          prompt: p,
-          seconds,
-          out: tmp,
-          variant,
-          ...(line ? { line } : {}),
-          ...(mode === "frame" ? {} : { textOnly: true }),
-          ...(refs.length ? { refs } : {}),
-        }),
+      const made = await once(
+        path,
+        (tmp) =>
+          video.animate({
+            image: keyframe,
+            prompt: p,
+            seconds,
+            out: tmp,
+            variant,
+            mode,
+            ...(line ? { line } : {}),
+            ...(mode === "frame" ? {} : { textOnly: true }),
+            ...(refs.length ? { refs } : {}),
+          }),
+        { kind: "video", provider: video.name, request: { prompt: p, seconds, mode, variant, ...(line ? { line } : {}) } },
       );
       // Length and audio come from the file, never from the adapter's report (hard rule 4). Only the cost is the
       // adapter's, since that is what the provider bills; a cached clip cost nothing this run.
@@ -559,8 +565,10 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   const key = await contentKey("lipsync", lipsync.name, { file: base }, { file: voice.path });
   let synced;
   try {
-    synced = await once(join(dir, `lipsync-${shotId}-${key}.mp4`), (tmp) =>
-      lipsync.sync({ video: base, audio: voice.path, out: tmp }),
+    synced = await once(
+      join(dir, `lipsync-${shotId}-${key}.mp4`),
+      (tmp) => lipsync.sync({ video: base, audio: voice.path, out: tmp }),
+      { kind: "lipsync", provider: lipsync.name, request: { video: base, audio: voice.path } },
     );
   } catch (e) {
     const reason = `lip-sync error: ${errMsg(e)}`;

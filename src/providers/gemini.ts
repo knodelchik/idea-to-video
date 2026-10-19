@@ -5,15 +5,44 @@
 import { GoogleGenAI, type GenerateContentParameters } from "@google/genai";
 import { z } from "zod";
 import { formatIssues } from "../schemas.ts";
-import type { LlmProvider, LlmRequest, LlmResult } from "./types.ts";
+import type { CallMeta, LlmProvider, LlmRequest, LlmResult } from "./types.ts";
+
+/** What generateContent returns that we read. */
+export interface GenAiResponse {
+  text?: string | undefined;
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
+  /** Why generation stopped (STOP, MAX_TOKENS, SAFETY…): explains an empty reply (F16). */
+  candidates?: { finishReason?: string | undefined }[] | undefined;
+  /** Set when the prompt itself was blocked. */
+  promptFeedback?: { blockReason?: string | undefined; blockReasonMessage?: string | undefined } | undefined;
+}
 
 /** The slice of GoogleGenAI we use; the real client satisfies it structurally. */
 export interface GenAiClient {
   models: {
-    generateContent(params: GenerateContentParameters): Promise<{
-      text?: string | undefined;
-      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined;
-    }>;
+    generateContent(params: GenerateContentParameters): Promise<GenAiResponse>;
+  };
+}
+
+/** Trace metadata of one reply (F16): the raw text, finish reason, prompt block reason and token usage. */
+export function geminiMeta(res: GenAiResponse): CallMeta {
+  const u = res.usageMetadata;
+  const finishReason = res.candidates?.[0]?.finishReason;
+  const pf = res.promptFeedback;
+  const promptFeedback = pf?.blockReason ? [pf.blockReason, pf.blockReasonMessage].filter(Boolean).join(": ") : undefined;
+  return {
+    text: res.text ?? "",
+    ...(finishReason ? { finishReason } : {}),
+    ...(promptFeedback ? { promptFeedback } : {}),
+    ...(u
+      ? {
+          usage: {
+            input: u.promptTokenCount ?? 0,
+            output: u.candidatesTokenCount ?? 0,
+            ...(u.thoughtsTokenCount ? { thinking: u.thoughtsTokenCount } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -139,7 +168,7 @@ export class GeminiLlm implements LlmProvider {
         throw e;
       }
       const costUsd = this.cost(model, res.usageMetadata, notes);
-      const meta = { model, ...(notes.length ? { notes } : {}) };
+      const meta = { model, ...(notes.length ? { notes } : {}), meta: geminiMeta(res) };
       const text = res.text ?? "";
       let raw: unknown;
       try {

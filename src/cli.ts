@@ -6,7 +6,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { estimateRunUsd, REDO_STEPS, runPipeline, type Mode, type RedoStep, type RunOutcome } from "./graph.ts";
 import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
-import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
+import { createProviders, maxCostFromEnv, type Env, type FetchLike, type Providers } from "./providers/index.ts";
+import { langfuseFromEnv } from "./obs/langfuse.ts";
 
 export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step>]] [--json] [--no-subtitles]`;
 
@@ -67,6 +68,15 @@ export interface CliDeps {
   stderr?: (line: string) => void;
   retry?: { initialInterval?: number; maxAttempts?: number; jitter?: boolean };
   beforeNode?: (node: string, shotId?: string) => void | Promise<void>;
+  /** Fetch for the Langfuse export (tests pass a fake). */
+  fetch?: FetchLike;
+}
+
+/** Env values that look like credentials (…_KEY, …_SECRET, …_TOKEN): never written to a trace (F16). */
+export function secretsFromEnv(env: Env): string[] {
+  return Object.entries(env)
+    .filter(([k, v]) => /(?:KEY|SECRET|TOKEN|PASSWORD)$/i.test(k) && typeof v === "string" && v.length >= 8)
+    .map(([, v]) => v!);
 }
 
 /** The one-line summary `--json` prints (last line of stdout). */
@@ -110,6 +120,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
     return p;
   };
 
+  const langfuse = langfuseFromEnv(env);
   let outcome: RunOutcome;
   try {
     outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock" }, {
@@ -118,6 +129,8 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
       maxCostUsd,
       quality,
       subtitles: args.subtitles !== false && subtitlesFromEnv(env),
+      secrets: secretsFromEnv(env),
+      ...(langfuse ? { langfuse: { config: langfuse, ...(deps.fetch ? { fetch: deps.fetch } : {}) } } : {}),
       ...(deps.retry ? { retry: deps.retry } : {}),
       ...(deps.beforeNode ? { beforeNode: deps.beforeNode } : {}),
       log: err,

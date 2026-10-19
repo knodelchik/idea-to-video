@@ -74,3 +74,52 @@ From all manifests (plus traces where present), as one object:
 6. Langfuse: off without keys, so fetch is never called. With keys, one batched POST to the ingestion endpoint
    holds a trace, node spans and generations. A 500 from Langfuse leaves the run ok, with a note.
 7. `pnpm verify` green; F01–F14 tests still pass.
+
+## Decisions
+- **Langfuse transport: OTLP/HTTP JSON to `<host>/api/public/otel/v1/traces`, not the legacy `/api/public/ingestion`
+  batch.** Langfuse's public-API page (https://langfuse.com/docs/api-and-data-platform/features/public-api, checked
+  2026-10-19) says: "The legacy Ingestion API is deprecated and is sunset on Langfuse Cloud on November 16, 2026"
+  and that OpenTelemetry "is the supported path for trace ingestion". Shipping against an endpoint that goes away
+  in four weeks would leave a dead feature. It is still one batched POST per run, Basic auth `public:secret`, plain
+  `fetch`, no SDK. Attribute names come from https://langfuse.com/integrations/native/opentelemetry (checked
+  2026-10-19): `langfuse.observation.type` = `span` | `generation`, `langfuse.observation.model.name`,
+  `langfuse.observation.usage_details` / `cost_details` (JSON), `langfuse.observation.input` / `output`, `level` /
+  `status_message`, and `langfuse.trace.name` + `langfuse.session.id` on every span. Langfuse takes HTTP/JSON and
+  HTTP/protobuf but not gRPC.
+  - "A trace per run": OTel has no separate trace object. The trace is the shared `traceId` (sha256 of the run id,
+    so it stays the same across resumes) plus a root span `run <id>` carrying `langfuse.trace.name`. Node spans hang
+    off the root, and provider calls (generations) hang off their node.
+  - Host default `https://cloud.langfuse.com` (the EU region per the public-API page; US is `us.cloud.langfuse.com`).
+  - Rejected: the legacy `trace-create` / `span-create` / `generation-create` batch (sunset); the Langfuse JS SDK or
+    OTel SDK (a dependency for one POST).
+- **Context:** `AsyncLocalStorage` is set by the graph's `node()` wrapper around each node body, so every node
+  (and the `shot` fan-out, which adds `shotId`) gets it without the nodes changing. LangGraph's own ALS use doesn't
+  matter: we nest our own store inside the node call.
+- **Order of wrappers:** `withBudget(withTrace(p))`. A call the budget refuses never reaches a model, so it has no
+  span. It is already an attempt in the manifest.
+- **Cached spans:** `once(out, fn, trace?)` takes an optional `{ kind, provider, request }`. Only the five call sites
+  that wrap a provider call pass it: image, video, lipsync, tts, judge verdict. ffmpeg-only `once` calls (trims,
+  segments, frames) are not model calls and emit nothing. A cache hit writes a span with `cached: true`, cost 0 and
+  ms 0 to the sink held in the context.
+- **`meta` on results:** `CallMeta { text, finishReason, promptFeedback, usage }` on `LlmResult` and `JudgeResult`,
+  and as a mutable field on `JudgeOutputError`. Gemini fills it from `candidates[0].finishReason`,
+  `promptFeedback.blockReason` and `usageMetadata`. `GenAiClient` gained these optional response fields; the real
+  SDK still satisfies them structurally. OpenRouter / fal usage is not wired: their results carry no token
+  counts yet, and the spec only asks for meta "where it is cheap".
+- **`AnimateRequest.mode`** (frame / refs / portraits / text) is new and optional. visuals sets it, and providers
+  ignore it. The trace needs the ladder rung, and only the node knows it (refs and portraits both send
+  `textOnly`).
+- **`talking`** (audio-driven avatar, never called by the pipeline) is traced as kind `video` with
+  `mode: "talking"`, which keeps the spec's kind list unchanged.
+- **Secrets, two layers:** spans are built only from request and result objects, never from adapter state or
+  headers. On top of that, `JsonlSink` replaces any env value named `*KEY|*SECRET|*TOKEN|*PASSWORD` (≥ 8 chars)
+  with `[redacted]` before writing. A Langfuse error body is redacted of both keys before it becomes a manifest note.
+- **Manifest `notes: string[]`** (optional, new in `RunManifest`): non-fatal run notes, used for a failed Langfuse
+  export. They never change `ok`.
+- **Metrics:** `src/obs/metrics.ts` is pure. `src/obs/metrics-cli.ts` loads `<runsDir>/*/manifest.json` and
+  `trace.jsonl`, skipping and listing manifests that fail the contract, and tolerating a crash-truncated last trace
+  line. Wall time per stage and per run comes from node spans when there is a trace, else from summed attempt ms.
+  Fallback counts are read from the attempt reasons the nodes write, and the fixture tests pin those phrases.
+  `percentile` and the first-take rule (`verbatimFirstTake`) moved here; `evals/metrics.ts` imports them, so its
+  numbers are unchanged.
+- **No new dependencies.**

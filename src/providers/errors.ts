@@ -3,6 +3,7 @@
  * filter) will reject the same input again, so retrying it blindly only burns money and time.
  */
 import { formatIssues, JudgeVerdict } from "../schemas.ts";
+import type { CallMeta } from "./types.ts";
 
 export class PolicyRejectedError extends Error {
   constructor(
@@ -29,6 +30,8 @@ export class PolicyRejectedError extends Error {
  * reply so the caller can record a failed judge attempt. It never counts as a pass.
  */
 export class JudgeOutputError extends Error {
+  /** Set by a provider that knows why the reply was bad (finish reason, raw text), for the trace (F16). */
+  meta?: CallMeta;
   constructor(
     readonly provider: string,
     readonly problem: string,

@@ -43,8 +43,10 @@ export async function verifiedVoice(line: string, character: Character, opts: Ve
     const variant = n - 1;
     const t0 = performance.now();
     const key = await contentKey("voice", tts.name, spoken, voice, emotion ?? "", variant);
-    const made = await once(join(dir, `voice-${key}.wav`), (tmp) =>
-      tts.speak({ text: spoken, voice, out: tmp, variant, ...(emotion ? { emotion } : {}) }),
+    const made = await once(
+      join(dir, `voice-${key}.wav`),
+      (tmp) => tts.speak({ text: spoken, voice, out: tmp, variant, ...(emotion ? { emotion } : {}) }),
+      { kind: "tts", provider: tts.name, request: { text: spoken, voice, variant, ...(emotion ? { emotion } : {}) } },
     );
     const seconds = made.result?.seconds ?? (await probe(made.path)).seconds;
     // The full line: the gate strips tags itself, and a laugh tag must reach it to excuse heard laughter.

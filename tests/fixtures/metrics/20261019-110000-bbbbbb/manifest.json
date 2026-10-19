@@ -1,0 +1,24 @@
+{
+  "runId": "20261019-110000-bbbbbb",
+  "idea": "A barista reads a note aloud: \"Meet me where it started.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T11:00:00.000Z",
+  "shots": {
+    "s1": { "path": "/runs/b/clip-s1.mp4", "seconds": 4, "hasAudio": true, "audio": "silent" },
+    "s2": { "path": "/runs/b/lipsync-s2.mp4", "seconds": 6, "hasAudio": true, "audio": "fallback", "needsReview": true }
+  },
+  "attempts": [
+    { "stage": "script", "n": 1, "provider": "gemini", "ok": true, "costUsd": 0.02, "ms": 2000 },
+    { "stage": "video", "shotId": "s1", "n": 1, "provider": "seedance", "ok": true, "reason": "silent shot: no verbatim gate", "costUsd": 0.2, "ms": 50000 },
+    { "stage": "listen", "shotId": "s1", "n": 1, "provider": "groq", "ok": true, "reason": "speech heard in a silent shot (\"I'm sorry, I'm sorry\"); its audio replaced with silence", "costUsd": 0.001, "ms": 400 },
+    { "stage": "video", "shotId": "s2", "n": 1, "provider": "seedance", "ok": false, "reason": "reference images refused as a possible real person (PrivacyInformation); retrying as text-to-video", "costUsd": 0, "ms": 1500 },
+    { "stage": "video", "shotId": "s2", "n": 1, "provider": "seedance", "ok": false, "reason": "sub \"started\" heard as \"starter\"", "costUsd": 0.3, "ms": 60000 },
+    { "stage": "fallback", "shotId": "s2", "n": 1, "provider": "gemini-tts+kling", "ok": true, "reason": "native speech failed the verbatim gate 1× (best wer 0.20); falling back to verified TTS + lip-sync", "costUsd": 0, "ms": 0 },
+    { "stage": "judge", "shotId": "s2", "n": 1, "provider": "gemini-judge", "ok": false, "reason": "judge failed on clip (counted as not passing): gemini-judge(gemini-3.5-flash): judge output invalid: (root): expected object", "costUsd": 0.008, "ms": 3000 },
+    { "stage": "lipsync", "shotId": "s2", "n": 1, "provider": "kling+groq", "ok": true, "costUsd": 0.45, "ms": 90000 },
+    { "stage": "final", "n": 1, "provider": "ffprobe+groq", "ok": true, "costUsd": 0.021, "ms": 800 }
+  ],
+  "costUsd": 1,
+  "verbatim": { "expected": "Meet me where it started.", "heard": "Meet me where it started.", "wer": 0, "ops": [], "pass": true },
+  "ok": true
+}

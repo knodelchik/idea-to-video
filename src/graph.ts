@@ -31,8 +31,12 @@ import {
   HttpError,
   isTransientHttp,
   withBudget,
+  type FetchLike,
   type Providers,
 } from "./providers/index.ts";
+import { exportToLangfuse, type LangfuseConfig } from "./obs/langfuse.ts";
+import { JsonlSink, newSpanId, withTraceContext } from "./obs/trace.ts";
+import { withTrace } from "./obs/with-trace.ts";
 import {
   RunManifest,
   SCRIPT_SECONDS,
@@ -167,6 +171,10 @@ export interface PipelineDeps {
   quality?: Partial<QualitySettings>;
   /** Burn subtitles into the final file (F13). Default true. */
   subtitles?: boolean;
+  /** Values that must never reach a trace line (API keys from env); replaced before writing (F16). */
+  secrets?: string[];
+  /** Langfuse export at run end (F16). Absent = off: nothing is sent. */
+  langfuse?: { config: LangfuseConfig; fetch?: FetchLike };
 }
 
 interface Ctx {
@@ -175,6 +183,9 @@ interface Ctx {
   budget?: Budget;
   /** Attempts of failed node runs, by task key: kept for the retry that follows, or for the manifest if none does. */
   failed: Map<string, Attempt[]>;
+  runId?: string;
+  /** `runs/<id>/trace.jsonl` (F16). */
+  sink?: JsonlSink;
 }
 
 function buildGraph(deps: PipelineDeps, ctx: Ctx) {
@@ -195,14 +206,35 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
     async (input: I): Promise<Patch> => {
       const shotId = shotOf?.(input);
       const key = shotId ? `${name}:${shotId}` : name;
+      // F16: a node span, parent of every provider span emitted while the node runs.
+      const span = { id: newSpanId(), startedAt: new Date().toISOString(), t0: performance.now() };
+      const trace = { runId: ctx.runId ?? "(none)", node: name, ...(shotId ? { shotId } : {}), parentId: span.id, ...(ctx.sink ? { sink: ctx.sink } : {}) };
+      const endSpan = (ok: boolean, costUsd: number, error?: string) =>
+        ctx.sink?.write({
+          id: span.id,
+          runId: trace.runId,
+          node: name,
+          ...(shotId ? { shotId } : {}),
+          kind: "node",
+          provider: "pipeline",
+          startedAt: span.startedAt,
+          ms: Math.round(performance.now() - span.t0),
+          ok,
+          ...(error !== undefined ? { error } : {}),
+          costUsd,
+          request: {},
+          response: {},
+        });
       try {
         await deps.beforeNode?.(name, shotId);
-        const patch = await fn(input);
+        const patch = await withTraceContext(trace, () => fn(input));
         const attempts = [...(ctx.failed.get(key) ?? []), ...patch.attempts];
         ctx.failed.delete(key);
         deps.log?.(`✓ ${key}`);
+        endSpan(true, sumCost(patch.attempts));
         return { ...patch, attempts, costUsd: sumCost(attempts) };
       } catch (e) {
+        endSpan(false, sumCost(attemptsOf(e, name, shotId)), errMsg(e));
         const list = ctx.failed.get(key) ?? [];
         list.push(...attemptsOf(e, name, shotId));
         if (isTransient(e)) {
@@ -406,7 +438,7 @@ export function newRunId(now = new Date()): string {
 export const manifestPath = (runsDir: string, runId: string): string => join(runsDir, runId, "manifest.json");
 
 /** State (+ attempts of failed tasks the state never received) → the contract written to disk. */
-export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; error?: string } = {}): RunManifest {
+export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; error?: string; notes?: string[] } = {}): RunManifest {
   const attempts = [...(s.attempts ?? []), ...(extra.attempts ?? [])];
   const error = extra.error ?? s.error;
   return RunManifest.parse({
@@ -424,6 +456,7 @@ export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; err
     ...(s.subtitles ? { subtitles: s.subtitles } : {}),
     ok: error === undefined && s.ok === true,
     ...(error !== undefined ? { error } : {}),
+    ...(extra.notes?.length ? { notes: extra.notes } : {}),
   });
 }
 
@@ -528,7 +561,12 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
     }
     // Finished stages of a resumed run already spent their share of the cap.
     const budget = new Budget(deps.maxCostUsd, (state.costUsd ?? 0) + sumCost(carried));
-    ctx.providers = withBudget(deps.providers(state.mode), budget);
+    // A resumed or redone run appends to the same trace file: the spans of each process stay, in order.
+    const sink = new JsonlSink(join(deps.runsDir, runId, "trace.jsonl"), deps.secrets ?? []);
+    ctx.runId = runId;
+    ctx.sink = sink;
+    // Trace inside the budget guard: a refused call never reaches a model, so it has no span (the manifest has it).
+    ctx.providers = withBudget(withTrace(deps.providers(state.mode), sink), budget);
     ctx.budget = budget;
 
     await mkdir(join(deps.runsDir, runId), { recursive: true });
@@ -548,7 +586,16 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
     state = (await app.getState(config)).values as RunStateValues;
     const leftover = [...carried, ...[...ctx.failed.values()].flat()];
     if (error === undefined && state.ok === undefined) error = "run ended before the final gate";
-    const manifest = toManifest(state, { attempts: leftover, ...(error !== undefined ? { error } : {}) });
+    const notes: string[] = [];
+    if (deps.langfuse) {
+      // Never fails the run: a broken export is a note, and the local trace.jsonl still has every span.
+      const r = await exportToLangfuse(sink.spans, { runId, idea: state.idea, ...deps.langfuse });
+      if (!r.ok) {
+        notes.push(`langfuse export failed (non-fatal): ${r.error}`);
+        deps.log?.(`! langfuse export failed (non-fatal): ${r.error}`);
+      }
+    }
+    const manifest = toManifest(state, { attempts: leftover, notes, ...(error !== undefined ? { error } : {}) });
     await write(manifest);
     return { manifest, manifestPath: path };
   } finally {

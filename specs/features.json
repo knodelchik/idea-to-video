@@ -125,7 +125,7 @@
     {
       "id": "F16-observability",
       "spec": "specs/F16-observability.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/obs.test.ts",
         "npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: \"Meet me where it started.\"' --mock --json",

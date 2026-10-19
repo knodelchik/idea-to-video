@@ -14,6 +14,7 @@ Read this file, then the spec you were given. Everything else is linked from her
 | `src/nodes/` | One file per stage. A node reads state, calls providers, returns a state patch. |
 | `src/providers/` | Adapters behind interfaces (`llm`, `tts`, `asr`, `image`, `video`, `lipsync`). Each has a `mock` twin. |
 | `src/media/` | ffmpeg / ffprobe wrappers. Pure arg builders are unit-tested. |
+| `src/obs/` | Run trace (`runs/<id>/trace.jsonl`, `withTrace`), metrics across runs (`pnpm metrics`), optional Langfuse export. |
 | `src/verbatim.ts` | Text normalisation + word error rate: the verbatim gate. |
 | `src/cli.ts` | `pnpm make "idea"` entry point. |
 | `specs/` | Feature specs. `specs/features.json` is the backlog with status; one spec per feature. |

@@ -159,3 +159,7 @@
 2026-10-19 14:10:01 F14-judge-sees-video attempt 1: reviewer
 2026-10-19 14:14:05 F14-judge-sees-video PASSED on attempt 1 -> d7e01ad
 2026-10-19 14:14:05 all requested features passing
+2026-10-19 14:14:06 ### F16-observability start (specs/F16-observability.md)
+2026-10-19 14:14:06 F16-observability attempt 1: implementer
+2026-10-19 14:38:27 F16-observability attempt 1: gate
+2026-10-19 14:39:23 F16-observability attempt 1: reviewer

@@ -309,3 +309,23 @@ Append-only log, one entry per feature, written by the implementer agent and com
   wording.
 - The cached clip verdict is keyed by the clip's bytes and name, the rubric and the judge prompt version, so a
   resumed run doesn't pay to re-judge a take.
+
+## F16 — Observability: a trace of every model call, and metrics across runs
+- Every run writes `runs/<id>/trace.jsonl`: one span per provider call (llm / image / video / tts / asr / judge /
+  lipsync) holding the full prompt or rubric, media as path + sha256, the reply text (capped at 4 kB), finish reason,
+  usage, cost, ms and error. There is also one `node` span per graph node, which is the parent of its calls. Shot spans
+  carry `shotId`. A resume or `--redo` appends to the file, and reused artifacts show up as `cached: true`, $0.
+- Code: `src/obs/trace.ts` (span type, ALS context, `JsonlSink`), `src/obs/with-trace.ts` (`withTrace(providers,
+  sink)`, wrapped inside `withBudget`). `once(out, fn, { kind, provider, request })` traces cache hits. Gemini fills
+  `meta` (`finishReason`, `promptFeedback`, usage, raw text), including on a `JudgeOutputError`, so an empty judge
+  reply shows why.
+- `pnpm metrics [runsDir] [--json]` prints metrics across runs: success, first-take verbatim, WER=0, $ per
+  (successful) video, p50/p90 wall time per stage and run, attempts per stage, real-face refusals and ladder rungs,
+  TTS / lip-sync / voice-over shots, silent-shot speech dropped, ASR words ignored in silence, the judge score
+  histogram, failures and needs-review rate, model calls by provider/model with tokens and $, and top failure
+  reasons. Pure core in `src/obs/metrics.ts`; evals reuse `percentile` and `verbatimFirstTake`.
+- Optional Langfuse: set `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` (and optionally `LANGFUSE_HOST`, default EU
+  cloud). At run end there is one OTLP/JSON POST to `/api/public/otel/v1/traces`: a root run span, node spans, and
+  generations with model, usage and cost. A failed export is logged and lands in the manifest's new `notes`, and the
+  run stays ok.
+- Env values named `*_KEY` / `*_SECRET` / `*_TOKEN` are redacted from trace lines before writing.

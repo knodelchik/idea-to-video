@@ -15,8 +15,8 @@
 import { readFile, stat } from "node:fs/promises";
 import { GoogleGenAI, type Part } from "@google/genai";
 import { JudgeVerdict } from "../schemas.ts";
-import { parseVerdict } from "./errors.ts";
-import { GEMINI_PRICES, toGeminiSchema, type GenAiClient } from "./gemini.ts";
+import { JudgeOutputError, parseVerdict } from "./errors.ts";
+import { GEMINI_PRICES, geminiMeta, toGeminiSchema, type GenAiClient } from "./gemini.ts";
 import { sniffMime } from "./http.ts";
 import type { JudgeImageRequest, JudgeProvider, JudgeResult, JudgeVideoRequest } from "./types.ts";
 
@@ -149,8 +149,16 @@ export class GeminiJudge implements JudgeProvider {
       } catch {
         raw = text; // fails the schema below → JudgeOutputError with the cost
       }
-      const verdict = parseVerdict(`${this.name}(${model})`, raw, costUsd);
-      return { ...verdict, costUsd, model, ...(notes.length ? { notes } : {}) };
+      const meta = geminiMeta(res);
+      let verdict;
+      try {
+        verdict = parseVerdict(`${this.name}(${model})`, raw, costUsd);
+      } catch (e) {
+        // An empty or malformed reply: the trace needs to say why (finishReason MAX_TOKENS, SAFETY…), F16.
+        if (e instanceof JudgeOutputError) e.meta = meta;
+        throw e;
+      }
+      return { ...verdict, costUsd, model, ...(notes.length ? { notes } : {}), meta };
     }
     throw new Error(`GeminiJudge: all models unavailable: ${notes.join("; ")}`);
   }

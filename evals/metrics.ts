@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import type { RunManifest } from "../src/schemas.ts";
+import { percentile, verbatimFirstTake } from "../src/obs/metrics.ts";
 
 export const EvalIdea = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/, "id must be kebab-case"),
@@ -89,7 +90,6 @@ export const EvalResults = z.object({
 });
 export type EvalResults = z.infer<typeof EvalResults>;
 
-const VERBATIM_STAGES = new Set(["video", "voice", "lipsync", "voiceover"]);
 /** Attempt provider of the script node's pre-spend rejection (src/nodes/script.ts). */
 export const PRE_SPEND_PROVIDER = "pre-spend-check";
 
@@ -101,13 +101,6 @@ export function summarize(spec: EvalIdea, m: RunManifest, extra: { manifest: str
     attemptsByStage[a.stage] = (attemptsByStage[a.stage] ?? 0) + 1;
     msByStage[a.stage] = (msByStage[a.stage] ?? 0) + a.ms;
   }
-  const spoken = m.script?.shots.filter((s) => s.line.trim() !== "") ?? [];
-  // First try = no verbatim-gated take failed and no shot needed the TTS fallback. A run that never got to
-  // its shots (script failure) has no first try.
-  const firstTry =
-    spoken.length > 0 &&
-    spoken.every((s) => m.shots?.[s.id]?.audio === "native") &&
-    !m.attempts.some((a) => (VERBATIM_STAGES.has(a.stage) && !a.ok) || a.stage === "fallback");
   const shots = Object.values(m.shots ?? {});
   return {
     id: spec.id,
@@ -118,7 +111,8 @@ export function summarize(spec: EvalIdea, m: RunManifest, extra: { manifest: str
     ok: m.ok,
     ...(m.error !== undefined ? { error: m.error } : {}),
     ...(m.attempts.some((a) => a.provider === PRE_SPEND_PROVIDER) ? { rejected: true } : {}),
-    verbatimFirstTry: firstTry && m.verbatim?.pass === true,
+    // Shared with `pnpm metrics` (F16), so the two never disagree on what a first take is.
+    verbatimFirstTry: verbatimFirstTake(m),
     verbatimFinal: m.verbatim?.pass === true,
     wer: m.verbatim?.wer ?? null,
     seconds: m.final?.seconds ?? null,
@@ -156,13 +150,8 @@ export function failedIdea(spec: EvalIdea, error: string, wallMs: number): IdeaR
   };
 }
 
-/** Nearest-rank percentile (no interpolation: with 3–10 samples it reports a value that actually happened). */
-export function percentile(xs: number[], p: number): number {
-  if (xs.length === 0) return 0;
-  const sorted = [...xs].sort((a, b) => a - b);
-  const rank = Math.max(1, Math.ceil((p / 100) * sorted.length));
-  return sorted[rank - 1]!;
-}
+/** Nearest-rank percentile; lives in src/obs/metrics.ts (F16) and is re-exported for existing callers. */
+export { percentile };
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
 const round = (x: number, d = 4): number => Number(x.toFixed(d));

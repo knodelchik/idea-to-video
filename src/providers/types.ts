@@ -6,6 +6,17 @@
 import type { z } from "zod";
 import type { Transcript } from "../schemas.ts";
 
+/**
+ * What a provider knows about a call beyond its result (F16), read by the trace wrapper: the raw reply text, why the
+ * model stopped (Gemini `finishReason`, `promptFeedback.blockReason`) and the token usage. Cheap to fill, never parsed.
+ */
+export interface CallMeta {
+  text?: string;
+  finishReason?: string;
+  promptFeedback?: string;
+  usage?: { input: number; output: number; thinking?: number };
+}
+
 export interface LlmRequest<T> {
   system: string;
   prompt: string;
@@ -23,6 +34,7 @@ export type LlmResult<T> = (
   model?: string;
   /** Fallbacks or caveats the caller must record in the manifest (no silent fallbacks). */
   notes?: string[];
+  meta?: CallMeta;
 };
 
 /**
@@ -103,6 +115,8 @@ export interface AnimateRequest {
    * (Seedance's real-face filter); the prompt then has to describe the character and setting itself.
    */
   textOnly?: boolean;
+  /** Ladder rung that made this request, for the trace (F16). Providers ignore it. */
+  mode?: "frame" | "refs" | "portraits" | "text";
 }
 export interface AnimateResult {
   path: string;
@@ -159,6 +173,7 @@ export interface JudgeResult {
   /** Model that answered, and fallbacks the caller must record. */
   model?: string;
   notes?: string[];
+  meta?: CallMeta;
 }
 /** A VLM that scores images and clips (F07). It judges only what code can't check. */
 export interface JudgeProvider {
