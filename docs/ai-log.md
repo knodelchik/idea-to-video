@@ -204,3 +204,10 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   run past the next start. The args test pinned the overlapping string, so it passed for the wrong reason. Caught by
   the reviewer. Fix: half-open `gte(t,a)*lt(t,b)`, a sliver that never passes the next start, a test that forbids
   `between(`, and a degenerate-timing test.
+- [live] 2026-10-19, castle storyboard ($1.37). It worked: both shots came out wide (a full shot at the doors, an
+  extreme wide shot of the ballroom), WER 0, and the subtitle was burned in. Two problems. (1) On both wide shots
+  Gemini's clip judge returned an **empty** reply (a replay gave the same; the free tier then hit 429, so the cause is
+  unconfirmed — a safety block on "ten-year-old girl" is the leading guess). F07 treated a judge failure as "regenerate",
+  so the pipeline paid $0.46 for a second take that the judge failed on again. Changed by hand: a judge failure keeps the
+  gated take and flags needs-review, with no paid regeneration (test 4b rewritten). (2) Subtitles at 72% height sat on
+  the small figure; moved down to 84% (My Muse is ~86%).

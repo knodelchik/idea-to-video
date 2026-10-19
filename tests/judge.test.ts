@@ -388,19 +388,23 @@ describe("clips (acceptance 3, 4)", () => {
   );
 
   it(
-    "4b. an invalid clip verdict is a judge failure: recorded, not a pass, so the shot is regenerated",
+    // Changed 2026-10-19 after a live run: Gemini returned an empty reply on wide shots, and each judge failure bought a
+    // second paid take ($0.46) that the judge then failed on again. A judge failure says nothing about the clip.
+    "4b. an invalid or empty clip verdict is a judge failure: recorded, not a pass, and NOT a paid regeneration",
     async () => {
-      const dir = fresh();
-      const portrait = await portraitIn(dir);
-      const rig = shotRig(dir, { video: [{ raw: { score: "great", issues: [] } }, 9] });
-      const r = await judgedTalkingShot(S1, portrait, { ...rig, portrait });
-      const judged = judgeAttempts(r.attempts);
-      expect(judged[0]).toMatchObject({ ok: false });
-      expect(judged[0]!.reason).toMatch(/judge output invalid/);
-      expect(r.attempts.find((a) => a.stage === "regen")!.reason).toMatch(/clip judge failed/);
-      expect(rig.video.calls).toHaveLength(2);
-      expect(r.clipScore).toBe(9);
-      expect(r.needsReview).toBe(false);
+      for (const raw of [{ score: "great", issues: [] }, ""]) {
+        const dir = fresh();
+        const portrait = await portraitIn(dir);
+        const rig = shotRig(dir, { video: [{ raw }, 9] });
+        const r = await judgedTalkingShot(S1, portrait, { ...rig, portrait });
+        const judged = judgeAttempts(r.attempts);
+        expect(judged[0]).toMatchObject({ ok: false });
+        expect(judged[0]!.reason).toMatch(/judge output invalid/);
+        expect(r.attempts.find((a) => a.stage === "regen")!.reason).toMatch(/clip judge failed \(no verdict\); no paid regeneration/);
+        expect(rig.video.calls).toHaveLength(1);
+        expect(r).not.toHaveProperty("clipScore");
+        expect(r.needsReview).toBe(true);
+      }
     },
     SLOW,
   );

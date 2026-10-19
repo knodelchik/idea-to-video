@@ -8,13 +8,13 @@ import { Resvg } from "@resvg/resvg-js";
 import { HEIGHT, WIDTH } from "./args.ts";
 
 /** Part of every card's content key: bump on any change to the look. */
-export const CARD_VERSION = "card-v1";
+export const CARD_VERSION = "card-v2";
 
 export const CARD = {
   fontSize: 68,
   lineHeight: 1.18,
-  /** Baseline of the last line, as a fraction of the height: the lower third, clear of platform UI at the bottom. */
-  baseline: 0.72,
+  /** Baseline of the last line, as a fraction of the height: low, like My Muse (~86%), still clear of platform UI at the very bottom. */
+  baseline: 0.84,
   /** Black outline visible outside the glyphs (the stroke is centred, so it is drawn at twice this width). */
   stroke: 6,
   maxChars: 32,
@@ -53,7 +53,7 @@ export const fitsCard = (text: string): boolean => {
 const xml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
-/** The card as SVG: white bold text, black outline, soft shadow, centred, last baseline at 72% of the height. */
+/** The card as SVG: white bold text, black outline, soft shadow, centred, last baseline at 84% of the height. */
 export function cardSvg(text: string): string {
   const lines = wrapLines(text);
   const step = CARD.fontSize * CARD.lineHeight;

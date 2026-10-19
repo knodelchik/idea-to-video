@@ -245,6 +245,21 @@ export async function judgedTalkingShot(shot: Shot, keyframe: string, opts: Judg
     ...(judged.verdict ? { clipScore: judged.verdict.score } : {}),
   });
   if (j1.pass) return done(first, j1, false);
+  if (!j1.verdict) {
+    // The judge itself failed (empty or invalid reply, live 2026-10-19): that says nothing about the clip, so it is not
+    // worth a paid regeneration. Keep the gated take and ask a human to look.
+    attempts.push({
+      stage: "regen",
+      shotId: shot.id,
+      n: 1,
+      provider: "pipeline",
+      ok: false,
+      reason: "clip judge failed (no verdict); no paid regeneration on a judge failure; kept take 1; needs review",
+      costUsd: 0,
+      ms: 0,
+    });
+    return done(first, j1, true);
+  }
 
   const why = j1.verdict ? `clip score ${j1.verdict.score} < ${min}` : "clip judge failed";
   const estimate = regenEstimateUsd(shot, keyframe, opts);
