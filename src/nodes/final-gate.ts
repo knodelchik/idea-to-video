@@ -5,7 +5,7 @@
  */
 import { performance } from "node:perf_hooks";
 import { HEIGHT, WIDTH } from "../media/args.ts";
-import { probe as ffprobe, type ProbeResult } from "../media/ffmpeg.ts";
+import { probe as ffprobe, silentSpans, type ProbeResult, type Span } from "../media/ffmpeg.ts";
 import type { AsrProvider } from "../providers/index.ts";
 import { SCRIPT_SECONDS, type Attempt, type FinalVideo, type Script, type SpokenText, type VerbatimResult } from "../schemas.ts";
 import { compareWords, splitDelivery } from "../verbatim.ts";
@@ -43,7 +43,7 @@ export function probeProblems(p: ProbeResult): string[] {
 export async function finalGate(
   path: string,
   script: Script,
-  opts: { asr: AsrProvider; probe?: (path: string) => Promise<ProbeResult> },
+  opts: { asr: AsrProvider; probe?: (path: string) => Promise<ProbeResult>; silences?: (path: string, seconds: number) => Promise<Span[]> },
 ): Promise<FinalGateResult> {
   const t0 = performance.now();
   const media = await (opts.probe ?? ffprobe)(path);
@@ -52,12 +52,16 @@ export async function finalGate(
   // The raw lines (tags kept) go to the gate, so a "[laughs]" still excuses heard laughter; it strips them itself.
   const lines = script.shots.map((s) => s.line).filter((l) => splitDelivery(l).spoken !== "").join(" ");
   // A file with no audio can't be listened to (live ASR extracts the audio stream and would throw).
-  const heard = media.hasAudio
-    ? await listen(path, lines, { asr: opts.asr })
-    : { ...compareWords(expected, ""), transcript: { text: "", words: [] }, costUsd: 0 };
+  const silences = media.hasAudio ? await (opts.silences ?? silentSpans)(path, media.seconds) : [];
+  const heard: Awaited<ReturnType<typeof listen>> = media.hasAudio
+    ? await listen(path, lines, { asr: opts.asr, silences })
+    : { ...compareWords(expected, ""), transcript: { text: "", words: [] }, costUsd: 0, speechStart: 0, speechEnd: 0 };
   if (!heard.pass) problems.push(`not verbatim (wer ${heard.wer.toFixed(2)}): ${describeOps(heard.ops) || "no speech heard"}`);
   const ok = problems.length === 0;
-  const notes = describeIgnored(heard);
+  const notes = [
+    ...describeIgnored(heard),
+    ...(heard.hallucinated ? [`ignored words ASR heard in digital silence (hallucination, nothing was said there): "${heard.hallucinated.slice(0, 120)}"`] : []),
+  ];
   return {
     ok,
     final: { path, seconds: media.seconds, width: media.width, height: media.height, hasAudio: media.hasAudio },

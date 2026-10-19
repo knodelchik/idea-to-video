@@ -215,3 +215,14 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
   F11 speaker detector took "shot" as the speaker, so a script giving the king's and the daughter's lines to one
   person passed. F11's reviewer had tested the sentence forms, not storyboards (F12 came later). Fixed by hand: beat
   markers are stripped, and past a leading place phrase the subject is the first unowned gendered noun. 5 tests added.
+- [live] 2026-10-19, final 3-shot storyboard ($1.76): rejected by the final gate. "I'm sorry, I'm sorry" was heard at
+  the start of the *silent* wide shot. Fixes, in order of what the evidence showed:
+  1. Silent shots are now listened to and muted when words are heard. The redo then heard "Thank you for watching!"
+     there, a classic Whisper hallucination on ambient sound, so the first "I'm sorry" was most likely ASR too.
+  2. With that shot muted, the final ASR "heard" "The American pronunciation guide presents…" over 5 s of digital
+     silence. The final gate now runs silencedetect (-60 dB) and drops words whose middle sits in digital silence,
+     reporting them. Nothing can be said in digital silence, so this cannot hide a wrong word.
+  3. A redo hit the budget guard: the refused first rung was asked again before the paid clip of a lower rung. The
+     ladder now jumps to a rung whose clip is already on disk.
+  4. New `--resume <id> --redo <step>`: replays a run from a step; content addressing makes unchanged steps $0.
+     The redo of this run cost $0 for video.

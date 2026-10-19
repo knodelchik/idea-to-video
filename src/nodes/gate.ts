@@ -26,13 +26,23 @@ export function speechWindow(words: TranscriptWord[]): SpeechWindow {
  * `expected` ("[whispers]", "🚀") are stripped first: they are not words and must never be compared. A laugh tag
  * lets heard laughter through; whatever was not counted is listed in `ignored`.
  */
-export async function listen(path: string, expected: string, { asr }: { asr: AsrProvider }): Promise<ListenResult> {
+export async function listen(
+  path: string,
+  expected: string,
+  { asr, silences = [] }: { asr: AsrProvider; silences?: { start: number; end: number }[] },
+): Promise<ListenResult & { hallucinated?: string }> {
   const t = await asr.transcribe({ path });
-  const transcript = { text: t.text, words: t.words };
+  // Words whose middle falls in digital silence can't have been said: ASR hallucination (live 2026-10-19: Whisper heard
+  // "The American pronunciation guide presents…" over 5 s of silence). They are dropped and reported, never counted.
+  const inSilence = (w: TranscriptWord) => silences.some((s) => (w.start + w.end) / 2 >= s.start && (w.start + w.end) / 2 <= s.end);
+  const dropped = t.words.filter(inSilence);
+  const words = dropped.length ? t.words.filter((w) => !inSilence(w)) : t.words;
+  const transcript = { text: dropped.length ? words.map((w) => w.word.trim()).join(" ") : t.text, words };
+  const hallucinated = dropped.length ? dropped.map((w) => w.word.trim()).join(" ") : undefined;
   // Same as compareLine, spelled out so compareWords only ever sees spoken words (tests spy on it).
   const { spoken, tags } = splitDelivery(expected);
   const verbatim = compareWords(spoken, transcript.text, { laughter: hasLaughTag(tags) });
-  return { ...verbatim, ...speechWindow(transcript.words), transcript, costUsd: t.costUsd };
+  return { ...verbatim, ...speechWindow(transcript.words), transcript, costUsd: t.costUsd, ...(hallucinated ? { hallucinated } : {}) };
 }
 
 /** Diff ops as a short reason a human (or a retry prompt) can act on. */

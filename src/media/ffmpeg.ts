@@ -76,3 +76,33 @@ export function parseProbe(json: FfprobeJson): ProbeResult {
     hasVideo: video !== undefined,
   };
 }
+
+export interface Span {
+  start: number;
+  end: number;
+}
+
+/** silencedetect's stderr → silent spans (an open span at the end runs to `seconds`). Pure, for tests. */
+export function parseSilence(stderr: string, seconds: number): Span[] {
+  const out: Span[] = [];
+  let open: number | undefined;
+  for (const m of stderr.matchAll(/silence_(start|end):\s*(-?[\d.]+)/g)) {
+    const t = Math.max(0, Number(m[2]));
+    if (m[1] === "start") open = t;
+    else if (open !== undefined) {
+      out.push({ start: open, end: t });
+      open = undefined;
+    }
+  }
+  if (open !== undefined) out.push({ start: open, end: seconds });
+  return out;
+}
+
+/**
+ * Spans of digital silence (below -60 dB for at least `minSeconds`): where nothing can have been said. Whisper is
+ * known to "hear" phrases in silence ("Thank you for watching!"); words inside these spans are not speech.
+ */
+export async function silentSpans(path: string, seconds: number, minSeconds = 0.5): Promise<Span[]> {
+  const stderr = await runCapture(["-i", path, "-vn", "-af", `silencedetect=noise=-60dB:d=${minSeconds}`, "-f", "null", "-"]);
+  return parseSilence(stderr, seconds);
+}
