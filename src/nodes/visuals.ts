@@ -26,7 +26,7 @@ import {
   VISUALS_PROMPT_VERSION,
 } from "../prompts/visuals.ts";
 import { withIssues } from "../prompts/judge.ts";
-import { castOf, isWide, speakerOf, type Attempt, type Script, type Shot, type VerbatimResult } from "../schemas.ts";
+import { castOf, isWide, openingCastOf, speakerOf, type Attempt, type Character, type Script, type Shot, type VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { linkSource } from "../util/sidecar.ts";
 import { splitDelivery } from "../verbatim.ts";
@@ -111,12 +111,21 @@ export function portraitOf(portraits: Portraits, name: string): string {
   return p;
 }
 
-/** Portraits of everyone on screen in a shot, speaker first, without repeats. */
-export function shotPortraits(shot: Shot, script: Script, portraits: Portraits): { name: string; path: string }[] {
+const portraitsOf = (cast: Character[], portraits: Portraits): { name: string; path: string }[] => {
   const seen = new Set<string>();
-  return castOf(script, shot)
+  return cast
     .map((c) => ({ name: c.name, path: portraitOf(portraits, c.name) }))
     .filter((p) => !seen.has(p.path) && Boolean(seen.add(p.path)));
+};
+
+/** Portraits of everyone on screen in a shot, speaker first, without repeats (the video call's refs). */
+export function shotPortraits(shot: Shot, script: Script, portraits: Portraits): { name: string; path: string }[] {
+  return portraitsOf(castOf(script, shot), portraits);
+}
+
+/** Portraits of who the keyframe shows: a cut shot's opening cut only (F13), speaker first when in it. */
+export function keyframePortraits(shot: Shot, script: Script, portraits: Portraits): { name: string; path: string }[] {
+  return portraitsOf(openingCastOf(script, shot), portraits);
 }
 
 /** One character's identity anchor (default: the first): the official headshot framing, 9:16. */
@@ -153,7 +162,7 @@ export function keyframeShot(
 ): Promise<Still> {
   const { issues = [], ...rest } = opts;
   const prompt = withIssues(keyframePrompt(shot, script), issues);
-  const refs = shotPortraits(shot, script, portraits).map((p) => p.path);
+  const refs = keyframePortraits(shot, script, portraits).map((p) => p.path);
   return still("keyframe", prompt, prev ? [...refs, prev] : refs, { ...rest, shotId: shot.id });
 }
 
@@ -438,14 +447,19 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     if (!best || heard.wer < best.wer) best = { clip, wer: heard.wer };
   }
 
-  const wide = isWide(shot.camera);
-  const how = wide
-    ? "verified TTS as a voice-over without lip-sync (wide shot: the face is too small to lip-read)"
-    : "verified TTS + lip-sync";
+  // No lip-sync on a wide shot (F12: the face is too small) or on a clip with cuts (F13: the face changes, or
+  // leaves the frame, between cuts, so a lip-sync model would warp the wrong mouth). Both get the voice-over.
+  const cuts = (shot.cuts?.length ?? 0) > 0;
+  const overlay = isWide(shot.camera) || cuts;
+  const how = cuts
+    ? "verified TTS as a voice-over without lip-sync (the clip has cuts: faces change between them)"
+    : overlay
+      ? "verified TTS as a voice-over without lip-sync (wide shot: the face is too small to lip-read)"
+      : "verified TTS + lip-sync";
   record({
     stage: "fallback",
     n: 1,
-    provider: wide ? opts.tts.name : `${opts.tts.name}+${lipsync.name}`,
+    provider: overlay ? opts.tts.name : `${opts.tts.name}+${lipsync.name}`,
     ok: true,
     reason: !native
       ? `no native speech; using ${how}`
@@ -473,7 +487,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
 
   // 3a. Wide shot (F12): no lip-sync call. The verified voice replaces the clip's audio as it is; the gate listens
   // to the muxed file, and the final gate to the finished video, so the words still can't drift.
-  if (wide) {
+  if (overlay) {
     const clip = best!.clip;
     const t1 = performance.now();
     const step = { stage: "voiceover", n: 1, provider: `ffmpeg+${asr.name}` };

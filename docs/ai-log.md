@@ -190,3 +190,17 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
 - [F12] The boundary also needed punctuation *before* a closing quote, so `… "thirty words" Shot 2: …` (no full stop)
   was not a beat. Caught by the pre-spend "beats can't fit 30 s" test, which came back `[]` because the idea was not
   recognised as a storyboard at all. Fix: a closing quote ends the spoken line and counts as a boundary.
+- [F13] Attempt 1 bumped `VISUALS_PROMPT_VERSION` to v5 but never ran the full suite, so F11's pinned
+  `visuals-v4` test failed the gate. Its tests also never covered the script-prompt bump, the mock writer's cuts, or
+  acceptance items 5 and 6. Caught by `pnpm verify` at the gate, then by re-reading the spec's Scope against
+  `git diff --stat`. Fix: moved both pins (visuals-v5, script-v6), added the missing prompt/mock code and tests. Run
+  `grep PROMPT_VERSION tests` after any version bump.
+- [F13] Attempt 2's `chunkLine` merged a lone word ("Yes,") only when the merged cue still fit. Next to a full
+  6-word split piece the merge failed silently and a 1-word cue shipped. The ≥ 2-words test passed for the wrong
+  reason: none of its lines had a one-word phrase in front of a long one. Caught by the reviewer with three such
+  lines. Fix: re-split the lone word together with its neighbour (`rejoin` → `splitRun`), and add those lines to the test.
+- [F13] Cards were enabled with `between(t,start,end)`, which is inclusive at both ends, while `settle` makes cues
+  abut (end == next start). A frame exactly on the boundary drew two cues, and the degenerate 0.05 s sliver could also
+  run past the next start. The args test pinned the overlapping string, so it passed for the wrong reason. Caught by
+  the reviewer. Fix: half-open `gte(t,a)*lt(t,b)`, a sliver that never passes the next start, a test that forbids
+  `between(`, and a degenerate-timing test.

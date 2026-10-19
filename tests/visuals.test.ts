@@ -287,7 +287,8 @@ describe("Seedance prompt wording (F11 acceptance 3)", () => {
   });
 
   it("the prompt version was bumped", () => {
-    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v4");
+    // Pinned to the current version: F12 bumped v3→v4, F13 (multi-cut shots) bumped v4→v5, the opening-cut keyframe v5→v6.
+    expect(VISUALS_PROMPT_VERSION).toBe("visuals-v6");
   });
 });
 
@@ -1478,5 +1479,117 @@ describe("wide shots (F12)", () => {
     expect(err).toBeInstanceOf(VerbatimError);
     expect(lipsync.calls).toHaveLength(0);
     expect((err as VerbatimError).attempts.at(-1)).toMatchObject({ stage: "voiceover", ok: false });
+  }, 60_000);
+});
+
+describe("cuts inside a clip (F13)", () => {
+  // Speaker → an insert of the watch (nobody on screen): the line runs over the second cut.
+  const CUT: Shot = {
+    ...S1,
+    cuts: [
+      { camera: "medium close-up", visual: S1.visual, onScreen: ["Dan"] },
+      { camera: "close-up", visual: "the old watch ticking in Dan's palm", onScreen: [] },
+    ],
+  };
+  const count = (p: string, s: string) => p.split(s).length - 1;
+
+  it("video prompt: audio policy first, Shot 1 … Shot 2 in order, the dialogue once after the list, tail last (acceptance 5)", () => {
+    for (const p of [talkingPrompt(CUT, SCRIPT), textToVideoPrompt(CUT, SCRIPT)]) {
+      expect(p).toMatch(/^Audio policy: only Dan's spoken line/);
+      expect(p).toMatch(/Avoid generating subtitles, captions, a logo or a watermark\.$/);
+      const one = p.indexOf("Shot 1: medium close-up");
+      const two = p.indexOf("Shot 2: close-up");
+      expect(one).toBeGreaterThan(0);
+      expect(two).toBeGreaterThan(one);
+      expect(count(p, "says in English")).toBe(1);
+      expect(count(p, `{${LINE}}`)).toBe(1);
+      expect(p.indexOf(`Dan says in English: {${LINE}}`)).toBeGreaterThan(two);
+      expect(p).toMatch(/the line continues over the cuts/);
+      expect(p).not.toMatch(/\}[^\s]/);
+    }
+  });
+
+  it("speaker in every cut → no 'continues over the cuts'; the keyframe shows the first cut", () => {
+    const both: Shot = { ...CUT, cuts: [CUT.cuts![0]!, { camera: "close-up", visual: "Dan's eyes, wet", onScreen: ["Dan"] }] };
+    expect(talkingPrompt(both, SCRIPT)).not.toMatch(/continues over the cuts/);
+    const opening: Shot = {
+      ...CUT,
+      camera: "wide shot",
+      cuts: [{ camera: "wide shot", visual: "Dan tiny on the roof edge", onScreen: ["Dan"] }, CUT.cuts![0]!],
+    };
+    const k = keyframePrompt(opening, SCRIPT);
+    expect(k).toContain("Shot: wide shot. Dan tiny on the roof edge.");
+    expect(k).not.toMatch(/face clearly visible/);
+  });
+
+  // Human note: the keyframe is the first frame, so it shows the opening cut only (its cast, size and visual).
+  const LISTENER_FIRST: Shot = {
+    ...D1,
+    camera: "medium shot",
+    seconds: 8,
+    onScreen: ["Mara", "Leo"],
+    cuts: [
+      { camera: "medium shot", visual: "Leo listens at the table, eyes down", onScreen: ["Leo"] },
+      { camera: "close-up", visual: "Mara's face under the lamp", onScreen: ["Mara"] },
+    ],
+  };
+
+  it("first cut shows only the listener → keyframe prompt, rubric and refs name only the listener", async () => {
+    const k = keyframePrompt(LISTENER_FIRST, DUO);
+    expect(k).toContain(`Leo, ${LEO.look}.`);
+    expect(k).not.toContain(MARA.look);
+    expect(k).not.toMatch(/Mara/);
+    expect(k).toContain("Same person as the reference image.");
+    expect(k).toContain("Shot: medium shot. Leo listens at the table, eyes down.");
+    expect(k).toMatch(/face clearly visible/);
+
+    const r = keyframeRubric(LISTENER_FIRST, DUO);
+    expect(r).toContain(`4. It matches the character: ${LEO.look}`);
+    expect(r).not.toMatch(/Mara/);
+
+    const dir = fresh();
+    const image = new MockImage();
+    const { portraits } = await castCharacters(DUO, { image, dir });
+    await keyframeShot(LISTENER_FIRST, DUO, portraits, undefined, { image, dir });
+    expect(image.calls.at(-1)!.refs).toEqual([portraits.Leo]);
+
+    // The video call still knows both: the speaker's line and identity cues per cut.
+    const v = talkingPrompt(LISTENER_FIRST, DUO);
+    expect(v).toContain(`Leo (${LEO.look})`);
+    expect(v).toContain(`Mara (${MARA.look})`);
+    expect(v).toContain("Mara says in English: {Open it after I leave.}");
+  });
+
+  it("speaker in the first cut leads the keyframe cast; a wide first cut gets the wide wording in prompt and rubric", () => {
+    const wideFirst: Shot = {
+      ...LISTENER_FIRST,
+      camera: "wide shot",
+      cuts: [
+        { camera: "wide shot", visual: "the kitchen, both at the table, small under the lamp", onScreen: ["Leo", "Mara"] },
+        { camera: "close-up", visual: "Mara's face under the lamp", onScreen: ["Mara"] },
+      ],
+    };
+    const k = keyframePrompt(wideFirst, DUO);
+    expect(k).toContain("Same people as the reference images, in order: Mara, Leo.");
+    expect(k.indexOf(MARA.look)).toBeLessThan(k.indexOf(LEO.look));
+    expect(k).toMatch(/Mara is small in frame, full figure visible/);
+    expect(k).not.toMatch(/face clearly visible/);
+    const r = keyframeRubric(wideFirst, DUO);
+    expect(r).toMatch(/^Judge this keyframe for a vertical 9:16 wide shot/);
+    expect(r).toMatch(/It shows 2 people, each the same person as their reference portrait, in order: Mara .*; Leo/);
+  });
+
+  it("native speech fails on a shot with cuts → voice-over, no lip-sync call (acceptance 6)", async () => {
+    const dir = fresh();
+    const kf = await keyframeFor(dir);
+    const r = rig(new MockVideo({ faults: [{ call: 0, say: "I kept the clock. I kept everything." }, { call: 1, say: "I kept it." }] }));
+    const shot = await talkingShot(CUT, kf, { script: SCRIPT, dir, maxNative: 2, ...r });
+
+    expect(r.video.calls).toHaveLength(2);
+    expect(r.lipsync.calls).toHaveLength(0);
+    expect(shot).toMatchObject({ via: "voiceover", hasAudio: true, verbatim: { pass: true, wer: 0 } });
+    const fallback = shot.attempts.find((a) => a.stage === "fallback")!;
+    expect(fallback.reason).toMatch(/voice-over without lip-sync \(the clip has cuts/);
+    expect(fallback.provider).toBe(r.tts.name);
   }, 60_000);
 });

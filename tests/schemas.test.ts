@@ -334,3 +334,55 @@ describe("Attempt and RunManifest", () => {
     expect(msg).toMatch(/attempts\.0\.costUsd/);
   });
 });
+
+describe("cuts inside a clip (F13 acceptance 1)", () => {
+  const cut = (camera: string, onScreen: string[] = ["Mara"]) => ({ camera, visual: `Mara, ${camera}`, onScreen });
+  const two = [cut("wide shot"), cut("medium shot")];
+  const cutShot = (over: Partial<z.input<typeof Shot>> = {}) =>
+    shot({ camera: "wide shot", seconds: 6, cuts: two as z.input<typeof Shot>["cuts"], ...over });
+  type Cuts = z.input<typeof Shot>["cuts"];
+
+  it("2 and 3 cuts parse; a script with a cut shot parses", () => {
+    expect(errorsOf(Shot, cutShot())).toBe("");
+    expect(errorsOf(Shot, cutShot({ seconds: 8, cuts: [...two, cut("close-up")] as Cuts }))).toBe("");
+    expect(Shot.parse(cutShot()).cuts?.map((c) => c.camera)).toEqual(["wide shot", "medium shot"]);
+    expect(errorsOf(Script, script({ shots: [cutShot(), shot({ id: "s2", line: "", seconds: 4, speaker: undefined })] }))).toBe("");
+  });
+
+  it("1 or 4 cuts fail", () => {
+    expect(errorsOf(Shot, cutShot({ cuts: [cut("wide shot")] as Cuts }))).toMatch(/2–3 cuts, got 1/);
+    const four = [cut("wide shot"), cut("medium shot"), cut("close-up"), cut("medium shot")] as Cuts;
+    expect(errorsOf(Shot, cutShot({ seconds: 10, cuts: four }))).toMatch(/2–3 cuts, got 4/);
+    expect(errorsOf(Script, script({ shots: [cutShot({ cuts: four }), shot({ id: "s2" })] }))).toMatch(/2–3 cuts, got 4/);
+  });
+
+  it("a cut shot under 6 s fails", () => {
+    expect(errorsOf(Shot, cutShot({ seconds: 5 }))).toMatch(/shot with cuts must be at least 6 s, got 5/);
+  });
+
+  it("camera = first cut, no two identical sizes in a row, cut cast inside the shot's onScreen", () => {
+    expect(errorsOf(Shot, cutShot({ camera: "close-up" }))).toMatch(/must equal the first cut's "wide shot"/);
+    expect(errorsOf(Shot, cutShot({ cuts: [cut("wide shot"), cut("wide shot")] as Cuts }))).toMatch(/never two identical sizes in a row/);
+    expect(errorsOf(Shot, cutShot({ cuts: [cut("wide shot"), cut("medium shot", ["Leo"])] as Cuts }))).toMatch(/cut 2 shows "Leo"/);
+    // An insert (hands, an object) shows nobody.
+    expect(errorsOf(Shot, cutShot({ cuts: [cut("wide shot"), cut("close-up", [])] as Cuts }))).toBe("");
+  });
+
+  it("the first cut must show a character: an insert opener is rejected (human note)", () => {
+    const insertFirst = [cut("close-up", []), cut("medium shot")] as Cuts;
+    expect(errorsOf(Shot, cutShot({ camera: "close-up", cuts: insertFirst }))).toMatch(
+      /cut 1 is the opening frame \(the keyframe\) and must show at least one character/,
+    );
+    expect(errorsOf(Shot, cutShot({ seconds: 8, cuts: [...two, cut("close-up", [])] as Cuts }))).toBe("");
+  });
+
+  it("old scripts (no cuts) and old manifests parse unchanged; the manifest takes subtitles", () => {
+    expect(Script.parse(script()).shots.every((s) => s.cuts === undefined)).toBe(true);
+    expect(Script.parse(legacy()).shots).toHaveLength(2);
+    const base = { runId: "r", idea: "x", mode: "mock", createdAt: "2026-10-19T12:00:00.000Z", attempts: [], costUsd: 0, ok: true };
+    expect(RunManifest.parse(base).subtitles).toBeUndefined();
+    const subs = { file: "f.mp4", cues: [{ start: 0.4, end: 1.6, text: "Meet me" }], timing: "asr" };
+    expect(RunManifest.parse({ ...base, subtitles: subs }).subtitles?.cues[0]?.text).toBe("Meet me");
+    expect(() => RunManifest.parse({ ...base, subtitles: { ...subs, cues: [{ start: 2, end: 1, text: "x" }] } })).toThrow();
+  });
+});

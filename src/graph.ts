@@ -1,6 +1,7 @@
 /**
  * The pipeline as a LangGraph state graph:
- *   script → cast → keyframes (sequential: s2 uses s1) → shot (one Send per shot, in parallel) → assemble → finalGate
+ *   script → cast → keyframes (sequential: s2 uses s1) → shot (one Send per shot, in parallel) → assemble
+ *   → burnSubtitles (F13) → finalGate (on the burned file)
  * Checkpointed to SQLite after every step (thread_id = runId), so a crashed run resumes where it stopped and
  * finished stages are never paid for twice. Transient provider errors are retried by the node retryPolicy; quality
  * failures are handled inside the nodes; anything else ends the run with ok:false and a readable error. The run
@@ -11,7 +12,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { assemble } from "./nodes/assemble.ts";
+import { assemble, speechWindow } from "./nodes/assemble.ts";
+import { burnSubtitles } from "./nodes/subtitles.ts";
 import { finalGate } from "./nodes/final-gate.ts";
 import { writeScript } from "./nodes/script.ts";
 import {
@@ -41,6 +43,7 @@ import {
   type Shot,
   type ShotOutput,
   type SpokenText,
+  type Subtitles,
   type VerbatimResult,
 } from "./schemas.ts";
 import { extractQuotedLines } from "./verbatim.ts";
@@ -72,6 +75,11 @@ export const RunState = Annotation.Root({
   attempts: Annotation<Attempt[]>({ reducer: (a, b) => a.concat(b), default: () => [] }),
   costUsd: Annotation<number>({ reducer: (a, b) => a + b, default: () => 0 }),
   assembled: last<string | undefined>(),
+  /** The content-addressed cut behind final.mp4: subtitles are burned from it (F13). */
+  cut: last<string | undefined>(),
+  /** Burn subtitles (F13). Set when the run starts, so a resumed run keeps its choice. */
+  subtitlesOn: last<boolean | undefined>(),
+  subtitles: last<Subtitles | undefined>(),
   final: last<FinalVideo | undefined>(),
   verbatim: last<VerbatimResult | undefined>(),
   spoken: last<SpokenText | undefined>(),
@@ -157,6 +165,8 @@ export interface PipelineDeps {
   beforeNode?: (node: string, shotId?: ShotId) => void | Promise<void>;
   /** Judge pass marks (KEYFRAME_MIN / CLIP_MIN, F07). Defaults 7 / 5. */
   quality?: Partial<QualitySettings>;
+  /** Burn subtitles into the final file (F13). Default true. */
+  subtitles?: boolean;
 }
 
 interface Ctx {
@@ -303,7 +313,27 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
         const script = need(s.script, "script");
         const shots = script.shots.map((shot) => ({ shot, out: need(s.shots[shot.id], `shot ${shot.id}`) }));
         const r = await assemble(shots, { dir: runDir(s.runId) });
-        return { assembled: r.path, attempts: r.attempts };
+        return { assembled: r.path, cut: r.cut, attempts: r.attempts };
+      }),
+      { retryPolicy },
+    )
+    .addNode(
+      "burnSubtitles",
+      node("burnSubtitles", async (s: RunStateValues) => {
+        if (s.subtitlesOn === false) {
+          const off = { stage: "subtitles", n: 1, provider: "pipeline", ok: true, reason: "off (--no-subtitles / SUBTITLES=0)", costUsd: 0, ms: 0 };
+          return { attempts: [off] };
+        }
+        const script = need(s.script, "script");
+        const shots = script.shots.map((shot) => ({ shot, out: need(s.shots[shot.id], `shot ${shot.id}`) }));
+        const window = speechWindow(shots);
+        // A run assembled before F13 has no `cut` in its checkpoint; its final.mp4 is still the plain cut.
+        const r = await burnSubtitles(s.cut ?? need(s.assembled, "assembled video"), script, {
+          asr: p().asr,
+          dir: runDir(s.runId),
+          ...(window ? { window } : {}),
+        });
+        return { assembled: r.path, subtitles: r.subtitles, attempts: r.attempts };
       }),
       { retryPolicy },
     )
@@ -344,7 +374,8 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
       ["shot"],
     )
     .addEdge("shot", "assemble")
-    .addEdge("assemble", "finalGate")
+    .addEdge("assemble", "burnSubtitles")
+    .addEdge("burnSubtitles", "finalGate")
     .addEdge("finalGate", END);
 }
 
@@ -390,6 +421,7 @@ export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; err
     ...(s.final ? { final: s.final } : {}),
     ...(s.verbatim ? { verbatim: s.verbatim } : {}),
     ...(s.spoken ? { spoken: s.spoken } : {}),
+    ...(s.subtitles ? { subtitles: s.subtitles } : {}),
     ok: error === undefined && s.ok === true,
     ...(error !== undefined ? { error } : {}),
   });
@@ -418,8 +450,9 @@ export function estimateRunUsd(p: Providers, idea: string): number {
   const asr = p.asr.estimateUsd?.({ path: "" }) ?? 0;
   // Judge (F07): each keyframe (image + portrait ref) and each clip (3 frames + portrait), all passing first time.
   const judge = shots * ((p.judge.estimateUsd?.({ images: 2, rubric: "" }) ?? 0) + (p.judge.estimateUsd?.({ images: 4, rubric: "" }) ?? 0));
-  // Images: one portrait plus a keyframe per shot. ASR: each spoken shot plus the final gate (at most every shot + 1).
-  return llm + (1 + shots) * image + shots * video + (1 + shots) * asr + judge;
+  // Images: one portrait plus a keyframe per shot. ASR: each spoken shot, the subtitle timing (F13) and the final
+  // gate (at most every shot + 2).
+  return llm + (1 + shots) * image + shots * video + (2 + shots) * asr + judge;
 }
 
 /** A manifest lists checkpointed attempts first, then the failed ones; the tail past the checkpoint is the latter. */
@@ -466,6 +499,7 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
         mode: req.mode,
         runId,
         createdAt: new Date().toISOString(),
+        subtitlesOn: deps.subtitles ?? true,
       } as RunStateValues;
       input = state;
     }

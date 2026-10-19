@@ -1,8 +1,10 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { main, parseArgs } from "../src/cli.ts";
+import { main, parseArgs, subtitlesFromEnv } from "../src/cli.ts";
 import { estimateRunUsd, isTransient } from "../src/graph.ts";
 import { loudnormArgs, parseLoudnorm, segmentArgs } from "../src/media/args.ts";
 import { probe } from "../src/media/ffmpeg.ts";
@@ -443,6 +445,64 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
       const videoSeconds = priced.video.calls.reduce((s, c) => s + c.seconds, 0);
       expect(json.costUsd).toBeCloseTo(0.015 + 3 * 0.04 + 0.3 * videoSeconds, 6);
       expect(manifest?.costUsd).toBeCloseTo(json.costUsd, 6);
+    },
+    SLOW,
+  );
+});
+
+// --- F13: burned-in subtitles ---
+
+const execFileP = promisify(execFile);
+
+/** The lower third of one frame as raw RGB bytes (small, so two files can be compared byte for byte). */
+async function lowerThird(file: string, at: number): Promise<Buffer> {
+  const { stdout } = await execFileP(
+    "ffmpeg",
+    ["-v", "error", "-ss", String(at), "-i", file, "-frames:v", "1", "-vf", "crop=1080:640:0:1280,scale=270:160", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+    { encoding: "buffer", maxBuffer: 16 * 1024 * 1024 },
+  );
+  return stdout as Buffer;
+}
+
+describe("subtitles (F13)", () => {
+  const BARISTA_LINE = "Meet me where it started.";
+  const BARISTA = `A tired barista finds a note in the tip jar: "${BARISTA_LINE}"`;
+
+  it("--no-subtitles and SUBTITLES=0 turn them off; default on", () => {
+    expect(parseArgs(["an idea", "--no-subtitles"])).toEqual({ idea: "an idea", json: false, subtitles: false });
+    expect(subtitlesFromEnv({})).toBe(true);
+    expect(subtitlesFromEnv({ SUBTITLES: "0" })).toBe(false);
+    expect(subtitlesFromEnv({ SUBTITLES: "1" })).toBe(true);
+  });
+
+  it(
+    "4. the barista idea: ok, cues join to the line, the burned file differs in the lower third, both pass the final gate",
+    async () => {
+      const on = await cli([BARISTA, "--mock"]);
+      const off = await cli([BARISTA, "--mock", "--no-subtitles"]);
+      for (const r of [on, off]) {
+        expect(r.code).toBe(0);
+        expect(r.json.ok).toBe(true);
+        expect(r.json.verbatim?.wer).toBe(0);
+        expect(r.manifest!.attempts.find((a) => a.stage === "final")).toMatchObject({ ok: true });
+      }
+      const subs = on.manifest!.subtitles!;
+      expect(subs.timing).toBe("asr");
+      expect(subs.cues.map((c) => c.text).join(" ")).toBe(BARISTA_LINE);
+      expect(off.manifest!.subtitles).toBeUndefined();
+      expect(off.manifest!.attempts.find((a) => a.stage === "subtitles")?.reason).toMatch(/off/);
+      // The final gate listened to the burned file, and it is the one in the manifest.
+      expect(on.json.finalPath).toMatch(/final\.mp4$/);
+      const mid = (subs.cues[0]!.start + subs.cues[0]!.end) / 2;
+      const [a, b] = await Promise.all([lowerThird(on.json.finalPath!, mid), lowerThird(off.json.finalPath!, mid)]);
+      expect(a.length).toBe(b.length);
+      expect(a.equals(b)).toBe(false);
+      // Outside every cue the two films are the same picture (subtitles only, nothing else changed).
+      const before = subs.cues[0]!.start / 2;
+      const [c, d] = await Promise.all([lowerThird(on.json.finalPath!, before), lowerThird(off.json.finalPath!, before)]);
+      let diff = 0;
+      for (let i = 0; i < c.length; i++) diff = Math.max(diff, Math.abs(c[i]! - d[i]!));
+      expect(diff).toBeLessThan(16); // encoder noise only
     },
     SLOW,
   );

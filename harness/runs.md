@@ -124,3 +124,30 @@
 2026-10-19 11:21:27 F12-shot-sizes-storyboard attempt 1: reviewer
 2026-10-19 11:24:55 F12-shot-sizes-storyboard PASSED on attempt 1 -> d5aa2cd
 2026-10-19 11:24:55 all requested features passing
+2026-10-19 11:54:07 ### F13-subtitles-multicut start (specs/F13-subtitles-multicut.md)
+2026-10-19 11:54:07 F13-subtitles-multicut attempt 1: implementer
+2026-10-19 12:21:26 F13-subtitles-multicut attempt 1: gate
+2026-10-19 12:22:03 F13-subtitles-multicut attempt 1: GATE FAIL
+2026-10-19 12:22:03 F13-subtitles-multicut attempt 2: implementer
+2026-10-19 12:29:46 F13-subtitles-multicut attempt 2: gate
+2026-10-19 12:30:56 F13-subtitles-multicut attempt 2: reviewer
+2026-10-19 12:35:32 F13-subtitles-multicut attempt 2: REVIEW FAIL
+    - src/nodes/subtitles.ts:897-908 — chunkLine leaves one-word cues when a one-word phrase can't merge because the following phrase was split into a 6-word piece. This breaks the spec's 2–6 words per chunk. Reproduced: "Yes, I am the one who kept every single letter you sent me." → ["Yes,", "I am the one who kept", …]; "No, I never stopped waiting for you to come home to me." → ["No,", …]; "Okay. So that is how it ended for the both of us tonight." → ["Okay.", …]. Fix: when the merge doesn't fit, re-split the neighbour phrase together with the lone word (e.g. splitRun([word, ...nextPhrase])). Add these lines to the line list in tests/subtitles.test.ts; its existing ≥2-words check would then catch the bug.
+2026-10-19 12:35:32 F13-subtitles-multicut attempt 3: implementer
+2026-10-19 12:40:02 F13-subtitles-multicut attempt 3: gate
+2026-10-19 12:41:13 F13-subtitles-multicut attempt 3: reviewer
+2026-10-19 12:45:23 F13-subtitles-multicut attempt 3: REVIEW FAIL
+    - src/prompts/visuals.ts:63 and src/prompts/judge.ts:26: for a cut shot, the keyframe prompt and the keyframe judge take their cast from castOf(script, shot), which is everyone in the shot, plus the 'face clearly visible' / lip-sync face wording. The contract (src/schemas.ts:89 cutProblems) and script-v6 allow the first cut (openingOf) to be an insert (onScreen: []) or to show only some characters. Reproduced: first cut {close-up, 'a note in the tip jar', onScreen: []} gives the prompt 'Mara, red coat... Shot: close-up. a note in the tip jar... Same person as the reference image... face clearly visible'. The judge then requires 'The face is large and sharp enough for lip-sync', so a correct insert keyframe fails, and a passing one breaks the spec rule that the keyframe shows the first cut. Fix: build the keyframe cast and rubric from the first cut's onScreen, or require in cutProblems that the first cut shows the speaker or the shot's full onScreen; add a test either way.
+2026-10-19 12:45:23 F13-subtitles-multicut BLOCKED after 3 attempts — human needed. Last feedback:
+    - src/prompts/visuals.ts:63 and src/prompts/judge.ts:26: for a cut shot, the keyframe prompt and the keyframe judge take their cast from castOf(script, shot), which is everyone in the shot, plus the 'face clearly visible' / lip-sync face wording. The contract (src/schemas.ts:89 cutProblems) and script-v6 allow the first cut (openingOf) to be an insert (onScreen: []) or to show only some characters. Reproduced: first cut {close-up, 'a note in the tip jar', onScreen: []} gives the prompt 'Mara, red coat... Shot: close-up. a note in the tip jar... Same person as the reference image... face clearly visible'. The judge then requires 'The face is large and sharp enough for lip-sync', so a correct insert keyframe fails, and a passing one breaks the spec rule that the keyframe shows the first cut. Fix: build the keyframe cast and rubric from the first cut's onScreen, or require in cutProblems that the first cut shows the speaker or the shot's full onScreen; add a test either way.
+2026-10-19 12:45:48 ### F13-subtitles-multicut start (specs/F13-subtitles-multicut.md)
+2026-10-19 12:45:48 F13-subtitles-multicut attempt 1: implementer
+2026-10-19 12:52:15 F13-subtitles-multicut attempt 1: gate
+2026-10-19 12:53:25 F13-subtitles-multicut attempt 1: reviewer
+2026-10-19 12:57:47 F13-subtitles-multicut attempt 1: REVIEW FAIL
+    - src/media/args.ts:190 — overlayCuesArgs enables each card with inclusive `between(t,start,end)`, and settle() (src/nodes/subtitles.ts:1051) sets a cue's end exactly to the next cue's start. On any frame-exact boundary (30 fps, e.g. 3.5 s) both cards are drawn on the same frame, so two cues overlap, which violates the spec's 'no overlap' rule. Fix: use a half-open window such as `gte(t,a)*lt(t,b)`.
+    - src/nodes/subtitles.ts:1054 — the degenerate-case sliver `c.end = c.start + 0.05` can run past the next cue's start, which also produces overlapping cues. Clamp it so it never passes the next cue's start.
+    - tests/subtitles.test.ts (overlay args test, ~line 155) asserts the overlapping filter string `between(t,0.5,1.75)` followed by `between(t,1.75,3)`. Change it to assert a half-open window so the boundary overlap is caught.
+2026-10-19 12:57:47 F13-subtitles-multicut attempt 2: implementer
+2026-10-19 13:02:34 F13-subtitles-multicut attempt 2: gate
+2026-10-19 13:03:45 F13-subtitles-multicut attempt 2: reviewer

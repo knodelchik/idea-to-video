@@ -3,7 +3,7 @@
  * bullets), so `pnpm make --mock` runs end to end with no canned queue. Deterministic heuristics only; it exists to
  * exercise the pipeline, not to write well.
  */
-import { MAX_SHOTS } from "../schemas.ts";
+import { CUT_SHOT_MIN_SECONDS, MAX_SHOTS } from "../schemas.ts";
 import { differentSpeakers, quoteSpeakers, type Attribution, type Gender } from "../speakers.ts";
 import { parseStoryboard, quoteBeats, type Storyboard } from "../storyboard.ts";
 import { splitDelivery, wordCount } from "../verbatim.ts";
@@ -92,20 +92,45 @@ interface MockShot {
   who: string;
   camera: string;
   visual: string;
+  /** The idea (or this beat) names a place: a cut shot opens wide. */
+  place?: boolean;
+}
+
+/**
+ * Cuts for a shot of CUT_SHOT_MIN_SECONDS or more (F13, My Muse pacing): wide → medium when a place matters, else the
+ * speaker → a close-up on the peak. Two cuts, never the same size twice; the first cut is the shot's own framing.
+ */
+function cutsFor(s: MockShot): { camera: string; cuts: { camera: string; visual: string; onScreen: string[] }[] } {
+  const [first, second] = s.place
+    ? ["wide shot", "medium shot"]
+    : [s.camera === "close-up" ? "medium close-up" : s.camera, "close-up"];
+  return {
+    camera: first,
+    cuts: [
+      { camera: first, visual: s.visual, onScreen: [s.who] },
+      { camera: second, visual: `${s.who}'s face, the emotional peak of the line`, onScreen: [s.who] },
+    ],
+  };
 }
 
 function toShots(shots: MockShot[]) {
-  return shots.slice(0, MAX_SHOTS).map((s, i) => ({
-    id: `s${i + 1}`,
-    camera: s.camera,
-    visual: s.visual,
-    motion: /wide|full/.test(s.camera) ? "locked-off camera, a slow pull-back" : "slow push-in",
-    emotion: s.line ? "quiet resolve" : "stillness",
-    line: s.line,
-    seconds: s.line ? secondsFor(s.line) : 4,
-    ...(s.line ? { speaker: s.who } : {}),
-    onScreen: [s.who],
-  }));
+  return shots.slice(0, MAX_SHOTS).map((s, i) => {
+    const seconds = s.line ? secondsFor(s.line) : 4;
+    const cut = seconds >= CUT_SHOT_MIN_SECONDS ? cutsFor(s) : undefined;
+    const camera = cut?.camera ?? s.camera;
+    return {
+      id: `s${i + 1}`,
+      camera,
+      visual: s.visual,
+      motion: /wide|full/.test(camera) ? "locked-off camera, a slow pull-back" : "slow push-in",
+      emotion: s.line ? "quiet resolve" : "stillness",
+      line: s.line,
+      seconds,
+      ...(s.line ? { speaker: s.who } : {}),
+      onScreen: [s.who],
+      ...(cut ? { cuts: cut.cuts } : {}),
+    };
+  });
 }
 
 /**
@@ -122,7 +147,7 @@ function storyboardDraft(idea: string, board: Storyboard, quoted: string[]) {
     const line = mine.map((i) => quoted[i]!).join(" ") || (quoted.length === 0 && k === board.beats.length - 1 ? MOCK_DEFAULT_LINE : "");
     const who = cast[mine.length ? run[mine[0]!]! % 2 : 0]!.name;
     const camera = mentionsPlace(beat) ? "wide shot" : line ? "medium close-up" : "medium shot";
-    return { line, who, camera, visual: `${who}: ${board.context ? `${board.context} ` : ""}${beat}` };
+    return { line, who, camera, visual: `${who}: ${board.context ? `${board.context} ` : ""}${beat}`, place: mentionsPlace(beat) };
   });
   return { title: "Mock storyboard", logline: idea, setting: board.context || board.beats[0]!, characters: cast, shots: toShots(shots) };
 }
@@ -131,7 +156,7 @@ function storyboardDraft(idea: string, board: Storyboard, quoted: string[]) {
  * One speaker: a silent 4 s establishing shot (wide when the idea names a place, else medium), then the line(s) on a
  * medium close-up. People taking turns (F11): two characters, shot-reverse-shot close-ups, one speaker per shot.
  * Every shot is long enough for its words (words / 2.6 + 0.8 s, rounded up, plus 1 s of room); voices follow the
- * idea's "she"/"he".
+ * idea's "she"/"he". A shot of 6 s or more gets 2 cuts (F13, see cutsFor).
  */
 export const mockScriptResponder: Responder = (prompt) => {
   const idea = /Idea:\n([\s\S]*?)\n\n/.exec(prompt)?.[1]?.trim() || "a quiet moment";
@@ -166,5 +191,6 @@ export const mockScriptResponder: Responder = (prompt) => {
             { line: lines[0]!, who, camera: "medium close-up", visual: visual(who) },
           ];
   }
-  return { title: "Mock beat", logline: idea, setting: "a dim interior at night", characters: cast, shots: toShots(shots) };
+  const place = mentionsPlace(idea);
+  return { title: "Mock beat", logline: idea, setting: "a dim interior at night", characters: cast, shots: toShots(shots.map((s) => ({ ...s, place }))) };
 };

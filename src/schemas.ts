@@ -48,7 +48,21 @@ export const Camera = z.preprocess(
 export const isWide = (camera: Camera): boolean =>
   camera === "extreme wide shot" || camera === "wide shot" || camera === "full shot";
 
-export const Shot = z.object({
+/**
+ * One cut inside a clip (F13): Seedance renders 2–3 cuts in one call from a "Shot 1: … Shot 2: …" prompt. A cut has
+ * no seconds of its own (the model paces them inside the clip). `onScreen` may be empty for an insert (an object).
+ */
+export const Cut = z.object({
+  camera: Camera,
+  visual: nonEmpty("cut visual"),
+  onScreen: z.array(nonEmpty("onScreen name")),
+});
+export type Cut = z.infer<typeof Cut>;
+export const CUTS = { min: 2, max: 3 } as const;
+/** A clip with cuts must leave each cut ~2–4 s (My Muse pacing, docs/research/framing-my-muse.md). */
+export const CUT_SHOT_MIN_SECONDS = 6;
+
+const ShotFields = z.object({
   id: ShotId,
   camera: Camera,
   visual: nonEmpty("visual"),
@@ -64,8 +78,57 @@ export const Shot = z.object({
   speaker: z.string().optional(),
   /** Names of the characters visible in the shot; the speaker must be among them. */
   onScreen: z.array(nonEmpty("onScreen name")).min(1, "onScreen must name at least one character"),
+  /**
+   * 2–3 cuts rendered inside this one clip (F13). The first cut is what the keyframe shows; `camera` must equal the
+   * first cut's (and `visual` describes it) so readers that ignore cuts still see the opening framing.
+   */
+  cuts: z.array(Cut).optional(),
+});
+
+/** Cut rules, shared by Shot (so a bad shot fails at the boundary) and the script node's feedback. */
+export function cutProblems(shot: z.output<typeof ShotFields>): CastProblem[] {
+  const cuts = shot.cuts;
+  if (cuts === undefined) return [];
+  const out: CastProblem[] = [];
+  const at = (...p: (string | number)[]) => ["cuts", ...p];
+  if (cuts.length < CUTS.min || cuts.length > CUTS.max) {
+    out.push({ path: at(), message: `shot ${shot.id}: a shot with cuts has ${CUTS.min}–${CUTS.max} cuts, got ${cuts.length}` });
+    return out;
+  }
+  if (shot.seconds < CUT_SHOT_MIN_SECONDS) {
+    out.push({ path: ["seconds"], message: `shot ${shot.id}: a shot with cuts must be at least ${CUT_SHOT_MIN_SECONDS} s, got ${shot.seconds}` });
+  }
+  // The keyframe is the clip's first frame and anchors identity (portrait refs, the real-face ladder): an insert with
+  // nobody in it gives the video model no face to keep, so inserts are allowed only as cut 2 or 3.
+  if (cuts[0]!.onScreen.length === 0) {
+    out.push({
+      path: at(0, "onScreen"),
+      message: `shot ${shot.id}: cut 1 is the opening frame (the keyframe) and must show at least one character; put an insert (hands, an object) in cut 2 or 3`,
+    });
+  }
+  if (cuts[0]!.camera !== shot.camera) {
+    out.push({ path: ["camera"], message: `shot ${shot.id}: camera "${shot.camera}" must equal the first cut's "${cuts[0]!.camera}"` });
+  }
+  cuts.forEach((c, i) => {
+    if (i > 0 && c.camera === cuts[i - 1]!.camera) {
+      out.push({ path: at(i, "camera"), message: `shot ${shot.id}: cuts ${i} and ${i + 1} are both "${c.camera}"; never two identical sizes in a row` });
+    }
+    for (const who of c.onScreen) {
+      if (!shot.onScreen.includes(who)) {
+        out.push({ path: at(i, "onScreen"), message: `shot ${shot.id}: cut ${i + 1} shows "${who}", who is not in the shot's onScreen ${JSON.stringify(shot.onScreen)}` });
+      }
+    }
+  });
+  return out;
+}
+
+export const Shot = ShotFields.superRefine((s, ctx) => {
+  for (const p of cutProblems(s)) ctx.addIssue({ code: "custom", path: p.path, message: p.message });
 });
 export type Shot = z.infer<typeof Shot>;
+
+/** The framing the keyframe (first frame) shows: the first cut when the shot has cuts. */
+export const openingOf = (shot: Shot): { camera: Camera; visual: string } => shot.cuts?.[0] ?? shot;
 
 const ScriptFields = z.object({
   promptVersion: nonEmpty("promptVersion"),
@@ -208,6 +271,19 @@ export function castOf(script: Script, shot: Shot): Character[] {
   return [first, ...rest];
 }
 
+/**
+ * Who the keyframe (the first frame) shows: for a shot with cuts, the opening cut's cast only, speaker first when
+ * they are in it. Characters seen only in later cuts are not in the keyframe; the video call still gets them.
+ */
+export function openingCastOf(script: Script, shot: Shot): Character[] {
+  const opening = shot.cuts?.[0];
+  if (!opening) return castOf(script, shot);
+  const cast = castOf(script, shot).filter((c) => opening.onScreen.includes(c.name));
+  // cutProblems rejects this at the boundary; a hand-built Shot must not slip through to an empty keyframe cast.
+  if (cast.length === 0) throw new Error(`shot ${shot.id}: the first cut shows nobody, so the keyframe has no cast`);
+  return cast;
+}
+
 export const TranscriptWord = z
   .object({ word: z.string(), start: z.number().min(0), end: z.number().min(0) })
   .refine((w) => w.end >= w.start, { message: "end must be >= start", path: ["end"] });
@@ -326,6 +402,21 @@ export type ShotOutput = z.infer<typeof ShotOutput>;
 export const SpokenText = z.object({ expected: z.string(), heard: z.string() });
 export type SpokenText = z.infer<typeof SpokenText>;
 
+/** One burned-in subtitle (F13): text of the verified line, seconds on the final timeline. */
+export const SubtitleCue = z
+  .object({ start: z.number().min(0), end: z.number().min(0), text: nonEmpty("cue text") })
+  .refine((c) => c.end > c.start, { message: "cue end must be after its start", path: ["end"] });
+export type SubtitleCue = z.infer<typeof SubtitleCue>;
+
+export const Subtitles = z.object({
+  /** The video file the cues were burned into. */
+  file: nonEmpty("file"),
+  cues: z.array(SubtitleCue).min(1),
+  /** asr = timed by ASR word timestamps; spread = no timestamps, cues spread over the speech by word count. */
+  timing: z.enum(["asr", "spread"]).optional(),
+});
+export type Subtitles = z.infer<typeof Subtitles>;
+
 export const RunManifest = z.object({
   runId: nonEmpty("runId"),
   idea: nonEmpty("idea"),
@@ -339,6 +430,8 @@ export const RunManifest = z.object({
   final: FinalVideo.optional(),
   verbatim: VerbatimResult.optional(),
   spoken: SpokenText.optional(),
+  /** What was burned into the final file (F13); absent with --no-subtitles. */
+  subtitles: Subtitles.optional(),
   ok: z.boolean(),
   error: z.string().optional(),
 });

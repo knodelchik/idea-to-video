@@ -19,7 +19,7 @@ import { VerbatimError } from "./gate.ts";
 import {
   keyframeShot,
   portraitOf,
-  shotPortraits,
+  keyframePortraits,
   ShotError,
   snapDuration,
   talkingShot,
@@ -152,8 +152,8 @@ export async function judgedKeyframe(
 ): Promise<JudgedKeyframe> {
   const { image, judge: j, dir, min = DEFAULT_KEYFRAME_MIN, maxExtra = DEFAULT_KEYFRAME_EXTRA } = opts;
   const rubric = keyframeRubric(shot, script);
-  // Judged against everyone it should show, speaker first (the order the rubric lists them in).
-  const refs = shotPortraits(shot, script, portraits).map((p) => p.path);
+  // Judged against everyone it should show (a cut shot: the opening cut's cast), in the order the rubric lists them.
+  const refs = keyframePortraits(shot, script, portraits).map((p) => p.path);
   const attempts: Attempt[] = [];
   const takes: { path: string; pass: boolean; score?: number }[] = [];
   let issues: string[] = [];

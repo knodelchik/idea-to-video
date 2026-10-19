@@ -209,6 +209,40 @@ export function extractAudioArgs({ input, out }: { input: string; out: string })
   return ["-i", input, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "flac", out];
 }
 
+export interface OverlayCue {
+  /** Transparent WIDTH×HEIGHT PNG. */
+  png: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Burn subtitle cards into a video (F13): each PNG overlaid full-frame only while start ≤ t < end. The video
+ * is re-encoded (same H.264 settings as every other step); the audio is copied untouched, so the final gate hears
+ * exactly what was verified before.
+ */
+export function overlayCuesArgs({ input, out, cues }: { input: string; out: string; cues: OverlayCue[] }): string[] {
+  if (cues.length === 0) throw new RangeError("overlay needs at least one cue");
+  const chain = cues.map((c, i) => {
+    if (!(Number.isFinite(c.start) && Number.isFinite(c.end) && c.start >= 0 && c.end > c.start)) {
+      throw new RangeError(`cue ${i + 1}: bad window ${c.start}–${c.end}`);
+    }
+    const from = i === 0 ? "[0:v:0]" : `[v${i}]`;
+    const to = i === cues.length - 1 ? "[vo]" : `[v${i + 1}]`;
+    // Half-open [start, end): cues abut (one ends exactly where the next starts), and inclusive between() would draw
+    // both cards on a frame that lands on the boundary.
+    return `${from}[${i + 1}:v:0]overlay=0:0:enable='gte(t,${sec(c.start)})*lt(t,${sec(c.end)})'${to}`;
+  });
+  return [
+    "-i", input,
+    ...cues.flatMap((c) => ["-i", c.png]),
+    "-filter_complex", `${chain.join(";")};[vo]format=yuv420p[v]`,
+    "-map", "[v]", "-map", "0:a:0?",
+    ...H264, "-c:a", "copy",
+    out,
+  ];
+}
+
 // --- Builders used by the mock providers (no drawtext/libass: the dev ffmpeg doesn't have them) ---
 
 /** Solid-colour 1080×1920 PNG. `hex` is "rrggbb". */

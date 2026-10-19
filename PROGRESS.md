@@ -278,3 +278,20 @@ Append-only log, one entry per feature, written by the implementer agent and com
   `npx tsx src/cli.ts '1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: "Hello? Is anyone still here?"' --mock --json`
   → 2 shots, both wide, the line on s2, WER 0. `npx tsx evals/run.ts --mock --set hard --label f12` runs the three
   new eval ideas.
+
+## F13 — Burned-in subtitles of the verified line, and cuts inside a clip
+- Every final video has white bold subtitles burned into the lower third. The text is the expected line, never ASR
+  text, in 2–6 word cues (no 1-word cue, even after a lone "Yes,") timed by ASR word timestamps (numbers align, e.g. "1987" ↔ "nineteen eighty-seven"). The
+  manifest has `subtitles: { file, cues, timing }`.
+- Turn them off with `--no-subtitles` or `SUBTITLES=0`. The final gate always listens to the file that is shipped.
+- Cue cards are transparent PNGs rendered by `@resvg/resvg-js` (`src/media/subtitle-card.ts`) and overlaid with
+  `overlay=enable='gte(t,a)*lt(t,b)'` (`overlayCuesArgs`; half-open, so abutting cues never share a frame),
+  because this ffmpeg has no drawtext/libass.
+- `Shot.cuts` (2–3 cuts, shot ≥ 6 s) renders in one Seedance call as `Shot 1: … Shot 2: …` with the line said once
+  after the list (`visuals-v6`, `script-v7`, `judge-v5`). If native speech fails on a cut shot, the verified TTS is
+  laid over the clip as a voice-over, with no lip-sync.
+- The keyframe of a cut shot is the opening cut: `openingCastOf` / `keyframePortraits` give its cast (speaker first
+  if in it) to the keyframe prompt, the keyframe rubric and both sets of refs. The video call still gets every
+  on-screen portrait. A first cut with `onScreen: []` is rejected; inserts only as cut 2 or 3.
+- Try: `npx tsx src/cli.ts 'A tired barista finds a note in the tip jar: "Meet me where it started."' --mock --json`,
+  then the same with `--no-subtitles`, and compare the lower third.

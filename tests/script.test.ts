@@ -277,7 +277,11 @@ describe("speakers (F11)", () => {
   });
 
   it("the prompt asks for 1–2 characters, one speaker per spoken shot, shot-reverse-shot and voiceDescription", () => {
-    expect(SCRIPT_PROMPT_VERSION).toBe("script-v5");
+    expect(SCRIPT_PROMPT_VERSION).toBe("script-v7"); // F12 → v5, F13 (cuts) → v6, F13 opening cut shows a character → v7
+    expect(SCRIPT_SYSTEM).toMatch(/should usually have 2–3 cuts/);
+    expect(SCRIPT_SYSTEM).toMatch(/first cut is the opening frame: it must show at least one character/);
+    expect(SCRIPT_SYSTEM).toMatch(/Never two identical sizes in a row/);
+    expect(SCRIPT_SYSTEM).toMatch(/Medium shots are the default/);
     expect(SCRIPT_SYSTEM).toMatch(/"characters" has 1 or 2 entries/);
     expect(SCRIPT_SYSTEM).toMatch(/exactly one "speaker"/);
     expect(SCRIPT_SYSTEM).toMatch(/shot-reverse-shot/);
@@ -683,5 +687,19 @@ describe("storyboards (F12)", () => {
     const cliff = 'A tiny figure on a cliff above a stormy sea shouts: "I am not afraid of you!"';
     const { script: s } = await writeScript(cliff, { llm: new MockLlm({ responder: mockScriptResponder }) });
     expect(s.shots.map((x) => x.camera)).toEqual(["wide shot", "medium close-up"]);
+  });
+
+  it("the mock writer gives a ≥ 6 s shot 2 cuts: wide → medium for a place, else speaker → close-up (F13)", async () => {
+    const long = "I waited here every single night for eleven years and you never came back.";
+    const cutsOf = async (idea: string) => {
+      const { script: s } = await writeScript(idea, { llm: new MockLlm({ responder: mockScriptResponder }) });
+      const spoken = s.shots.find((x) => x.line === long)!;
+      expect(spoken.seconds).toBeGreaterThanOrEqual(6);
+      expect(spoken.camera).toBe(spoken.cuts![0]!.camera);
+      for (const x of s.shots) if (x.seconds < 6) expect(x.cuts).toBeUndefined();
+      return spoken.cuts!.map((c) => c.camera);
+    };
+    expect(await cutsOf(`On a bridge over the river she says: "${long}"`)).toEqual(["wide shot", "medium shot"]);
+    expect(await cutsOf(`In her kitchen she says: "${long}"`)).toEqual(["medium close-up", "close-up"]);
   });
 });

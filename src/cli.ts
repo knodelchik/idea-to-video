@@ -8,13 +8,20 @@ import { estimateRunUsd, runPipeline, type Mode, type RunOutcome } from "./graph
 import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
 
-export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json]`;
+export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId>] [--json] [--no-subtitles]`;
 
 export interface CliArgs {
   idea?: string;
   mode?: Mode;
   resume?: string;
   json: boolean;
+  /** Present (false) only with --no-subtitles (F13); default is on. */
+  subtitles?: false;
+}
+
+/** SUBTITLES=0 / false / off turns burned-in subtitles off (F13); anything else, or unset, leaves them on. */
+export function subtitlesFromEnv(env: Env): boolean {
+  return !/^(?:0|false|off|no)$/i.test(env.SUBTITLES?.trim() ?? "");
 }
 
 /** Pure argv parser. Throws a readable message on anything it doesn't understand. */
@@ -24,6 +31,7 @@ export function parseArgs(argv: string[]): CliArgs {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--json") out.json = true;
+    else if (a === "--no-subtitles") out.subtitles = false;
     else if (a === "--mock" || a === "--live") {
       const mode = a.slice(2) as Mode;
       if (out.mode && out.mode !== mode) throw new Error("--mock and --live are mutually exclusive");
@@ -102,6 +110,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
       runsDir: resolve(deps.runsDir ?? "runs"),
       maxCostUsd,
       quality,
+      subtitles: args.subtitles !== false && subtitlesFromEnv(env),
       ...(deps.retry ? { retry: deps.retry } : {}),
       ...(deps.beforeNode ? { beforeNode: deps.beforeNode } : {}),
       log: err,

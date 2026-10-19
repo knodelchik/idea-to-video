@@ -6,14 +6,17 @@
  * make" 2–8): audio policy first, dialogue as `Name says in English: {line}` with nothing after the closing brace,
  * references as `@Image N (noun)` in upload order, one camera move, and the constraint tail last.
  */
-import { castOf, isWide, speakerOf, type Character, type Script, type Shot } from "../schemas.ts";
+import { castOf, isWide, openingCastOf, openingOf, speakerOf, type Character, type Cut, type Script, type Shot } from "../schemas.ts";
 import { splitDelivery } from "../verbatim.ts";
 import { issuesNote } from "./judge.ts";
 
 // v3: Seedance playbook wording, 1–2 characters (F11).
 // v4: shot size leads the video prompt; wide sizes show the character small and whole, recognised by its look,
 //     with a heard (not lip-read) line (F12).
-export const VISUALS_PROMPT_VERSION = "visuals-v4";
+// v5: a shot with cuts is written as Seedance's multi-shot list "Shot 1: … Shot 2: …", the dialogue once after it;
+//     the keyframe shows the first cut (F13).
+// v6: the keyframe of a cut shot names only the first cut's cast (F13, human note).
+export const VISUALS_PROMPT_VERSION = "visuals-v6";
 
 const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
 /** A field as one sentence: single-spaced, ending in exactly one full stop (unless it ends in ! or ?). */
@@ -58,7 +61,9 @@ function wideFraming(cast: Character[], name: Naming): string {
 
 /** First frame of a shot: everyone on screen, speaker first (the order of the portrait refs). Mouths closed. */
 export function keyframePrompt(shot: Shot, script: Script): string {
-  const cast = castOf(script, shot);
+  // With cuts (F13) the first frame is the first cut: its cast, framing and visual only.
+  const cast = openingCastOf(script, shot);
+  const { camera, visual } = openingOf(shot);
   const same =
     cast.length === 1
       ? "Same person as the reference image."
@@ -66,10 +71,10 @@ export function keyframePrompt(shot: Shot, script: Script): string {
   return [
     ...cast.map((c) => `${oneLine(c.name)}, ${sentence(c.look)}`),
     `Setting: ${sentence(script.setting)}`,
-    `Shot: ${shot.camera}. ${sentence(shot.visual)}`,
+    `Shot: ${camera}. ${sentence(visual)}`,
     `Emotion: ${sentence(shot.emotion)}`,
     same,
-    isWide(shot.camera)
+    isWide(camera)
       ? `${wideFraming(cast, plain)} Photoreal, cinematic, vertical 9:16, no text, no watermark.`
       : "Photoreal, cinematic, vertical 9:16, face clearly visible, mouth closed, no text, no watermark.",
     NO_WRITING,
@@ -112,6 +117,7 @@ function constraintTail(shot: Shot, script: Script): string {
  * Delivery tags ("[whispers]") and emoji are not words, so they leave the braces (tags join the delivery).
  */
 function body(shot: Shot, script: Script, name: Naming): string[] {
+  if (shot.cuts?.length) return cutBody(shot, shot.cuts, script, name);
   const { spoken, tags, emoji } = splitDelivery(shot.line);
   const delivery = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
   const wide = isWide(shot.camera);
@@ -143,6 +149,43 @@ function body(shot: Shot, script: Script, name: Naming): string[] {
     ...listeners.map((c) => `${name(c)} listens in silence, mouth closed.`),
     `Voice: ${sentence(speaker!.voiceDescription)}`,
     line,
+    NO_WRITING,
+  ];
+}
+
+/** One camera move per cut, from its size (the same rule as a single shot: wide holds still, close pushes in). */
+const cutMove = (c: Cut): string => (isWide(c.camera) ? "locked-off camera" : "slow push-in");
+
+/** Who a cut shows, each with their identity cues (every cut, so the face stays the same across the cuts). */
+function cutCast(c: Cut, script: Script, name: Naming): string {
+  const cast = c.onScreen
+    .map((n) => script.characters.find((x) => x.name === n))
+    .filter((x): x is Character => x !== undefined);
+  if (cast.length === 0) return "";
+  const who = cast.map((x) => (isWide(c.camera) ? `${name(x)} small in frame, recognisable by ${cues(x)}` : `${name(x)} (${cues(x)})`));
+  return ` On screen: ${who.join("; ")}.`;
+}
+
+/**
+ * A shot with cuts (F13), Seedance's multi-shot form: `Shot 1: <size>, <move>, <visual>. Shot 2: …`, then the
+ * dialogue sentence once, after the list. When the speaker is not in every cut the line is said to run over them.
+ */
+function cutBody(shot: Shot, cuts: Cut[], script: Script, name: Naming): string[] {
+  const { spoken, tags, emoji } = splitDelivery(shot.line);
+  const delivery = [oneLine(shot.emotion), ...tags].filter(Boolean).join(", ");
+  const list = cuts.map((c, i) => `Shot ${i + 1}: ${c.camera}, ${cutMove(c)}, ${oneLine(c.visual).replace(/[.\s]+$/, "")}.${cutCast(c, script, name)}`);
+  const intro = `${cuts.length} cuts in one continuous scene, same place, light and wardrobe, hard cuts between them.`;
+  if (spoken === "") {
+    return [intro, ...list, `Emotion: ${delivery}. Nobody speaks; mouths closed.`, NO_WRITING];
+  }
+  const speaker = speakerOf(script, shot);
+  const everywhere = cuts.every((c) => c.onScreen.includes(speaker.name));
+  const said = tags.length || emoji ? spoken : shot.line;
+  return [
+    intro,
+    ...list,
+    `Voice: ${sentence(speaker.voiceDescription)}`,
+    `Delivery: ${delivery}${everywhere ? "" : "; the line continues over the cuts"}. ${name(speaker)} says in English: {${said}}`,
     NO_WRITING,
   ];
 }

@@ -285,6 +285,12 @@ export function wordCount(text: string): number {
 
 /** Word-level Levenshtein alignment; ops in order. Prefers match/sub, then del, then ins (deterministic). */
 function align(e: string[], h: string[]): VerbatimOp[] {
+  return alignPath(e, h).ops;
+}
+
+/** The same alignment, plus, for each expected token, the heard token it was matched or substituted with. */
+function alignPath(e: string[], h: string[]): { ops: VerbatimOp[]; pair: (number | undefined)[] } {
+  const pair: (number | undefined)[] = e.map(() => undefined);
   const rows = e.length + 1;
   const cols = h.length + 1;
   const dist: number[][] = Array.from({ length: rows }, (_, i) =>
@@ -305,6 +311,7 @@ function align(e: string[], h: string[]): VerbatimOp[] {
       const same = e[i - 1] === h[j - 1];
       if (dist[i - 1]![j - 1]! + (same ? 0 : 1) === d) {
         if (!same) ops.push({ type: "sub", expected: e[i - 1]!, heard: h[j - 1]! });
+        pair[i - 1] = j - 1;
         i--;
         j--;
         continue;
@@ -318,7 +325,7 @@ function align(e: string[], h: string[]): VerbatimOp[] {
     ops.push({ type: "ins", heard: h[j - 1]! });
     j--;
   }
-  return ops.reverse();
+  return { ops: ops.reverse(), pair };
 }
 
 /** Laughter as ASR spells it: ha, haha, hahah, heh, hehe. Not "he". */
@@ -430,6 +437,59 @@ export const hasLaughTag = (tags: string[]): boolean => tags.some((t) => /laugh|
 export function compareLine(line: string, heard: string): VerbatimResult {
   const { spoken, tags } = splitDelivery(line);
   return compareWords(spoken, heard, { laughter: hasLaughTag(tags) });
+}
+
+/** Which heard words a piece of expected text was aligned to (indices into the heard word list, inclusive). */
+export interface WordSpan {
+  first: number;
+  last: number;
+}
+
+/**
+ * Align consecutive pieces of an expected text (subtitle chunks, F13) to ASR words, with the gate's own
+ * normalisation and readings: "1987" in a chunk lines up with heard "nineteen eighty-seven", "3:15 a.m." with
+ * "three fifteen am". Each piece's reading is chosen jointly (fewest edits overall, capped at MAX_READINGS
+ * combinations like the gate). Returns, per piece, the span of heard words its tokens matched or substituted;
+ * undefined when every token of the piece was missing from what was heard.
+ */
+export function alignPieces(pieces: string[], heardWords: string[]): (WordSpan | undefined)[] {
+  const h: string[] = [];
+  const owner: number[] = [];
+  heardWords.forEach((w, i) => {
+    for (const t of normalize(w.replace(NON_SPEECH, " ")).split(" ").filter(Boolean)) {
+      h.push(t);
+      owner.push(i);
+    }
+  });
+  const per = pieces.map((p) => readings(segments(p)));
+  let combos: number[][] = [[]];
+  for (const rs of per) {
+    const n = combos.length * rs.length <= MAX_READINGS ? rs.length : 1;
+    combos = combos.flatMap((prefix) => Array.from({ length: n }, (_, k) => [...prefix, k]));
+  }
+  let best: { piece: number[]; pair: (number | undefined)[]; edits: number } | undefined;
+  for (const combo of combos) {
+    const e: string[] = [];
+    const piece: number[] = [];
+    combo.forEach((k, p) => {
+      for (const t of per[p]![k]!) {
+        e.push(t);
+        piece.push(p);
+      }
+    });
+    const { ops, pair } = alignPath(e, h);
+    if (!best || ops.length < best.edits) best = { piece, pair, edits: ops.length };
+    if (ops.length === 0) break;
+  }
+  const spans: (WordSpan | undefined)[] = pieces.map(() => undefined);
+  best!.pair.forEach((j, t) => {
+    if (j === undefined) return;
+    const p = best!.piece[t]!;
+    const w = owner[j]!;
+    const s = spans[p];
+    spans[p] = s ? { first: Math.min(s.first, w), last: Math.max(s.last, w) } : { first: w, last: w };
+  });
+  return spans;
 }
 
 /** Letters outside the Latin script ("Мамо" → М, а, м, о), deduplicated. Accented Latin letters are Latin. */

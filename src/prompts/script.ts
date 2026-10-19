@@ -2,7 +2,7 @@
  * Script-writer prompt. Bump SCRIPT_PROMPT_VERSION on any wording change: it is stored in every Script so runs
  * can be compared across prompt revisions.
  */
-import { CAMERAS, MAX_SHOTS, SCRIPT_SECONDS, SHOT_SECONDS } from "../schemas.ts";
+import { CAMERAS, CUT_SHOT_MIN_SECONDS, CUTS, MAX_SHOTS, SCRIPT_SECONDS, SHOT_SECONDS } from "../schemas.ts";
 import { parseStoryboard, type Storyboard } from "../storyboard.ts";
 
 // v2: shot range widened to the Seedance 2.0 clip range (F05), read from the schema so the two can't drift.
@@ -10,7 +10,9 @@ import { parseStoryboard, type Storyboard } from "../storyboard.ts";
 // v4: 1–2 characters, one speaker per spoken shot, a dialogue as shot-reverse-shot, voiceDescription (F11).
 // v5: shot sizes from wide to close-up instead of close framing only, up to 4 shots, storyboard beats, looks that
 //     read at a distance (F12).
-export const SCRIPT_PROMPT_VERSION = "script-v5";
+// v6: cuts inside a shot (My Muse pacing); medium shots by default, close-ups for the emotional peak only (F13).
+// v7: the first cut must show a character; inserts only as cut 2 or 3 (F13, human note).
+export const SCRIPT_PROMPT_VERSION = "script-v7";
 
 const sizes = CAMERAS.map((c) => `"${c}"`).join(", ");
 
@@ -36,6 +38,19 @@ Shot sizes ("camera"), one of: ${sizes}.
 - One camera move per shot in "motion" (wide: locked-off, or a slow crane / pull-back; close: a slow push-in).
 - A spoken line may sit on any size. On a wide size the line is heard, not lip-read (the character is small). When
   you have the choice, put the key line on a "medium close-up".
+- Medium shots are the default. Close-ups ("close-up", "extreme close-up") only for the emotional peak.
+
+Cuts inside a shot ("cuts"):
+- A shot of ${CUT_SHOT_MIN_SECONDS} seconds or more should usually have ${CUTS.min}–${CUTS.max} cuts (~2–4 s each), rendered in one clip.
+  Each cut has "camera" (a size from the list), "visual" and "onScreen": the characters visible in that cut, a subset
+  of the shot's "onScreen" (empty for an insert such as hands or an object). A cut has no seconds of its own.
+- The first cut is the opening frame: it must show at least one character. An insert (hands, an object, nobody on
+  screen) may only be the second or third cut.
+- Cut grammar: a wide or full shot to set the place → a medium shot → a close-up on the emotional peak; or the speaker
+  → the listener's reaction while the line continues; inserts (hands, an object) are allowed. The speaker need not be
+  on screen in every cut: the line continues off-screen.
+- Never two identical sizes in a row. The shot's "camera" and "visual" equal its first cut's (the opening frame).
+- A shot under ${CUT_SHOT_MIN_SECONDS} seconds has no cuts. A shot keeps one "line" however many cuts it holds.
 
 Characters and speakers:
 - "characters" has 1 or 2 entries. Every shot lists in "onScreen" the names of the characters visible in it.
@@ -57,6 +72,7 @@ The spoken line:
 Storyboards:
 - When the idea is written shot by shot, the user message lists the beats. Write exactly one shot per beat, in that
   order (beat 1 is "s1"). A line quoted in beat k goes in shot k's line.
+- A beat may become one shot with cuts; the beat order is kept.
 
 Timing:
 - Shot ids are "s1", "s2", … in order. Each shot is ${SHOT_SECONDS.min}–${SHOT_SECONDS.max} seconds; the total is ${SCRIPT_SECONDS.min}–${SCRIPT_SECONDS.max} seconds.

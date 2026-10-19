@@ -35,8 +35,49 @@ export interface AssembleShot {
 }
 
 export interface Assembled {
+  /** final.mp4 (a copy of `cut`). */
   path: string;
+  /** The content-addressed loudnormed cut: what later steps (subtitles, F13) read, since final.mp4 gets replaced. */
+  cut: string;
   attempts: Attempt[];
+}
+
+export interface PlannedSegment {
+  shotId: Shot["id"];
+  /** Where the segment starts on the final timeline, seconds. */
+  offset: number;
+  /** Its exact length (a whole number of frames). */
+  seconds: number;
+  /** The length asked of ffmpeg (cutSeconds). */
+  cut: number;
+}
+
+/** Where each shot starts and how long it runs in the cut (each segment is exactly frameCount(seconds) frames). */
+export function segmentPlan(shots: AssembleShot[]): PlannedSegment[] {
+  let offset = 0;
+  return shots.map(({ shot, out }) => {
+    const cut = cutSeconds(shot.seconds, out.seconds, out.speechEnd);
+    const seconds = frameCount(cut) / FPS;
+    const at = { shotId: shot.id, offset: Number(offset.toFixed(3)), seconds, cut };
+    offset += seconds;
+    return at;
+  });
+}
+
+/**
+ * First word to last word on the final timeline, from each shot's own gate (speechStart/End + its offset).
+ * Used to spread subtitles when the final transcript has no word timestamps (F13). Undefined: nothing spoken.
+ */
+export function speechWindow(shots: AssembleShot[]): { start: number; end: number } | undefined {
+  const plan = segmentPlan(shots);
+  const spans: { s: number; e: number }[] = [];
+  shots.forEach(({ out }, i) => {
+    if (out.speechStart === undefined || out.speechEnd === undefined) return;
+    const seg = plan[i]!;
+    spans.push({ s: seg.offset + out.speechStart, e: seg.offset + Math.min(out.speechEnd, seg.seconds) });
+  });
+  if (spans.length === 0) return undefined;
+  return { start: Number(spans[0]!.s.toFixed(3)), end: Number(spans.at(-1)!.e.toFixed(3)) };
 }
 
 export async function assemble(shots: AssembleShot[], { dir }: { dir: string }): Promise<Assembled> {
@@ -45,8 +86,9 @@ export async function assemble(shots: AssembleShot[], { dir }: { dir: string }):
   let reused = 0;
 
   const segments: { path: string; seconds: number }[] = [];
-  for (const { shot, out } of shots) {
-    const seconds = cutSeconds(shot.seconds, out.seconds, out.speechEnd);
+  const plan = segmentPlan(shots);
+  for (const [i, { shot, out }] of shots.entries()) {
+    const seconds = plan[i]!.cut;
     const key = await contentKey("segment", { file: out.path }, seconds, out.hasAudio, JOIN_FADE, END_FADE);
     const made = await once(join(dir, `segment-${shot.id}-${key}.mp4`), async (tmp) => {
       await run(segmentArgs({ input: out.path, out: tmp, seconds, audio: out.hasAudio, fade: JOIN_FADE, endFade: END_FADE }));
@@ -85,6 +127,7 @@ export async function assemble(shots: AssembleShot[], { dir }: { dir: string }):
   const cached = reused === segments.length && joined.cached && loud.cached;
   return {
     path: final,
+    cut: loud.path,
     attempts: [
       {
         stage: "assemble",
