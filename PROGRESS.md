@@ -398,3 +398,19 @@ Append-only log, one entry per feature, written by the implementer agent and com
   - inject critic verdicts with `new MockLlm({ queue, critic: [{ ok: false, problems: [...] }], criticCost })`. The
     default critic says ok, and its calls are logged in `llm.criticCalls`, not `llm.calls`;
   - a staged train script for prompt tests is in `tests/fixtures/train-script.ts`.
+
+## F19 — Web demo and cost accounting fixes
+- Manifests have `status` (`running` → `done`/`failed`), `startedAt` and `endedAt`. The graph writes `running` before
+  the first node; the CLI closes a `running` manifest as `failed` on a crash or SIGINT/SIGTERM (`markEndedSync`).
+  Manifest writes are atomic. Label runs by `status`: `ok` is false until the final gate.
+- Web: `/api/runs` items, `/api/runs/:id` and SSE `progress` carry `status` (`running|done|failed|interrupted`),
+  `startedAt`, `endedAt`, `elapsedMs` (server clock). A `running` run is "interrupted" when the child the server spawned
+  is gone, or, for runs it didn't spawn, when the manifest is 30 min old with no `endedAt`. The page's timer counts from
+  `startedAt` across reloads. Running runs show in the gallery and open their live progress.
+- SSE `/api/runs/:id/events` also tails `trace.jsonl`: a `call` event per provider span (node, shot, kind,
+  provider/model, ok, ms, $, cached, short error, `note` like `heard '…'`). The progress list shows them between attempts.
+- `--redo` keeps the true cost: the replaced pass's paid attempts come in with `carried: true`, `costUsd` includes them,
+  and `redos[] {at, from, costUsd}` lists each redo's own spend. Cached spans in the trace carry `originalCostUsd` when a
+  carried attempt says what the artifact cost.
+- Tests: `tests/graph.test.ts` "F19-*" (status lifecycle, SIGTERM on a real CLI child, $1.20 redo with `PaidVideo`);
+  `tests/web.test.ts` "F19: …" (labels, call events with a half-written line, elapsed time with an injected `now`).

@@ -2,7 +2,7 @@
  * Reading runs and examples from disk for the web demo (F15). Every id from a URL goes through `inside()`: it must
  * match `^[\w-]+$` and the resolved path must stay inside its folder, so `..%2F..` never reaches the filesystem.
  */
-import { readdir, readFile } from "node:fs/promises";
+import { open, readdir, readFile, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { parseTrace } from "../obs/metrics-cli.ts";
 import type { RunRecord } from "../obs/metrics.ts";
@@ -74,15 +74,127 @@ export async function readRunTrace(runDir: string): Promise<Span[]> {
   return text === undefined ? [] : parseTrace(text);
 }
 
-/** A run is over once the final gate decided (ok) or an error was recorded; in-flight manifests have neither. */
-export const isFinished = (m: RunManifest): boolean => m.ok || m.error !== undefined;
+/**
+ * A run is over once its status says so (F19). Manifests from before F19 have no status: over once the final gate
+ * decided (ok) or an error was recorded.
+ */
+export const isFinished = (m: RunManifest): boolean => (m.status ? m.status !== "running" : m.ok || m.error !== undefined);
 
-export interface GalleryItem {
+/** What the page shows. `interrupted` = the manifest says running but no process is working on it any more. */
+export type ShownStatus = "running" | "done" | "failed" | "interrupted";
+
+/** A run nobody spawned here, still `running` and untouched this long, is taken as dead (the graph writes per step). */
+export const STALE_MS = 30 * 60 * 1000;
+
+export interface Liveness {
+  /** For a run this server spawned: is its process still there? undefined = not ours, decide by age. */
+  alive?: boolean;
+  /** Last write of the manifest. */
+  mtimeMs?: number;
+  now: number;
+}
+
+export function shownStatus(m: RunManifest, l: Liveness): ShownStatus {
+  const s = m.status ?? (m.ok ? "done" : m.error !== undefined ? "failed" : "running");
+  if (s !== "running") return s;
+  if (l.alive !== undefined) return l.alive ? "running" : "interrupted";
+  if (!m.endedAt && l.mtimeMs !== undefined && l.now - l.mtimeMs > STALE_MS) return "interrupted";
+  return "running";
+}
+
+/**
+ * How long the run took, or has taken so far, by the server clock: startedAt → endedAt, or → now while it runs, or →
+ * the manifest's last write when it was interrupted. Null without startedAt (manifests from before F19).
+ */
+export function elapsedMs(m: RunManifest, status: ShownStatus, l: Liveness): number | null {
+  if (!m.startedAt) return null;
+  const end = m.endedAt ? Date.parse(m.endedAt) : status === "interrupted" && l.mtimeMs !== undefined ? l.mtimeMs : l.now;
+  return Math.max(0, end - Date.parse(m.startedAt));
+}
+
+export interface RunView {
+  status: ShownStatus;
+  startedAt?: string;
+  endedAt?: string;
+  elapsedMs: number | null;
+}
+
+export function runView(m: RunManifest, l: Liveness): RunView {
+  const status = shownStatus(m, l);
+  return { status, ...(m.startedAt ? { startedAt: m.startedAt } : {}), ...(m.endedAt ? { endedAt: m.endedAt } : {}), elapsedMs: elapsedMs(m, status, l) };
+}
+
+export async function mtimeOf(path: string): Promise<number | undefined> {
+  try {
+    return (await stat(path)).mtimeMs;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Complete lines appended to `path` since byte `offset`. A line still being written (no "\n" yet) waits for the next
+ * call, so a span is never sent half. No file yet = nothing new.
+ */
+export async function readNewLines(path: string, offset: number): Promise<{ lines: string[]; offset: number }> {
+  let fh;
+  try {
+    fh = await open(path, "r");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return { lines: [], offset };
+    throw e;
+  }
+  try {
+    const size = (await fh.stat()).size;
+    if (size <= offset) return { lines: [], offset };
+    const buf = Buffer.alloc(size - offset);
+    const { bytesRead } = await fh.read(buf, 0, buf.length, offset);
+    const end = buf.subarray(0, bytesRead).lastIndexOf(0x0a);
+    if (end < 0) return { lines: [], offset };
+    const lines = buf.subarray(0, end).toString("utf8").split("\n").filter((l) => l.trim());
+    return { lines, offset: offset + end + 1 };
+  } finally {
+    await fh.close();
+  }
+}
+
+const short = (s: string, n = 160): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** What the progress list needs from one provider span (F19 `call` event): who, what, how it went, never the payload. */
+export function callEvent(s: Span, index: number) {
+  const text = typeof s.response?.text === "string" ? s.response.text : undefined;
+  const verdict = s.response?.verdict as { score?: unknown } | undefined;
+  const note = s.cached
+    ? "cached"
+    : s.kind === "asr" && s.ok && text !== undefined
+      ? `heard '${short(text.trim(), 80)}'`
+      : s.kind === "judge" && typeof verdict?.score === "number"
+        ? `score ${verdict.score}/10`
+        : undefined;
+  return {
+    index,
+    node: s.node,
+    ...(s.shotId ? { shotId: s.shotId } : {}),
+    kind: s.kind,
+    provider: s.provider,
+    ...(s.model ? { model: s.model } : {}),
+    ok: s.ok,
+    ms: s.ms,
+    costUsd: s.costUsd,
+    ...(s.cached ? { cached: true } : {}),
+    ...(s.originalCostUsd !== undefined ? { originalCostUsd: s.originalCostUsd } : {}),
+    ...(s.error ? { error: short(s.error) } : {}),
+    ...(note ? { note } : {}),
+  };
+}
+
+export interface GalleryItem extends RunView {
   id: string;
   kind: "run" | "example";
   title: string;
   idea: string;
   mode: "mock" | "live";
+  /** The final gate's verdict; false while running. Label a run by `status`, never by this alone (F19). */
   ok: boolean;
   seconds: number | null;
   costUsd: number;
@@ -94,11 +206,12 @@ export interface GalleryItem {
   attempts: number;
 }
 
-export function galleryItem(id: string, kind: GalleryItem["kind"], m: RunManifest): GalleryItem {
+export function galleryItem(id: string, kind: GalleryItem["kind"], m: RunManifest, view: RunView): GalleryItem {
   const seconds = m.final?.seconds ?? null;
   const first = m.script?.shots[0]?.seconds ?? 2;
   const thumb = Math.min(first / 2, seconds ? seconds / 2 : first / 2);
   return {
+    ...view,
     id,
     kind,
     title: m.script?.title ?? m.idea.slice(0, 60),
@@ -129,6 +242,8 @@ export interface Loaded {
   kind: GalleryItem["kind"];
   manifest: RunManifest;
   dir: string;
+  /** Last write of the manifest (F19: a `running` run nobody touched for 30 min is interrupted). */
+  mtimeMs?: number;
 }
 
 /** Every readable manifest: run folders and examples. Unreadable ones are reported, never silently dropped. */
@@ -137,7 +252,8 @@ export async function loadAll(runsDir: string, examplesDir: string, log: (l: str
   const add = async (id: string, kind: Loaded["kind"], dir: string, path: string) => {
     try {
       const m = await readManifest(path);
-      if (m) out.push({ id, kind, manifest: m, dir });
+      const mtimeMs = await mtimeOf(path);
+      if (m) out.push({ id, kind, manifest: m, dir, ...(mtimeMs !== undefined ? { mtimeMs } : {}) });
     } catch (e) {
       log(`skipped ${kind} ${id}: ${(e as Error).message}`);
     }
@@ -152,11 +268,14 @@ export async function loadAll(runsDir: string, examplesDir: string, log: (l: str
   return out;
 }
 
-/** Finished runs plus examples, newest first. */
-export function gallery(all: Loaded[]): GalleryItem[] {
+/**
+ * Runs and examples, newest first. Runs with a status (F19) are listed whatever it is, labelled by it; a pre-F19
+ * manifest that never finished is a leftover snapshot nobody can follow, and stays out as before.
+ */
+export function gallery(all: Loaded[], view: (x: Loaded) => RunView): GalleryItem[] {
   return all
-    .filter((x) => x.kind === "example" || isFinished(x.manifest))
-    .map((x) => galleryItem(x.id, x.kind, x.manifest))
+    .filter((x) => x.kind === "example" || x.manifest.status !== undefined || isFinished(x.manifest))
+    .map((x) => galleryItem(x.id, x.kind, x.manifest, view(x)))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
 }
 

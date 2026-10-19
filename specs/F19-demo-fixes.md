@@ -43,3 +43,48 @@ The author watched a live run in the hosted demo (2026-10-19, run 20261019-12191
 3. Redo: a mock run that "paid" $1.20 (fake costs), then `--redo shot` with all clips cached, gives a manifest with
    `costUsd` ≥ 1.20, `redos` of length 1, and carried attempts marked.
 4. `pnpm verify` green; F01–F18 tests still pass.
+
+## Decisions
+- **Contracts** (`src/schemas.ts`): `RunManifest` gains `status` (`running|done|failed`), `startedAt`, `endedAt` and
+  `redos[] {at, from, costUsd}`. `Attempt` gains `carried`. All four are optional in the schema only so the pre-F19
+  example manifests still parse; every manifest the graph writes now has `status` + `startedAt`.
+  "interrupted" is not a manifest status: no process can write it about itself. The web server works it out
+  (`shownStatus` in `src/web/runs.ts`).
+- **Lifecycle.** `runPipeline` writes `running` before the first node, then after each step, then `done`/`failed` with
+  `endedAt`. `startedAt` is this process's start: a resume or a redo restarts the clock (the page times the work in
+  progress; `createdAt` stays the run's birth). The CLI now picks the run id itself (`newRunId()` when none is given),
+  so on a crash outside the nodes (`catch` in `main`) and on SIGINT/SIGTERM (`signals: true`, only at the real
+  entry point) it can close a `running` manifest as `failed` (`markEndedSync`). A manifest that already ended is never
+  rewritten. SIGKILL can't be caught; that's what "interrupted" is for.
+- **Atomic manifest writes** (tmp + rename). Not in the spec, but the new status test read a half-written manifest:
+  the graph runs ahead of the loop that writes it, and the web server reads it live. Rejected: retrying reads in
+  every reader.
+- **Interrupted.** Runs this server spawned: dead when the child has exited (`results`) or its pid is gone
+  (`process.kill(pid, 0)`, EPERM = alive). Others: `running`, no `endedAt`, manifest mtime older than 30 min. Elapsed
+  time of an interrupted run stops at the manifest's last write.
+- **Gallery** now lists runs with any status (running ones open their live progress when clicked). Pre-F19 manifests
+  that never finished stay out, as before (the F15 test relies on that, and nobody can follow them anyway).
+  `/api/metrics` leaves `running` runs out: they are not failures yet.
+- **Elapsed time** is computed on the server (`elapsedMs`, from `startedAt` to `endedAt` or the server's now) and sent
+  in every SSE `progress` event, in `/api/runs` items and in `/api/runs/:id`. The page adds local time since the last
+  event. Rejected: sending only `startedAt` and diffing with the browser clock (client clock skew).
+- **Live calls.** The SSE loop tails `trace.jsonl` by byte offset (`readNewLines`): only complete lines are sent, so a
+  span being written is never sent half. Node spans are skipped (attempts already cover nodes). A `call` event carries
+  node, shot, kind, provider, model, ok, ms, $, cached/originalCostUsd, the error cut to 160 chars, and a `note`
+  (`heard '…'` for ASR, `score n/10` for judges). Never the prompt or the payload.
+- **Cost after a redo** (the "simpler" option in the spec): the redo reads the manifest it replaces and carries
+  its paid attempts past the fork point (`carriedAttempts`) with `carried: true`. The fork's attempts are a prefix of
+  the stored ones (the reducer only appends and the fork is an ancestor), so the slice is exactly what was bought
+  after it. Free attempts are not carried. `costUsd` = sum of all attempts, carried included; each redo appends
+  `{at, from, costUsd}` with its own new spend. A second redo carries the earlier carried ones again (they sit past the
+  fork too), so nothing is lost or counted twice (tested).
+- **Budget on a redo** is not charged with the carried spend. That money paid for the pass the redo replaces, and
+  counting it would leave a redo of a $2.88 run no room under a $3 cap. A resume still counts its crashed process's
+  failures, as before.
+- **originalCostUsd** on cached spans: `originalCostLookup(carried)` matches a kept carried attempt with a stage of that
+  span kind (video→video, image→portrait/keyframe, …), the provider among the attempt's `+`-joined providers (a spoken
+  shot's attempt is `mock-video+mock-asr`), and the same shot. Each attempt answers once. No match → no field. We don't
+  guess.
+- No new dependencies. Docs checked: Node `fs/promises` `FileHandle.read(buffer, offset, length, position)` and
+  `process.kill(pid, 0)` semantics (https://nodejs.org/api/fs.html#filehandlereadbuffer-offset-length-position,
+  https://nodejs.org/api/process.html#processkillpid-signal).

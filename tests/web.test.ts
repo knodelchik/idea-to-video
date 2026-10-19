@@ -2,7 +2,7 @@
  * F15 web demo: the server runs in-process on a random port with temp dirs. Runs use a fake `startRun` that writes a
  * manifest over time, except the one slow test that drives the real CLI in mock mode.
  */
-import { mkdir, mkdtemp, readFile, rm, writeFile, copyFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, utimes, writeFile, copyFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -534,6 +534,136 @@ describe("trace, metrics and the gallery (5, 6)", () => {
     const html = await (await fetch(`${base}/login`)).text();
     for (const m of html.matchAll(/<script[^>]*src="([^"]+)"/g)) expect(m[1]).toMatch(/^\/[\w.-]+$/);
     expect(html).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe("F19: run status, elapsed time and live calls", () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const span = (i: number, extra: Record<string, unknown> = {}) => ({
+    id: `sp${i}`,
+    runId: "x",
+    node: "shot",
+    shotId: "s2",
+    kind: "video",
+    provider: "fal",
+    model: "seedance-2.0-fast",
+    startedAt: ago(0),
+    ms: 100 * i,
+    ok: true,
+    costUsd: 0.1 * i,
+    request: {},
+    response: {},
+    ...extra,
+  });
+
+  it("/api/runs labels a running run as running (not failed), a stale one as interrupted, with elapsed time from startedAt", async () => {
+    const d = await dirs();
+    const running = manifest({ runId: "20261019-120000-runnin", ok: false, final: undefined, verbatim: undefined, status: "running", startedAt: ago(90_000) });
+    const stale = manifest({ runId: "20261019-110000-stale1", ok: false, final: undefined, verbatim: undefined, status: "running", startedAt: ago(3_600_000) });
+    const failed = manifest({ runId: "20261019-100000-failed", ok: false, final: undefined, error: "final gate: nope", status: "failed", startedAt: "2026-10-19T10:00:00.000Z", endedAt: "2026-10-19T10:05:00.000Z" });
+    const done = manifest({ runId: "20261019-090000-done11", status: "done", startedAt: "2026-10-19T09:00:00.000Z", endedAt: "2026-10-19T09:06:30.000Z" });
+    for (const m of [running, stale, failed, done]) await writeRun(d.runsDir, m);
+    // The stale run's manifest was last written an hour ago and its process is gone (not ours, no endedAt).
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    await utimes(join(d.runsDir, stale.runId, "manifest.json"), hourAgo, hourAgo);
+    const { base } = await start(config(d));
+    const cookie = await cookieOf(base);
+    const list = (await (await fetch(`${base}/api/runs`, { headers: { cookie } })).json()) as { id: string; status: string; ok: boolean; elapsedMs: number | null; startedAt?: string }[];
+    const by = Object.fromEntries(list.map((r) => [r.id, r]));
+    expect(by[running.runId]).toMatchObject({ status: "running", ok: false, startedAt: running.startedAt });
+    expect(by[running.runId]!.elapsedMs).toBeGreaterThanOrEqual(90_000);
+    expect(by[running.runId]!.elapsedMs).toBeLessThan(120_000);
+    expect(by[stale.runId]).toMatchObject({ status: "interrupted" });
+    expect(by[failed.runId]).toMatchObject({ status: "failed", elapsedMs: 300_000 });
+    expect(by[done.runId]).toMatchObject({ status: "done", elapsedMs: 390_000 });
+    // The run itself, by id, carries the same label.
+    const one = (await (await fetch(`${base}/api/runs/${running.runId}`, { headers: { cookie } })).json()) as { status: string };
+    expect(one.status).toBe("running");
+  });
+
+  it("SSE sends call events from trace.jsonl in order while the manifest is unchanged, and elapsed time from startedAt", async () => {
+    const d = await dirs();
+    const startedAt = "2026-10-19T12:00:00.000Z";
+    const now = Date.parse(startedAt) + 42_000;
+    let manifestWrites = 0;
+    const runner: StartRun = (spec) => {
+      const dir = join(spec.env.RUNS_DIR!, spec.runId);
+      const trace = join(dir, "trace.jsonl");
+      const m = (over: Partial<RunManifest>) =>
+        manifest({ runId: spec.runId, idea: spec.idea, status: "running", startedAt, ok: false, final: undefined, verbatim: undefined, attempts: [attempt("script")], ...over });
+      const done = (async () => {
+        await writeRun(spec.env.RUNS_DIR!, m({}));
+        manifestWrites++;
+        await sleep(60);
+        // Three calls inside one long node; the manifest does not change. A node span is not a call.
+        await appendFile(trace, `${JSON.stringify(span(1, { ok: false, error: "refused as a possible real person: " + "x".repeat(400) }))}\n`);
+        await sleep(60);
+        await appendFile(trace, `${JSON.stringify(span(2, { kind: "node", provider: "pipeline" }))}\n`);
+        const asr = JSON.stringify(span(3, { kind: "asr", provider: "groq", model: "whisper", response: { text: "Ticket's four fifty" } }));
+        // A line written in two parts is sent once, whole.
+        await appendFile(trace, asr.slice(0, 40));
+        await sleep(60);
+        await appendFile(trace, `${asr.slice(40)}\n`);
+        await sleep(60);
+        await appendFile(trace, `${JSON.stringify(span(4, { cached: true, costUsd: 0, originalCostUsd: 0.6 }))}\n`);
+        await sleep(60);
+        await writeRun(spec.env.RUNS_DIR!, m({ status: "done", ok: true, endedAt: "2026-10-19T12:01:00.000Z", attempts: [attempt("script"), attempt("video", true, { shotId: "s2" })], final: manifest().final, verbatim: manifest().verbatim }));
+        manifestWrites++;
+        return { code: 0, output: "" };
+      })();
+      return { done };
+    };
+    const { base } = await start(config(d), { startRun: runner, now: () => now });
+    const cookie = await cookieOf(base);
+    const res = await fetch(`${base}/api/runs`, { method: "POST", headers: { cookie }, body: JSON.stringify({ idea: "an idea", mode: "mock" }) });
+    const { runId } = (await res.json()) as { runId: string };
+    const events = await readSse(await fetch(`${base}/api/runs/${runId}/events`, { headers: { cookie } }));
+    expect(manifestWrites).toBe(2);
+    const seq = events.map((e) => e.event).filter((e) => e !== "progress");
+    // Attempt 0 from the first manifest, then every call, then the second manifest's attempt, then done.
+    expect(seq).toEqual(["attempt", "call", "call", "call", "attempt", "done"]);
+    const calls = events.filter((e) => e.event === "call").map((e) => e.data as Record<string, unknown>);
+    expect(calls.map((c) => [c.index, c.kind, c.provider, c.model, c.shotId, c.node, c.ok])).toEqual([
+      [0, "video", "fal", "seedance-2.0-fast", "s2", "shot", false],
+      [1, "asr", "groq", "whisper", "s2", "shot", true],
+      [2, "video", "fal", "seedance-2.0-fast", "s2", "shot", true],
+    ]);
+    expect(calls[0]).toMatchObject({ ms: 100, costUsd: 0.1 });
+    expect(String(calls[0]!.error)).toMatch(/^refused as a possible real person/);
+    expect(String(calls[0]!.error).length).toBeLessThanOrEqual(161);
+    expect(calls[1]!.note).toBe("heard 'Ticket's four fifty'");
+    expect(calls[2]).toMatchObject({ cached: true, originalCostUsd: 0.6 });
+    // Elapsed time comes from the manifest's startedAt (server clock), then stops at endedAt.
+    const progress = events.filter((e) => e.event === "progress").map((e) => e.data as { status: string; startedAt: string; elapsedMs: number });
+    expect(progress[0]).toMatchObject({ status: "running", startedAt, elapsedMs: 42_000 });
+    expect(progress.at(-1)).toMatchObject({ status: "done", elapsedMs: 60_000 });
+    expect(events.at(-1)!.data).toMatchObject({ ok: true, status: "done" });
+  });
+
+  it("a spawned run whose process ended while the manifest says running is done as interrupted", async () => {
+    const d = await dirs();
+    const runner: StartRun = (spec) => ({
+      done: (async () => {
+        await writeRun(spec.env.RUNS_DIR!, manifest({ runId: spec.runId, status: "running", startedAt: new Date().toISOString(), ok: false, final: undefined, verbatim: undefined }));
+        await sleep(30);
+        return { code: null, output: "killed" };
+      })(),
+    });
+    const { base } = await start(config(d), { startRun: runner });
+    const cookie = await cookieOf(base);
+    const res = await fetch(`${base}/api/runs`, { method: "POST", headers: { cookie }, body: JSON.stringify({ idea: "an idea", mode: "mock" }) });
+    const { runId } = (await res.json()) as { runId: string };
+    const events = await readSse(await fetch(`${base}/api/runs/${runId}/events`, { headers: { cookie } }));
+    expect(events.at(-1)).toMatchObject({ event: "done", data: { ok: false, status: "interrupted" } });
+    const list = (await (await fetch(`${base}/api/runs`, { headers: { cookie } })).json()) as { id: string; status: string }[];
+    expect(list.find((r) => r.id === runId)?.status).toBe("interrupted");
+  });
+
+  it("the page uses status and startedAt, not ok and page-load time", async () => {
+    const js = await readFile(join(ROOT, "src/web/public/app.js"), "utf8");
+    expect(js).toMatch(/addEventListener\("call"/);
+    expect(js).toMatch(/elapsedMs/);
+    expect(js).not.toMatch(/const started = Date\.now\(\)/);
   });
 });
 

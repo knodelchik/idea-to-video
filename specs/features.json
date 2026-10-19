@@ -160,7 +160,7 @@
     {
       "id": "F19-demo-fixes",
       "spec": "specs/F19-demo-fixes.md",
-      "status": "failing",
+      "status": "passing",
       "accept": [
         "npx vitest run tests/web.test.ts tests/graph.test.ts"
       ]

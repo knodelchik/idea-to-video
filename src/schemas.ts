@@ -462,6 +462,11 @@ export const Attempt = z.object({
   ms: z.number().min(0),
   /** Quality judge score (1–10) on stage "judge" attempts (F07). */
   score: z.number().int().min(1).max(10).optional(),
+  /**
+   * F19: paid in an earlier pass of this run (before a `--redo`) and copied into this manifest so `costUsd` stays the
+   * true total. A redo that reuses the artifact records its own $0 attempt beside it.
+   */
+  carried: z.boolean().optional(),
 });
 export type Attempt = z.infer<typeof Attempt>;
 
@@ -534,6 +539,18 @@ export const Subtitles = z.object({
 });
 export type Subtitles = z.infer<typeof Subtitles>;
 
+export const RunStatus = z.enum(["running", "done", "failed"]);
+export type RunStatus = z.infer<typeof RunStatus>;
+
+export const Redo = z.object({
+  at: z.iso.datetime(),
+  /** The graph step the run was replayed from. */
+  from: nonEmpty("from"),
+  /** New spend of that redo alone (cached artifacts cost $0). */
+  costUsd: z.number().min(0),
+});
+export type Redo = z.infer<typeof Redo>;
+
 export const RunManifest = z.object({
   runId: nonEmpty("runId"),
   idea: nonEmpty("idea"),
@@ -553,6 +570,17 @@ export const RunManifest = z.object({
   error: z.string().optional(),
   /** Non-fatal run-level notes (F16: a failed Langfuse export). They never change `ok`. */
   notes: z.array(z.string()).optional(),
+  /**
+   * F19: where the run is. `ok` is false until the final gate, so it can't tell "still going" from "failed".
+   * Optional only for manifests written before F19 (the examples); every new manifest has it.
+   */
+  status: RunStatus.optional(),
+  /** When this process started the run (a resume or redo restarts the clock). The web timer counts from it. */
+  startedAt: z.iso.datetime().optional(),
+  /** Set with `done`/`failed`; absent while running. */
+  endedAt: z.iso.datetime().optional(),
+  /** Every `--redo` of this run (F19): when, from which step, and what it spent itself. */
+  redos: z.array(Redo).optional(),
 });
 export type RunManifest = z.infer<typeof RunManifest>;
 

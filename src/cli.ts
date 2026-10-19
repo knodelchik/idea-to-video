@@ -4,7 +4,7 @@
  */
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { estimateRunUsd, REDO_STEPS, runPipeline, type Mode, type RedoStep, type RunOutcome } from "./graph.ts";
+import { estimateRunUsd, manifestPath, markEndedSync, newRunId, REDO_STEPS, runPipeline, type Mode, type RedoStep, type RunOutcome } from "./graph.ts";
 import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
 import { langfuseFromEnv, type LangfuseTestHooks } from "./obs/langfuse.ts";
@@ -85,6 +85,8 @@ export interface CliDeps {
   beforeNode?: (node: string, shotId?: string) => void | Promise<void>;
   /** Langfuse test seams: an in-memory span exporter and a fake score client (live runs pass neither). */
   langfuse?: LangfuseTestHooks;
+  /** Mark the run `failed` on SIGINT/SIGTERM, then exit (F19). Only the real process entry turns this on. */
+  signals?: boolean;
 }
 
 /** Env values that look like credentials (…_KEY, …_SECRET, …_TOKEN): never written to a trace (F16). */
@@ -137,12 +139,21 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
 
   // Read from the env the caller loaded (`tsx --env-file-if-exists=.env`), and only now: the SDK loads only with keys.
   const langfuse = langfuseFromEnv(env);
+  // RUNS_DIR lets the web server (F15) point its child runs at its own folder.
+  const runsDir = resolve(deps.runsDir ?? (env.RUNS_DIR?.trim() || "runs"));
+  // The CLI picks the id (F19) so it knows which manifest to mark `failed` if the run dies under it.
+  const runId = args.resume ?? args.runId ?? newRunId();
+  const mPath = manifestPath(runsDir, runId);
+  const onSignal = (sig: NodeJS.Signals) => {
+    markEndedSync(mPath, `interrupted by ${sig}`);
+    process.exit(sig === "SIGINT" ? 130 : 143);
+  };
+  if (deps.signals) for (const s of ["SIGINT", "SIGTERM"] as const) process.once(s, onSignal);
   let outcome: RunOutcome;
   try {
-    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock", ...(args.runId ? { runId: args.runId } : {}) }, {
+    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock", runId }, {
       providers: makeProviders,
-      // RUNS_DIR lets the web server (F15) point its child runs at its own folder.
-      runsDir: resolve(deps.runsDir ?? (env.RUNS_DIR?.trim() || "runs")),
+      runsDir,
       maxCostUsd,
       quality,
       subtitles: args.subtitles !== false && subtitlesFromEnv(env),
@@ -154,10 +165,14 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
       log: err,
     });
   } catch (e) {
-    // Only setup can land here (missing keys, unknown run id); node failures come back as ok:false.
+    // Setup lands here (missing keys, unknown run id), or a crash outside the nodes; node failures come back as
+    // ok:false. A manifest this run left `running` is closed as `failed`; one that had already ended is left alone.
+    markEndedSync(mPath, `crashed: ${(e as Error).message}`);
     err(`error: ${(e as Error).message}`);
     if (args.json) out(JSON.stringify({ ok: false, error: (e as Error).message }));
     return 1;
+  } finally {
+    if (deps.signals) for (const s of ["SIGINT", "SIGTERM"] as const) process.off(s, onSignal);
   }
 
   const s = summary(outcome);
@@ -168,5 +183,5 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  process.exitCode = await main(process.argv.slice(2));
+  process.exitCode = await main(process.argv.slice(2), { signals: true });
 }

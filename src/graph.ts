@@ -8,7 +8,8 @@
  * manifest is rewritten after every step, and once more at the end whatever happened.
  */
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
@@ -42,6 +43,7 @@ import {
   SHOT_SECONDS,
   type Attempt,
   type FinalVideo,
+  type Redo,
   type Script,
   type Shot,
   type ShotOutput,
@@ -185,6 +187,8 @@ interface Ctx {
   runId?: string;
   /** `runs/<id>/trace.jsonl` (F16). */
   sink?: JsonlSink;
+  /** On a redo (F19): the price a reused artifact was bought for, from the carried attempts. */
+  originalCost?: (kind: string, provider: string, shotId?: string) => number | undefined;
 }
 
 function buildGraph(deps: PipelineDeps, ctx: Ctx) {
@@ -207,7 +211,14 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
       const key = shotId ? `${name}:${shotId}` : name;
       // F16: a node span, parent of every provider span emitted while the node runs.
       const span = { id: newSpanId(), startedAt: new Date().toISOString(), t0: performance.now() };
-      const trace = { runId: ctx.runId ?? "(none)", node: name, ...(shotId ? { shotId } : {}), parentId: span.id, ...(ctx.sink ? { sink: ctx.sink } : {}) };
+      const trace = {
+        runId: ctx.runId ?? "(none)",
+        node: name,
+        ...(shotId ? { shotId } : {}),
+        parentId: span.id,
+        ...(ctx.sink ? { sink: ctx.sink } : {}),
+        ...(ctx.originalCost ? { originalCost: ctx.originalCost } : {}),
+      };
       const endSpan = (ok: boolean, costUsd: number, error?: string) =>
         ctx.sink?.write({
           id: span.id,
@@ -436,8 +447,20 @@ export function newRunId(now = new Date()): string {
 
 export const manifestPath = (runsDir: string, runId: string): string => join(runsDir, runId, "manifest.json");
 
+export interface ManifestExtra {
+  /** Attempts of failed tasks the state never received, and (F19) paid attempts carried over a redo. */
+  attempts?: Attempt[];
+  error?: string;
+  notes?: string[];
+  /** F19 lifecycle. Absent = not stamped (tests building a manifest from a bare state). */
+  status?: RunManifest["status"];
+  startedAt?: string;
+  endedAt?: string;
+  redos?: Redo[];
+}
+
 /** State (+ attempts of failed tasks the state never received) → the contract written to disk. */
-export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; error?: string; notes?: string[] } = {}): RunManifest {
+export function toManifest(s: RunStateValues, extra: ManifestExtra = {}): RunManifest {
   const attempts = [...(s.attempts ?? []), ...(extra.attempts ?? [])];
   const error = extra.error ?? s.error;
   return RunManifest.parse({
@@ -456,7 +479,83 @@ export function toManifest(s: RunStateValues, extra: { attempts?: Attempt[]; err
     ok: error === undefined && s.ok === true,
     ...(error !== undefined ? { error } : {}),
     ...(extra.notes?.length ? { notes: extra.notes } : {}),
+    ...(extra.status ? { status: extra.status } : {}),
+    ...(extra.startedAt ? { startedAt: extra.startedAt } : {}),
+    ...(extra.endedAt ? { endedAt: extra.endedAt } : {}),
+    ...(extra.redos?.length ? { redos: extra.redos } : {}),
   });
+}
+
+/**
+ * A manifest still `running` whose process is going away (crash, SIGTERM): `failed`, with `endedAt` and the reason.
+ * A manifest that already ended is returned unchanged — its own ending is the truth.
+ */
+export function endedManifest(m: RunManifest, reason: string, now = new Date()): RunManifest {
+  if (m.status !== "running") return m;
+  return { ...m, status: "failed", ok: false, endedAt: now.toISOString(), error: m.error ?? reason };
+}
+
+/** Sync on purpose: called from a signal handler right before the process exits. Never throws. */
+export function markEndedSync(path: string, reason: string): void {
+  try {
+    const m = RunManifest.parse(JSON.parse(readFileSync(path, "utf8")));
+    const ended = endedManifest(m, reason);
+    if (ended !== m) {
+      writeFileSync(`${path}.tmp-end`, `${JSON.stringify(ended, null, 2)}\n`);
+      renameSync(`${path}.tmp-end`, path);
+    }
+  } catch {
+    // no manifest yet, or unreadable: nothing to mark
+  }
+}
+
+/**
+ * F19: the paid attempts of the manifest a redo replaces that the fork point does not already hold. The fork's
+ * attempts are a prefix of the stored run's (the reducer only appends, and the fork is an ancestor), so the rest is
+ * what was bought after it — the clips the redo will now reuse for $0. Free attempts are dropped: they explain
+ * nothing about money, and the redo records its own.
+ */
+export function carriedAttempts(prev: RunManifest | undefined, forkAttempts: number): Attempt[] {
+  if (!prev) return [];
+  return prev.attempts
+    .slice(forkAttempts)
+    .filter((a) => a.costUsd > 0)
+    .map((a) => ({ ...a, carried: true }));
+}
+
+/** Attempt stages whose cost is a call of this span kind (an attempt's provider may be "video+asr": the stage decides). */
+const STAGES_OF: Record<string, readonly string[]> = {
+  video: ["video"],
+  image: ["portrait", "keyframe"],
+  judge: ["judge"],
+  tts: ["voice", "voiceover"],
+  lipsync: ["lipsync"],
+  llm: ["script", "continuity"],
+};
+
+/**
+ * For a cached span: the cost the artifact originally had, from the carried attempts (a stage of that kind, the
+ * provider among the attempt's "+"-joined providers, the same shot when the node has one, kept). Each carried attempt
+ * answers once, in order, so two reused clips don't claim one price. Unknown → undefined, never a guess.
+ */
+export function originalCostLookup(carried: Attempt[]): (kind: string, provider: string, shotId?: string) => number | undefined {
+  const left = carried.filter((a) => a.ok && a.costUsd > 0);
+  return (kind, provider, shotId) => {
+    const stages = STAGES_OF[kind] ?? [];
+    const i = left.findIndex(
+      (a) => stages.includes(a.stage) && a.provider.split("+").includes(provider) && (shotId === undefined || a.shotId === shotId),
+    );
+    if (i < 0) return undefined;
+    return left.splice(i, 1)[0]!.costUsd;
+  };
+}
+
+async function readPrevManifest(path: string): Promise<RunManifest | undefined> {
+  try {
+    return RunManifest.parse(JSON.parse(await readFile(path, "utf8")));
+  } catch {
+    return undefined;
+  }
 }
 
 const TYPICAL_SHOT_SECONDS = 8;
@@ -528,6 +627,12 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
     /** Failed attempts of the crashed process: in its manifest but never in the checkpoint. */
     let carried: Attempt[] = [];
     let streamConfig: { configurable: Record<string, unknown> } = config;
+    const startedAt = new Date().toISOString();
+    const prev = "resume" in req ? await readPrevManifest(path) : undefined;
+    /** Earlier redos stay listed; a resume keeps them too. */
+    const redos: Redo[] = [...(prev?.redos ?? [])];
+    /** F19: set on a redo — the new entry for `redos` and the spend that was already in the fork state. */
+    let redo: { from: RedoStep; forkAttempts: number } | undefined;
     if ("resume" in req && req.redo) {
       let fork: Awaited<ReturnType<typeof app.getState>> | undefined;
       for await (const snap of app.getStateHistory(config)) {
@@ -540,6 +645,9 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
       state = fork.values as RunStateValues;
       input = null;
       streamConfig = fork.config as typeof streamConfig;
+      redo = { from: req.redo, forkAttempts: state.attempts?.length ?? 0 };
+      // What the replaced pass paid for after the fork: kept, so costUsd stays what the run really cost (F19).
+      carried = carriedAttempts(prev, redo.forkAttempts);
       deps.log?.(`redoing ${runId} (${state.mode}) from ${req.redo}; unchanged artifacts are reused`);
     } else if ("resume" in req) {
       const snap = await app.getState(config);
@@ -562,35 +670,54 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
       } as RunStateValues;
       input = state;
     }
-    // Finished stages of a resumed run already spent their share of the cap.
-    const budget = new Budget(deps.maxCostUsd, (state.costUsd ?? 0) + sumCost(carried));
+    // Finished stages of a resumed run already spent their share of the cap. A redo's carried spend is not counted:
+    // it was bought for the pass the redo replaces, and counting it would leave a redo of a $2.88 run no room at all.
+    const budget = new Budget(deps.maxCostUsd, (state.costUsd ?? 0) + (redo ? 0 : sumCost(carried)));
     // A resumed or redone run appends to the same trace file: the spans of each process stay, in order.
     const sink = new JsonlSink(join(deps.runsDir, runId, "trace.jsonl"), deps.secrets ?? []);
     ctx.runId = runId;
     ctx.sink = sink;
+    if (redo) ctx.originalCost = originalCostLookup(carried);
     // Trace inside the budget guard: a refused call never reaches a model, so it has no span (the manifest has it).
     ctx.providers = withBudget(withTrace(deps.providers(state.mode), sink), budget);
     ctx.budget = budget;
 
     await mkdir(join(deps.runsDir, runId), { recursive: true });
-    const write = (m: RunManifest) => writeFile(path, `${JSON.stringify(m, null, 2)}\n`);
+    // Atomic (tmp + rename): the graph runs ahead of this loop, and the web server (F19) reads the manifest while the
+    // run is live; an in-place write could be read half-done.
+    const write = async (m: RunManifest) => {
+      const tmp = `${path}.tmp-${process.pid}`;
+      await writeFile(tmp, `${JSON.stringify(m, null, 2)}\n`);
+      await rename(tmp, path);
+    };
+    /** This redo's own spend so far: everything past the fork that this process added (cached reuse is $0). */
+    const redosNow = (s: RunStateValues, failed: Attempt[]): Redo[] =>
+      redo ? [...redos, { at: startedAt, from: redo.from, costUsd: Number((sumCost((s.attempts ?? []).slice(redo.forkAttempts)) + sumCost(failed)).toFixed(6)) }] : redos;
+    const failedNow = () => [...ctx.failed.values()].flat();
+    const running = (s: RunStateValues): ManifestExtra => ({ attempts: [...carried, ...failedNow()], status: "running", startedAt, redos: redosNow(s, failedNow()) });
 
+    // F19: on disk as `running` before the first node, so the web demo can tell a live run from a failed one.
+    await write(toManifest(state, running(state)));
     let error: string | undefined;
     try {
       const stream = await app.stream(input, { ...streamConfig, streamMode: "values" });
       for await (const values of stream) {
         state = values as RunStateValues;
-        await write(toManifest(state, { attempts: carried }));
+        await write(toManifest(state, running(state)));
       }
     } catch (e) {
       error = runError(e);
     }
     // The checkpoint is the truth (it includes writes of tasks that finished alongside a failed one).
     state = (await app.getState(config)).values as RunStateValues;
-    const leftover = [...carried, ...[...ctx.failed.values()].flat()];
+    const leftover = [...carried, ...failedNow()];
     if (error === undefined && state.ok === undefined) error = "run ended before the final gate";
     const notes: string[] = [];
-    let manifest = toManifest(state, { attempts: leftover, notes, ...(error !== undefined ? { error } : {}) });
+    const ending = (): ManifestExtra => {
+      const ok = error === undefined && state.ok === true;
+      return { attempts: leftover, notes, ...(error !== undefined ? { error } : {}), status: ok ? "done" : "failed", startedAt, endedAt: new Date().toISOString(), redos: redosNow(state, failedNow()) };
+    };
+    let manifest = toManifest(state, ending());
     if (deps.langfuse) {
       // After the manifest: the trace's output and scores come from it. Never fails the run: a broken export is a
       // note, and the local trace.jsonl still has every span. The SDK flushes and shuts down before this returns.
@@ -598,7 +725,7 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
       if (!r.ok) {
         notes.push(`langfuse export failed (non-fatal): ${r.error}`);
         deps.log?.(`! langfuse export failed (non-fatal): ${r.error}`);
-        manifest = toManifest(state, { attempts: leftover, notes, ...(error !== undefined ? { error } : {}) });
+        manifest = toManifest(state, ending());
       }
     }
     await write(manifest);

@@ -37,6 +37,8 @@ export interface Span {
   costUsd: number;
   /** A `once` hit: the artifact existed, nothing was called, nothing was paid. */
   cached?: boolean;
+  /** On a cached span after a redo (F19): what the artifact cost when it was bought, from the carried attempts. */
+  originalCostUsd?: number;
   usage?: { input: number; output: number; thinking?: number };
   request: Record<string, unknown>;
   response: Record<string, unknown>;
@@ -86,6 +88,8 @@ export interface TraceContext {
   parentId?: string;
   /** Where cache-hit spans go (provider spans go to `withTrace`'s sink). */
   sink?: TraceSink;
+  /** F19, on a redo: what a reused artifact cost when it was bought (from the carried attempts), if known. */
+  originalCost?: (kind: CallKind, provider: string, shotId?: string) => number | undefined;
 }
 
 const als = new AsyncLocalStorage<TraceContext>();
@@ -140,8 +144,10 @@ export interface CacheTrace {
 
 /** A `once` hit inside a traced node: one span with `cached: true` and cost 0, so a redo shows what it reused. */
 export function recordCached(t: CacheTrace, out: string): void {
-  const sink = currentTrace()?.sink;
+  const c = currentTrace();
+  const sink = c?.sink;
   if (!sink) return;
+  const originalCostUsd = c.originalCost?.(t.kind, t.provider, c.shotId);
   sink.write({
     id: newSpanId(),
     ...linkFields(),
@@ -152,6 +158,7 @@ export function recordCached(t: CacheTrace, out: string): void {
     ok: true,
     costUsd: 0,
     cached: true,
+    ...(originalCostUsd !== undefined ? { originalCostUsd } : {}),
     request: t.request ?? {},
     response: { path: out },
   });

@@ -11,8 +11,26 @@ import type { RunManifest } from "../schemas.ts";
 import { clearedCookie, codeMatches, cookieValue, LoginLimiter, sessionCookie, verifySession } from "./auth.ts";
 import { configFromEnv, type WebConfig } from "./config.ts";
 import { sendFile } from "./media.ts";
-import { runSpec, spawnRunner, type Mode, type RunResult, type StartRun } from "./runner.ts";
-import { BadManifest, findRun, gallery, inside, isFinished, loadAll, readManifest, readRunTrace, records, sourcesOf } from "./runs.ts";
+import { parseTrace } from "../obs/metrics-cli.ts";
+import { pidAlive, runSpec, spawnRunner, type Mode, type RunResult, type StartRun } from "./runner.ts";
+import {
+  BadManifest,
+  callEvent,
+  findRun,
+  gallery,
+  inside,
+  isFinished,
+  loadAll,
+  mtimeOf,
+  readManifest,
+  readNewLines,
+  readRunTrace,
+  records,
+  runView,
+  sourcesOf,
+  type Liveness,
+  type ShownStatus,
+} from "./runs.ts";
 
 export const IDEA_MAX = 800;
 export const BUSY = "a video is being made, try again in a few minutes";
@@ -85,15 +103,21 @@ function clientIp(req: IncomingMessage, trustProxy: boolean): string {
 }
 
 /** What the `done` event (and a finished run in the list) tells the page. */
-export function doneEvent(id: string, m: RunManifest | undefined, result?: RunResult) {
+export function doneEvent(id: string, m: RunManifest | undefined, result?: RunResult, status: ShownStatus = m?.ok ? "done" : "failed") {
+  const why = result
+    ? `run exited (code ${result.code}) without a final video: ${result.output.trim().split("\n").at(-1) ?? ""}`
+    : status === "interrupted"
+      ? "the run's process ended before it finished (interrupted)"
+      : "run ended without a final video";
   return {
     runId: id,
+    status,
     ok: m?.ok ?? false,
     videoUrl: m?.ok && m.final ? `/media/${id}/final.mp4` : null,
     costUsd: m?.costUsd ?? 0,
     seconds: m?.final?.seconds ?? null,
     wer: m?.verbatim?.wer ?? null,
-    ...(m?.error ? { error: m.error } : !m?.ok ? { error: result ? `run exited (code ${result.code}) without a final video: ${result.output.trim().split("\n").at(-1) ?? ""}` : "run ended without a final video" } : {}),
+    ...(m?.error ? { error: m.error } : !m?.ok ? { error: why } : {}),
   };
 }
 
@@ -106,9 +130,15 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
   const publicDir = join(cfg.root, "src", "web", "public");
 
   /** The one run in progress. Later runs get 409 until it ends. */
-  let active: { runId: string } | null = null;
+  let active: { runId: string; pid?: number } | null = null;
   /** How runs this process started ended (for a run that died before writing a manifest). */
   const results = new Map<string, RunResult>();
+
+  /** F19: is a run alive? Ours: by its child (exited, or its pid gone). Not ours: undefined, `shownStatus` uses age. */
+  const liveness = (id: string, mtimeMs: number | undefined): Liveness => {
+    const alive = active?.runId === id ? (active.pid === undefined || pidAlive(active.pid)) : results.has(id) ? false : undefined;
+    return { ...(alive !== undefined ? { alive } : {}), ...(mtimeMs !== undefined ? { mtimeMs } : {}), now: now() };
+  };
 
   const authed = (req: IncomingMessage) => verifySession(cfg.sessionSecret, cookieValue(req.headers.cookie), now());
 
@@ -145,6 +175,7 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
       active = null;
       throw e;
     }
+    if (handle.pid !== undefined) active.pid = handle.pid;
     void handle.done
       .catch((e: unknown): RunResult => ({ code: null, output: (e as Error).message }))
       .then((r) => {
@@ -165,26 +196,39 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
     res.write(": stream open\n\n");
     const send = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     let sent = 0;
+    // F19: the trace is written live, per provider call; the manifest only per finished node (one node can take
+    // minutes). Tailing it fills the gaps between attempts.
+    const tracePath = join(sources[0]!.dir, "trace.jsonl");
+    let traceOffset = 0;
+    let calls = 0;
     let closed = false;
     req.on("close", () => (closed = true));
 
     while (!closed) {
-      const running = active?.runId === id;
+      const ours = active?.runId === id;
       let m: RunManifest | undefined;
+      let mtimeMs: number | undefined;
       for (const s of sources) {
         try {
           m = await readManifest(s.manifest);
         } catch (e) {
           if (!(e instanceof BadManifest)) throw e; // half-written: read it again on the next tick
         }
-        if (m) break;
+        if (m) {
+          mtimeMs = await mtimeOf(s.manifest);
+          break;
+        }
       }
-      if (m) {
-        for (; sent < m.attempts.length; sent++) send("attempt", { index: sent, ...m.attempts[sent] });
-        send("progress", { costUsd: m.costUsd, attempts: m.attempts.length });
-      }
-      if ((m && isFinished(m)) || !running) {
-        send("done", doneEvent(id, m, results.get(id)));
+      if (m) for (; sent < m.attempts.length; sent++) send("attempt", { index: sent, ...m.attempts[sent] });
+      const tail = await readNewLines(tracePath, traceOffset);
+      traceOffset = tail.offset;
+      for (const span of parseTrace(tail.lines.join("\n"))) if (span.kind !== "node") send("call", callEvent(span, calls++));
+      const view = m ? runView(m, liveness(id, mtimeMs)) : undefined;
+      if (m && view) send("progress", { costUsd: m.costUsd, attempts: m.attempts.length, ...view });
+      // Keep following while it runs: our child, or (F19) a run with a status that someone else started.
+      const following = ours || (m?.status !== undefined && view?.status === "running");
+      if ((m && isFinished(m)) || !following) {
+        send("done", doneEvent(id, m, results.get(id), view?.status === "running" ? "interrupted" : view?.status));
         break;
       }
       await new Promise((r) => setTimeout(r, pollMs));
@@ -216,10 +260,11 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
     if (get && path === "/api/config") return json(res, 200, { live: cfg.live, maxCostUsd: cfg.maxCostUsd, ideaMax: IDEA_MAX, active: active?.runId ?? null });
     if (path === "/api/runs") {
       if (method === "POST") return postRun(req, res);
-      if (get) return json(res, 200, gallery(await loadAll(cfg.runsDir, cfg.examplesDir, log)));
+      if (get) return json(res, 200, gallery(await loadAll(cfg.runsDir, cfg.examplesDir, log), (x) => runView(x.manifest, liveness(x.id, x.mtimeMs))));
     }
     if (get && path === "/api/metrics") {
-      const all = await loadAll(cfg.runsDir, cfg.examplesDir, log);
+      // A run in progress is not a failure yet (F19): it joins the numbers when it ends.
+      const all = (await loadAll(cfg.runsDir, cfg.examplesDir, log)).filter((x) => x.manifest.status !== "running");
       return json(res, 200, metrics(await records(all)));
     }
 
@@ -231,7 +276,8 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
       if (found === null) throw new HttpError(400, "bad run id");
       if (found === undefined) throw new HttpError(404, "no such run");
       if (run[2] === "trace") return json(res, 200, found.source.kind === "run" ? await readRunTrace(found.source.dir) : []);
-      return json(res, 200, found.manifest);
+      // The manifest plus how it looks now (F19): `status` may read "interrupted", which no manifest says of itself.
+      return json(res, 200, { ...found.manifest, ...runView(found.manifest, liveness(id, await mtimeOf(found.source.manifest))) });
     }
 
     const media = /^\/media\/([^/]+)\/([^/]+)$/.exec(path);

@@ -204,3 +204,9 @@
 2026-10-19 16:38:26 F18-blocking-continuity attempt 3: implementer
 2026-10-19 16:44:44 F18-blocking-continuity attempt 3: gate
 2026-10-19 16:46:01 F18-blocking-continuity attempt 3: reviewer
+2026-10-19 16:50:35 F18-blocking-continuity PASSED on attempt 3 -> 69dfac2
+2026-10-19 16:50:35 all requested features passing
+2026-10-19 16:50:35 ### F19-demo-fixes start (specs/F19-demo-fixes.md)
+2026-10-19 16:50:35 F19-demo-fixes attempt 1: implementer
+2026-10-19 17:02:53 F19-demo-fixes attempt 1: gate
+2026-10-19 17:04:11 F19-demo-fixes attempt 1: reviewer

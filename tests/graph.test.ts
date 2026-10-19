@@ -1,11 +1,11 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { main, parseArgs, subtitlesFromEnv } from "../src/cli.ts";
-import { estimateRunUsd, isTransient } from "../src/graph.ts";
+import { carriedAttempts, endedManifest, estimateRunUsd, isTransient, markEndedSync, originalCostLookup } from "../src/graph.ts";
 import { loudnormArgs, parseLoudnorm, segmentArgs } from "../src/media/args.ts";
 import { probe } from "../src/media/ffmpeg.ts";
 import { cutSeconds, END_FADE, SPEECH_TAIL } from "../src/nodes/assemble.ts";
@@ -33,7 +33,7 @@ import {
   type LlmRequest,
   type LlmResult,
 } from "../src/providers/index.ts";
-import { RunManifest, Script, SCRIPT_SECONDS, type ScriptDraft } from "../src/schemas.ts";
+import { RunManifest, Script, SCRIPT_SECONDS, type Attempt, type ScriptDraft } from "../src/schemas.ts";
 import { linkSources, readTranscript, writeTranscript } from "../src/util/sidecar.ts";
 import { extractQuotedLines } from "../src/verbatim.ts";
 
@@ -290,6 +290,13 @@ class PricedVideo extends MockVideo {
   }
 }
 
+/** F19: a video model that bills $0.60 per clip (two shots → $1.20), free underneath. */
+class PaidVideo extends MockVideo {
+  override async animate(req: AnimateRequest) {
+    return { ...(await super.animate(req)), costUsd: 0.6 };
+  }
+}
+
 // --- acceptance: whole pipeline on mocks ---
 
 describe("pipeline (mock providers, real ffmpeg)", () => {
@@ -335,6 +342,9 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
       expect(crashed.json.ok).toBe(false);
       expect(crashed.manifest?.error).toMatch(/simulated crash/);
       expect(crashed.manifest?.script).toBeDefined();
+      // F19: a crash ends the run as failed, with an end time.
+      expect(crashed.manifest?.status).toBe("failed");
+      expect(crashed.manifest?.endedAt).toBeDefined();
       expect(first.llm.calls).toHaveLength(1);
       expect(first.image.calls).toHaveLength(3); // portrait + 2 keyframes
       expect(first.video.calls).toHaveLength(0);
@@ -351,6 +361,9 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
       expect(resumed.manifest?.attempts.filter((a) => a.stage === "script")).toHaveLength(1);
       expect(resumed.manifest?.attempts.some((a) => a.reason?.includes("simulated crash"))).toBe(true);
       expect(resumed.manifest?.error).toBeUndefined();
+      expect(resumed.manifest?.status).toBe("done");
+      // The resume restarts the clock: the timer shows this process, not the crashed one.
+      expect(Date.parse(resumed.manifest!.startedAt!)).toBeGreaterThanOrEqual(Date.parse(crashed.manifest!.endedAt!));
     },
     SLOW,
   );
@@ -372,6 +385,155 @@ describe("pipeline (mock providers, real ffmpeg)", () => {
     },
     SLOW,
   );
+
+  it(
+    "F19-1. the manifest is `running` with startedAt while the graph runs, then `done` with endedAt",
+    async () => {
+      const runId = "f19-status-1";
+      const path = join(dir, "runs", runId, "manifest.json");
+      const seen: RunManifest[] = [];
+      const { code, manifest, json } = await cli([IDEA, "--mock", "--run-id", runId], {
+        beforeNode: async (node) => {
+          if (node === "writeScript" || node === "assemble") seen.push(RunManifest.parse(JSON.parse(await readFile(path, "utf8"))));
+        },
+      });
+      expect(json.error).toBeUndefined();
+      expect(code).toBe(0);
+      expect(seen).toHaveLength(2);
+      for (const m of seen) {
+        expect(m.status).toBe("running");
+        expect(m.ok).toBe(false);
+        expect(m.startedAt).toBeDefined();
+        expect(m.endedAt).toBeUndefined();
+      }
+      expect(manifest?.status).toBe("done");
+      expect(manifest?.startedAt).toBe(seen[0]!.startedAt);
+      expect(Date.parse(manifest!.endedAt!)).toBeGreaterThanOrEqual(Date.parse(manifest!.startedAt!));
+    },
+    SLOW,
+  );
+
+  it("F19-1b. endedManifest closes only a running manifest; markEndedSync rewrites the file", async () => {
+    const base = RunManifest.parse({ runId: "x", idea: "i", mode: "mock", createdAt: "2026-10-19T10:00:00.000Z", attempts: [], costUsd: 0, ok: false });
+    const now = new Date("2026-10-19T10:05:00.000Z");
+    const running = { ...base, status: "running" as const, startedAt: "2026-10-19T10:00:00.000Z" };
+    expect(endedManifest(running, "interrupted by SIGTERM", now)).toMatchObject({ status: "failed", ok: false, endedAt: now.toISOString(), error: "interrupted by SIGTERM" });
+    const done = { ...base, ok: true, status: "done" as const, endedAt: "2026-10-19T10:01:00.000Z" };
+    expect(endedManifest(done, "late signal", now)).toBe(done);
+    const file = join(dir, "ended.json");
+    await writeFile(file, JSON.stringify(running));
+    markEndedSync(file, "crashed: boom");
+    expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({ status: "failed", error: "crashed: boom" });
+    markEndedSync(join(dir, "missing.json"), "no file"); // never throws
+  });
+
+  it(
+    "F19-1c. a CLI process killed with SIGTERM leaves its manifest failed, with endedAt",
+    async () => {
+      const runsDir = join(dir, "sig-runs");
+      const runId = "f19-sigterm";
+      const path = join(runsDir, runId, "manifest.json");
+      const child = spawn(process.execPath, ["--import", "tsx", "src/cli.ts", "--mock", "--json", "--run-id", runId, "--", IDEA], {
+        cwd: join(import.meta.dirname, ".."),
+        env: { PATH: process.env.PATH, RUNS_DIR: runsDir },
+        stdio: "ignore",
+      });
+      const exited = new Promise<number | null>((r) => child.on("close", (c) => r(c)));
+      let status: string | undefined;
+      for (let i = 0; i < 400 && status !== "running"; i++) {
+        await new Promise((r) => setTimeout(r, 25));
+        status = await readFile(path, "utf8").then((t) => (JSON.parse(t) as RunManifest).status, () => undefined);
+      }
+      expect(status).toBe("running");
+      child.kill("SIGTERM");
+      expect(await exited).toBe(143);
+      const m = RunManifest.parse(JSON.parse(await readFile(path, "utf8")));
+      expect(m).toMatchObject({ status: "failed", ok: false, error: "interrupted by SIGTERM" });
+      expect(m.endedAt).toBeDefined();
+    },
+    SLOW,
+  );
+
+  it(
+    "F19-3. --redo after a run that paid $1.20 keeps the spend: carried attempts, costUsd ≥ 1.20, one redo listed",
+    async () => {
+      const runId = "f19-redo-paid";
+      const env = { MAX_COST_USD: "5" };
+      const paid = new PaidVideo();
+      const first = await cli([IDEA, "--mock", "--run-id", runId], { overrides: { video: paid }, env });
+      expect(first.json.ok).toBe(true);
+      expect(paid.calls).toHaveLength(2);
+      expect(first.manifest?.costUsd).toBeCloseTo(1.2, 6);
+
+      const again = new PaidVideo();
+      const redone = await cli(["--resume", runId, "--redo", "shot"], { overrides: { video: again }, env });
+      expect(redone.json.ok).toBe(true);
+      expect(again.calls).toHaveLength(0); // all clips cached
+      const m = redone.manifest!;
+      expect(m.costUsd).toBeGreaterThanOrEqual(1.2);
+      expect(m.costUsd).toBeCloseTo(first.manifest!.costUsd, 6);
+      expect(redone.json.costUsd).toBeCloseTo(m.costUsd, 6);
+      expect(m.status).toBe("done");
+      expect(m.redos).toHaveLength(1);
+      expect(m.redos![0]).toMatchObject({ from: "shot", costUsd: 0 });
+      const carried = m.attempts.filter((a) => a.carried);
+      expect(carried.length).toBeGreaterThan(0);
+      expect(carried.every((a) => a.costUsd > 0)).toBe(true);
+      expect(carried.filter((a) => a.stage === "video").reduce((s, a) => s + a.costUsd, 0)).toBeCloseTo(1.2, 6);
+      // The redo's own video attempts are the $0 reuse, beside the carried ones.
+      const own = m.attempts.filter((a) => a.stage === "video" && !a.carried);
+      expect(own.length).toBeGreaterThan(0);
+      expect(own.every((a) => a.costUsd === 0 && /reused cached clip/.test(a.reason ?? ""))).toBe(true);
+
+      // The trace marks the reused clips cached, with what they cost when bought.
+      const spans = (await readFile(join(dir, "runs", runId, "trace.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l) as { kind: string; cached?: boolean; originalCostUsd?: number; shotId?: string });
+      const reused = spans.filter((s) => s.kind === "video" && s.cached);
+      expect(reused.map((s) => s.shotId).sort()).toEqual(["s1", "s2"]);
+      expect(reused.every((s) => s.originalCostUsd === 0.6)).toBe(true);
+
+      // A second redo neither loses nor double-counts the carried spend.
+      const twice = await cli(["--resume", runId, "--redo", "shot"], { overrides: { video: new PaidVideo() }, env });
+      expect(twice.manifest?.costUsd).toBeCloseTo(first.manifest!.costUsd, 6);
+      expect(twice.manifest?.redos).toHaveLength(2);
+    },
+    SLOW,
+  );
+
+  it("F19-3b. carriedAttempts keeps only the paid tail past the fork; originalCostLookup answers each price once", () => {
+    const a = (stage: string, costUsd: number, extra: Partial<Attempt> = {}): Attempt => ({ stage, n: 1, provider: "p", ok: true, costUsd, ms: 1, ...extra });
+    const prev = RunManifest.parse({
+      runId: "x",
+      idea: "i",
+      mode: "mock",
+      createdAt: "2026-10-19T10:00:00.000Z",
+      attempts: [
+        a("script", 0.1),
+        a("video", 0.6, { shotId: "s1" }),
+        a("judge", 0),
+        a("video", 0.6, { shotId: "s2", provider: "p+asr" }),
+        a("video", 0.2, { shotId: "s2", ok: false }),
+      ],
+      costUsd: 1.5,
+      ok: true,
+    });
+    const carried = carriedAttempts(prev, 1);
+    expect(carried.map((x) => [x.stage, x.shotId, x.costUsd, x.carried])).toEqual([
+      ["video", "s1", 0.6, true],
+      ["video", "s2", 0.6, true],
+      ["video", "s2", 0.2, true],
+    ]);
+    expect(carriedAttempts(undefined, 0)).toEqual([]);
+    const lookup = originalCostLookup(carried);
+    expect(lookup("asr", "asr", "s2")).toBeUndefined(); // an ASR cache hit never takes the clip's price
+    expect(lookup("video", "p", "s2")).toBe(0.6); // "p+asr": the video provider is one of the parts
+    expect(lookup("video", "p", "s2")).toBeUndefined(); // the failed take is no artifact's price
+    expect(lookup("video", "other", "s1")).toBeUndefined();
+    expect(lookup("image", "p", "s1")).toBeUndefined();
+    expect(lookup("video", "p", "s1")).toBe(0.6);
+  });
 
   it(
     "3. the final file mis-heard by one word → ok:false, exit ≠ 0, the manifest says which word",

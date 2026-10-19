@@ -122,17 +122,44 @@ $("run-form").addEventListener("submit", async (e) => {
   }
 });
 
+// F19: a run is labelled by its status, never by `ok` alone (ok is false until the final gate).
+const STATUS = { running: "running", done: "ok", failed: "failed", interrupted: "interrupted" };
+const statusOf = (r) => r.status || (r.ok ? "done" : "failed");
+const statusBadge = (r) => h("span", { class: `badge ${statusOf(r) === "done" ? "" : "accent"}` }, STATUS[statusOf(r)] || statusOf(r));
+const TITLES = { done: "Done ✓", failed: "Failed ✗", interrupted: "Interrupted ⚠", running: "Running…" };
+
+/** One provider call from the live trace, e.g. "s2 · video · fal / seedance-2.0-fast · refused…". */
+function callRow(c) {
+  const what = [c.provider + (c.model ? ` / ${c.model}` : ""), c.error || c.note].filter(Boolean).join(" · ");
+  const cost = c.cached ? `cached${c.originalCostUsd !== undefined ? ` (was ${usd(c.originalCostUsd)})` : ""}` : usd(c.costUsd);
+  return h(
+    "tr",
+    { class: `call ${c.ok ? "" : "failed"}` },
+    h("td", { class: "muted" }, "·"),
+    h("td", { class: "muted" }, `${c.node} · ${c.kind}`),
+    h("td", {}, c.shotId || ""),
+    h("td", {}, c.ok ? "✓" : "✗"),
+    h("td", { class: "reason small" }, what),
+    h("td", { class: "muted" }, cost),
+  );
+}
+
 let stream = null;
 function follow(runId) {
   if (stream) stream.close();
-  const started = Date.now();
+  // Elapsed time is the server's (from the manifest's startedAt), so a reload keeps counting from the real start.
+  let clock = null; // { elapsedMs, at, stopped }
+  const tick = () => {
+    if (clock) $("progress-time").textContent = secs(clock.elapsedMs + (clock.stopped ? 0 : Date.now() - clock.at));
+  };
   $("progress").hidden = false;
   $("progress-title").textContent = `Running ${runId}…`;
   $("progress-rows").replaceChildren();
   $("progress-result").replaceChildren();
   $("progress-cost").textContent = usd(0);
+  $("progress-time").textContent = "";
   $("run-button").disabled = true;
-  const timer = setInterval(() => ($("progress-time").textContent = secs(Date.now() - started)), 500);
+  const timer = setInterval(tick, 500);
   stream = new EventSource(`/api/runs/${encodeURIComponent(runId)}/events`);
   stream.addEventListener("attempt", (ev) => {
     const a = JSON.parse(ev.data);
@@ -140,14 +167,21 @@ function follow(runId) {
       h("tr", { class: a.ok ? "" : "failed" }, h("td", {}, a.index + 1), h("td", {}, a.stage), h("td", {}, a.shotId || ""), h("td", {}, a.ok ? "✓" : "✗"), h("td", { class: "reason" }, a.reason || ""), h("td", {}, usd(a.costUsd))),
     );
   });
-  stream.addEventListener("progress", (ev) => ($("progress-cost").textContent = usd(JSON.parse(ev.data).costUsd)));
+  stream.addEventListener("call", (ev) => $("progress-rows").append(callRow(JSON.parse(ev.data))));
+  stream.addEventListener("progress", (ev) => {
+    const p = JSON.parse(ev.data);
+    $("progress-cost").textContent = usd(p.costUsd);
+    if (p.elapsedMs !== null && p.elapsedMs !== undefined) clock = { elapsedMs: p.elapsedMs, at: Date.now(), stopped: p.status !== "running" };
+    tick();
+  });
   stream.addEventListener("done", async (ev) => {
     const d = JSON.parse(ev.data);
     stream.close();
     stream = null;
     clearInterval(timer);
+    if (clock) clock.stopped = true;
     $("run-button").disabled = false;
-    $("progress-title").textContent = d.ok ? "Done ✓" : "Failed ✗";
+    $("progress-title").textContent = TITLES[statusOf(d)] || statusOf(d);
     $("progress-cost").textContent = usd(d.costUsd);
     const out = $("progress-result");
     if (!d.ok) out.append(h("p", { class: "bad" }, d.error || "the run failed"));
@@ -181,7 +215,8 @@ async function loadGallery() {
     ...runs.map((r) =>
       h(
         "button",
-        { type: "button", class: "card", onclick: () => openInspector(r) },
+        // A run still going opens its live progress; anything else, the inspector.
+        { type: "button", class: "card", onclick: () => (statusOf(r) === "running" ? (location.hash = "#/", follow(r.id)) : openInspector(r)) },
         r.videoUrl ? h("video", { src: `${r.videoUrl}#t=${r.thumbTime}`, preload: "metadata", muted: true, playsInline: true }) : h("div", { class: "player" }),
         h(
           "div",
@@ -190,9 +225,10 @@ async function loadGallery() {
           h(
             "div",
             { class: "row" },
-            h("span", { class: `badge ${r.ok ? "" : "accent"}` }, r.ok ? "ok" : "failed"),
+            statusBadge(r),
             h("span", { class: "badge" }, r.kind === "example" ? "example" : r.mode),
             h("span", { class: "muted" }, usd(r.costUsd)),
+            r.elapsedMs !== null && r.elapsedMs !== undefined ? h("span", { class: "muted" }, secs(r.elapsedMs)) : null,
             r.seconds ? h("span", { class: "muted" }, `${r.seconds.toFixed(1)} s`) : null,
             r.wer !== null ? h("span", { class: "muted" }, `WER ${r.wer}`) : null,
           ),
@@ -331,7 +367,8 @@ function overview(m, videoUrl) {
       "div",
       {},
       h("h2", {}, s?.title ?? m.runId),
-      h("div", { class: "row" }, h("span", { class: `badge ${m.ok ? "" : "accent"}` }, m.ok ? "ok" : "failed"), h("span", { class: "badge" }, m.mode), h("span", { class: "muted small mono" }, m.runId)),
+      h("div", { class: "row" }, statusBadge(m), h("span", { class: "badge" }, m.mode), h("span", { class: "muted small mono" }, m.runId)),
+      m.redos?.length ? h("p", { class: "small muted" }, `Redone ${m.redos.length}×: ${m.redos.map((r) => `from ${r.from} (${usd(r.costUsd)} new)`).join(", ")}. The total includes what earlier passes paid for.`) : null,
       m.error ? h("p", { class: "bad" }, m.error) : null,
       h("h3", {}, "Idea"),
       h("p", {}, m.idea),
@@ -400,7 +437,7 @@ function traceView(spans) {
               h("td", {}, s.kind),
               h("td", { class: "small" }, `${s.provider}${s.model ? ` / ${s.model}` : ""}`),
               h("td", {}, s.ms),
-              h("td", {}, s.cached ? "cached" : usd(s.costUsd)),
+              h("td", {}, s.cached ? `cached${s.originalCostUsd !== undefined ? ` (was ${usd(s.originalCostUsd)})` : ""}` : usd(s.costUsd)),
               h("td", {}, s.ok ? "✓" : "✗"),
             ),
           ),

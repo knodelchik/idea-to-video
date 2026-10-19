@@ -26,6 +26,8 @@ export interface RunResult {
 
 export interface RunHandle {
   done: Promise<RunResult>;
+  /** The child's pid (F19): a `running` manifest whose process is gone is shown as interrupted. */
+  pid?: number;
 }
 
 export type StartRun = (spec: RunSpec) => RunHandle;
@@ -56,16 +58,26 @@ export function runSpec(cfg: WebConfig, idea: string, mode: Mode, runId: string,
 const TAIL = 8 * 1024;
 
 export const spawnRunner: StartRun = (spec) => {
+  let output = "";
+  const keep = (b: Buffer) => {
+    output = (output + b.toString("utf8")).slice(-TAIL);
+  };
+  const child = spawn(spec.command, spec.args, { cwd: spec.cwd, env: spec.env, shell: false, stdio: ["ignore", "pipe", "pipe"] });
   const done = new Promise<RunResult>((resolveDone) => {
-    let output = "";
-    const keep = (b: Buffer) => {
-      output = (output + b.toString("utf8")).slice(-TAIL);
-    };
-    const child = spawn(spec.command, spec.args, { cwd: spec.cwd, env: spec.env, shell: false, stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.on("data", keep);
     child.stderr.on("data", keep);
     child.on("error", (e) => resolveDone({ code: null, output: `${output}\n${e.message}` }));
     child.on("close", (code) => resolveDone({ code, output }));
   });
-  return { done };
+  return { done, ...(child.pid !== undefined ? { pid: child.pid } : {}) };
 };
+
+/** Is that process still there? EPERM = it exists but is not ours to signal. */
+export function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
