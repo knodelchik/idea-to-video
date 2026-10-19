@@ -226,3 +226,11 @@ Kept honest on purpose: this is the raw material for "how I worked with AI".
      ladder now jumps to a rung whose clip is already on disk.
   4. New `--resume <id> --redo <step>`: replays a run from a step; content addressing makes unchanged steps $0.
      The redo of this run cost $0 for video.
+- [judge] 2026-10-19: the castle shot scored 3/10. A human review agreed it is a fair score, because there really is a
+  second castle stacked on the first (the camera tilts up and Seedance invents more castle). It disagreed on one
+  issue: the girl leaving frame on the planned tilt-up looks like real filmmaking. Rubric v6: leaving frame because
+  of the planned camera move is fine, and the action must match the shot (direction of movement, who does what).
+  Re-judged for free on the same clip: still 2–3/10, and it still says "the character suddenly disappears". It also
+  did not flag that she walks away from the gate instead of toward it. Only gemini-3.5-flash-lite answered
+  (flash was 429). Lesson: a 3-frame VLM judge can't tell a camera move from a vanishing figure. Fixing that needs
+  more frames plus the motion text, or a stronger model; calibrating the judge against human scores is the real fix.

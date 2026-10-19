@@ -9,7 +9,8 @@ import { isWide, openingCastOf, openingOf, speakerOf, type Script, type Shot } f
 // v3: wide sizes are judged on recognisability, whole figures and a dominant setting, not on lip-sync (F12).
 // v4: a clip with cuts (F13) is told its hard cuts are intended, so a change of framing is not a failure.
 // v5: a cut shot's keyframe is judged against the opening cut's cast only (F13, human note).
-export const JUDGE_PROMPT_VERSION = "judge-v5";
+// v6: a planned camera move may take the character out of frame; the action must match the shot (live 2026-10-19).
+export const JUDGE_PROMPT_VERSION = "judge-v6";
 
 /** Said to the clip judge when the shot has cuts: the framing changes on purpose; only identity must hold. */
 function cutsNote(shot: Shot): string[] {
@@ -56,10 +57,11 @@ export function clipRubric(shot: Shot, script: Script): string {
     // The face is too small to judge a mouth; at a distance the failures are extra or melting figures and wobbling buildings.
     return [
       "Judge these frames, sampled in order from one vertical wide-shot video clip, the character small in frame. Check, and list every failure as an issue:",
-      `1. The ${speaking ? "speaker" : "main character"}, ${oneLine(c.name)}, is recognisable in every frame by its look (hair, outfit, silhouette: ${oneLine(c.look)}).`,
+      `1. The ${speaking ? "speaker" : "main character"}, ${oneLine(c.name)}, is recognisable by its look (hair, outfit, silhouette: ${oneLine(c.look)}) whenever in view. Leaving the frame because of the planned camera move is fine, not a failure; a figure that vanishes or changes while the camera keeps the spot in view is.`,
       "2. No duplicated, merging or melting figures: the same number of people in every frame, each anatomically whole.",
       "3. Stable architecture and setting: walls, doors, stairs and horizon keep their shape between frames, no warping.",
       `4. Motion plausible for: ${oneLine(shot.motion)}.`,
+      `5. The action matches the shot: ${oneLine(shot.visual)}. Check the direction of movement (toward or away from what), who does what, and where they go; say exactly what differs.`,
       ...cutsNote(shot),
     ].join("\n");
   }
@@ -71,6 +73,7 @@ export function clipRubric(shot: Shot, script: Script): string {
       ? "3. Mouth region intact and natural in every frame (it is speaking): no smearing, extra teeth or blur."
       : "3. Mouth region intact and natural in every frame; the character is silent.",
     `4. Motion plausible for: ${oneLine(shot.motion)}.`,
+    `5. The action matches the shot: ${oneLine(shot.visual)}. Check the direction of movement, who does what, and where they go; say exactly what differs.`,
     ...cutsNote(shot),
   ].join("\n");
 }

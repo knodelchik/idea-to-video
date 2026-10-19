@@ -449,3 +449,25 @@ describe("pipeline: scores reach the manifest", () => {
     SLOW,
   );
 });
+
+describe("clip rubric v6 (live 2026-10-19)", () => {
+  it("a planned camera move may take the character out of frame, and the action must match the shot", async () => {
+    const { clipRubric, JUDGE_PROMPT_VERSION } = await import("../src/prompts/judge.ts");
+    const { Script } = await import("../src/schemas.ts");
+    const script = Script.parse({
+      promptVersion: "t", title: "t", logline: "t", setting: "a cliff",
+      characters: [{ name: "Lyra", look: "crimson cloak, long white braid, black leather armour, pale young woman", voice: { gender: "female", age: "young", tone: "cold" }, voiceDescription: "cold young female voice" }],
+      shots: [
+        { id: "s1", camera: "wide shot", visual: "Lyra advances toward the iron gate", motion: "slow tilt-up to the battlements", emotion: "resolve", line: "", seconds: 5, onScreen: ["Lyra"] },
+        { id: "s2", camera: "medium shot", visual: "Lyra turns away", motion: "still", emotion: "cold", line: "Go.", seconds: 4, speaker: "Lyra", onScreen: ["Lyra"] },
+      ],
+      quotedLines: [],
+    });
+    expect(JUDGE_PROMPT_VERSION).toBe("judge-v6");
+    const wide = clipRubric(script.shots[0]!, script);
+    expect(wide).toMatch(/Leaving the frame because of the planned camera move is fine/);
+    expect(wide).not.toMatch(/in every frame by its look/);
+    expect(wide).toMatch(/action matches the shot: Lyra advances toward the iron gate\. Check the direction of movement/);
+    expect(clipRubric(script.shots[1]!, script)).toMatch(/action matches the shot: Lyra turns away/);
+  });
+});
