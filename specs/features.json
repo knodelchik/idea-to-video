@@ -164,6 +164,14 @@
       "accept": [
         "npx vitest run tests/web.test.ts tests/graph.test.ts"
       ]
+    },
+    {
+      "id": "F20-failure-you-can-act-on",
+      "spec": "specs/F20-failure-you-can-act-on.md",
+      "status": "failing",
+      "accept": [
+        "npx vitest run tests/asr-corpus.test.ts tests/web.test.ts tests/explain.test.ts tests/graph.test.ts"
+      ]
     }
   ]
 }

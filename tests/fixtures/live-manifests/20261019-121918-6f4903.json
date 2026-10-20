@@ -1,0 +1,439 @@
+{
+  "runId": "20261019-121918-6f4903",
+  "idea": "Shot 1: wide shot of a rain-soaked train platform at night, an old station clock above shows 11:58; a young woman in a yellow raincoat with short silver hair runs toward the last train.\n  Shot 2: inside the empty carriage a tired conductor in his sixties with a grey moustache blocks the door and says: \"Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for\n  anyone.\" Shot 3: she holds up a faded paper ticket and answers: \"I bought this one thirty-eight years ago. You promised you'd wait.\"",
+  "mode": "live",
+  "createdAt": "2026-10-19T12:19:20.096Z",
+  "script": {
+    "promptVersion": "script-v7",
+    "title": "The Kyiv Express",
+    "logline": "On a rainy midnight platform, a young woman chases a ghostly train that departed decades ago to claim a long-promised reunion.",
+    "setting": "rain-soaked Kyiv train station platform and vintage passenger carriage at night",
+    "characters": [
+      {
+        "name": "Olena",
+        "look": "24-year-old woman, short silver hair, soaked pale skin, oversized bright yellow raincoat, dark jeans, muddy combat boots",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "trembling"
+        },
+        "voiceDescription": "breathless urgent female voice, mid-20s, slight Eastern European accent, trembling pace"
+      },
+      {
+        "name": "Bohdan",
+        "look": "65-year-old man, thick grey moustache, deep facial wrinkles, dark navy Soviet-era railway uniform coat, brass buttons, peaked conductor cap",
+        "voice": {
+          "gender": "male",
+          "age": "older",
+          "tone": "weary"
+        },
+        "voiceDescription": "raspy low male voice, mid-60s, Eastern European accent, weary and deadpan"
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "wide shot",
+        "visual": "On a dimly lit rain-swept concrete platform beneath an ornate station clock reading 11:58, Olena in her bright yellow raincoat sprints desperately toward the glowing doors of a vintage passenger carriage.",
+        "motion": "slow pull-back tracking her forward sprint",
+        "emotion": "desperation",
+        "line": "",
+        "seconds": 5,
+        "onScreen": [
+          "Olena"
+        ]
+      },
+      {
+        "id": "s2",
+        "camera": "medium shot",
+        "visual": "Inside the narrow threshold of the train carriage, Bohdan in his navy coat and peaked cap stands firm, blocking the open doorway as wind and mist blow past him.",
+        "motion": "slow push-in toward Bohdan",
+        "emotion": "weariness",
+        "line": "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for\n  anyone.",
+        "seconds": 9,
+        "speaker": "Bohdan",
+        "onScreen": [
+          "Bohdan",
+          "Olena"
+        ],
+        "cuts": [
+          {
+            "camera": "medium shot",
+            "visual": "Inside the narrow threshold of the train carriage, Bohdan in his navy coat and peaked cap stands firm, blocking the open doorway as wind and mist blow past him.",
+            "onScreen": [
+              "Bohdan"
+            ]
+          },
+          {
+            "camera": "medium close-up",
+            "visual": "Bohdan's tired wrinkled face hardened under his peaked cap as his grey moustache twitches with a cold, unyielding glare.",
+            "onScreen": [
+              "Bohdan"
+            ]
+          },
+          {
+            "camera": "close-up",
+            "visual": "Olena's soaked face freezing on the threshold, rain dripping from her silver bangs as she catches her breath in disbelief.",
+            "onScreen": [
+              "Olena"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "s3",
+        "camera": "medium close-up",
+        "visual": "Olena raises a trembling hand into frame, clutching a faded, water-damaged paper ticket directly before Bohdan with desperate hope in her eyes.",
+        "motion": "slow push-in on Olena",
+        "emotion": "longing",
+        "line": "I bought this one thirty-eight years ago. You promised you'd wait.",
+        "seconds": 7,
+        "speaker": "Olena",
+        "onScreen": [
+          "Olena",
+          "Bohdan"
+        ],
+        "cuts": [
+          {
+            "camera": "medium close-up",
+            "visual": "Olena raises a trembling hand into frame, clutching a faded, water-damaged paper ticket directly before Bohdan with desperate hope in her eyes.",
+            "onScreen": [
+              "Olena"
+            ]
+          },
+          {
+            "camera": "close-up",
+            "visual": "Bohdan's guarded expression falters, his weathered eyes widening slightly in sudden, haunting recognition.",
+            "onScreen": [
+              "Bohdan"
+            ]
+          },
+          {
+            "camera": "medium shot",
+            "visual": "Olena steps onto the carriage bottom step in the pouring rain, holding Bohdan's stunned gaze under the doorway lamp.",
+            "onScreen": [
+              "Olena",
+              "Bohdan"
+            ]
+          }
+        ]
+      }
+    ],
+    "quotedLines": [
+      "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for\n  anyone.",
+      "I bought this one thirty-eight years ago. You promised you'd wait."
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/app/runs/20261019-121918-6f4903/clip-s1-1e101c19c47c094b.mp4",
+      "seconds": 5.088,
+      "hasAudio": false,
+      "audio": "silent",
+      "keyframeScore": 8,
+      "clipScore": 10,
+      "needsReview": false
+    },
+    "s2": {
+      "path": "/app/runs/20261019-121918-6f4903/clip-s2-a91baa3d39835e78.mp4",
+      "seconds": 9.088,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.1,
+      "speechEnd": 6.6,
+      "verbatim": {
+        "expected": "tickets four dollars fifty cents and this train left kyiv in nineteen eighty seven it doesn't stop for anyone",
+        "heard": "tickets four dollars fifty cents and this train left kyiv in nineteen eighty seven it doesn't stop for anyone",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 1,
+      "needsReview": true
+    },
+    "s3": {
+      "path": "/app/runs/20261019-121918-6f4903/clip-s3-d6f4174b1aa051c6.mp4",
+      "seconds": 7.104,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.66,
+      "speechEnd": 6.36,
+      "verbatim": {
+        "expected": "i bought this one thirty eight years ago you promised you'd wait",
+        "heard": "i bought this one thirty eight years ago you promised you'd wait",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 10,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": false,
+      "reason": "shot s2: 19 words need 8.1 s to speak (words / 2.6 + 0.8) but the shot has 8 s; shorten the line or lengthen the shot",
+      "costUsd": 0.0260565,
+      "ms": 58345
+    },
+    {
+      "stage": "script",
+      "n": 2,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.0124215,
+      "ms": 18216
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 12828
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11874
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11121
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 8/10 >= 7; issues: clock time reads approximately 11:22 instead of 11:58; model gemini-3.5-flash",
+      "costUsd": 0.0042705,
+      "ms": 5447,
+      "score": 8
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 17578
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (429), trying next",
+      "costUsd": 0.0007938,
+      "ms": 2184,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 15690
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (429), trying next",
+      "costUsd": 0.000792,
+      "ms": 2238,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate; reused cached clip",
+      "costUsd": 0,
+      "ms": 236
+    },
+    {
+      "stage": "listen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "groq-whisper",
+      "ok": true,
+      "reason": "speech heard in a silent shot (\"Thank you.\"); its audio replaced with silence",
+      "costUsd": 0.00030833333333333337,
+      "ms": 1250
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; reused cached verdict",
+      "costUsd": 0,
+      "ms": 137,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "reason": "reused cached clip",
+      "costUsd": 0.00030833333333333337,
+      "ms": 936
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": false,
+      "reason": "clip score 1/10 < 5; issues: Character completely changes identity from an elderly man in a conductor uniform to a young woman in a yellow raincoat around 00:06.750; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (429), trying next",
+      "costUsd": 0.0013555,
+      "ms": 3819,
+      "score": 1
+    },
+    {
+      "stage": "regen",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "budget",
+      "ok": false,
+      "reason": "clip score 1 < 5; regeneration skipped: budget guard refuses ~$1.7970 more (MAX_COST_USD); kept take 1; needs review",
+      "costUsd": 0,
+      "ms": 0
+    },
+    {
+      "stage": "video",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "reason": "reused cached clip",
+      "costUsd": 0.00030833333333333337,
+      "ms": 1548
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; reused cached verdict",
+      "costUsd": 0,
+      "ms": 188,
+      "score": 10
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "3 shot(s): 5.00 s + 9.00 s + 7.00 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 65253
+    },
+    {
+      "stage": "subtitles",
+      "n": 1,
+      "provider": "groq-whisper+resvg+ffmpeg",
+      "ok": true,
+      "reason": "7 cue(s) of the verified line, timed by ASR words",
+      "costUsd": 0.0006479105006933333,
+      "ms": 34447
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.0006479105006933333,
+      "ms": 959
+    }
+  ],
+  "costUsd": 0.137911,
+  "final": {
+    "path": "/app/runs/20261019-121918-6f4903/final.mp4",
+    "seconds": 21.013,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "tickets four dollars fifty cents and this train left kyiv in nineteen eighty seven it doesn't stop for anyone i bought this one thirty eight years ago you promised you'd wait",
+    "heard": "tickets four dollars fifty cents and this train left kyiv in nineteen eighty seven it doesn't stop for anyone i bought this one thirty eight years ago you promised you'd wait",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for anyone. I bought this one thirty-eight years ago. You promised you'd wait.",
+    "heard": "Tickets $4.50 and this train left Kiev in 1987. It doesn't stop for anyone. I bought this one 38 years ago. You promised you'd wait."
+  },
+  "subtitles": {
+    "file": "/app/runs/20261019-121918-6f4903/subtitled-ac32d5fd15b176fc.mp4",
+    "cues": [
+      {
+        "start": 5.1,
+        "end": 6.08,
+        "text": "Ticket's $4.50,"
+      },
+      {
+        "start": 6.08,
+        "end": 7.9,
+        "text": "and this train left"
+      },
+      {
+        "start": 7.9,
+        "end": 10.36,
+        "text": "Kyiv in 1987 —"
+      },
+      {
+        "start": 10.36,
+        "end": 11.75,
+        "text": "it doesn't stop for anyone."
+      },
+      {
+        "start": 14.58,
+        "end": 15.46,
+        "text": "I bought this one"
+      },
+      {
+        "start": 15.46,
+        "end": 16.67,
+        "text": "thirty-eight years ago."
+      },
+      {
+        "start": 19.18,
+        "end": 20.49,
+        "text": "You promised you'd wait."
+      }
+    ],
+    "timing": "asr"
+  },
+  "ok": true
+}

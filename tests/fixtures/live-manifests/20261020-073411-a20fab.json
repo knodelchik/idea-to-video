@@ -1,0 +1,651 @@
+{
+  "runId": "20261020-073411-a20fab",
+  "idea": "Shot 1: wide shot of a rain-soaked train platform at night, an old station clock above shows 11:58; a young woman in a yellow raincoat with short silver hair runs toward the last train.\n  Shot 2: inside the empty carriage a tired conductor in his sixties with a grey moustache blocks the door and says: \"Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for\n  anyone.\" Shot 3: she holds up a faded paper ticket and answers: \"I bought this one thirty-eight years ago. You promised you'd wait.\"",
+  "mode": "live",
+  "createdAt": "2026-10-20T07:34:16.400Z",
+  "script": {
+    "promptVersion": "script-v8",
+    "title": "The 1987 Kyiv Express",
+    "logline": "A desperate woman races through the pouring rain to board a ghostly train that left decades ago, confronting the conductor who promised to wait.",
+    "setting": "A desolate, rain-slicked train platform at midnight beside an antiquated Soviet-era passenger train.",
+    "characters": [
+      {
+        "name": "Yana",
+        "look": "A twenty-four-year-old woman with a sharp pale face, cropped silver hair, wearing an oversized bright yellow vinyl raincoat over dark trousers.",
+        "voice": {
+          "gender": "female",
+          "age": "young",
+          "tone": "trembling yet resolute"
+        },
+        "voiceDescription": "Trembling clear female voice, mid-20s, faint Eastern European accent, urgent and emotional."
+      },
+      {
+        "name": "Vasyl",
+        "look": "A sixty-five-year-old man with weathered wrinkled skin, a bushy grey moustache, wearing a dark navy railway conductor uniform with brass buttons.",
+        "voice": {
+          "gender": "male",
+          "age": "older",
+          "tone": "gravelly and weary"
+        },
+        "voiceDescription": "Weary gravelly male voice, mid-60s, Eastern European accent, slow and indifferent."
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "wide shot",
+        "visual": "Under a glowing vintage station clock reading 11:58, rain pours onto an empty concrete platform where Yana, in her bright yellow raincoat and short silver hair, dashes toward the passenger car door.",
+        "motion": "Slow pull-back as Yana sprints along the slick wet platform toward the waiting train.",
+        "emotion": "Desperation",
+        "line": "",
+        "seconds": 5,
+        "onScreen": [
+          "Yana"
+        ],
+        "blocking": {
+          "subjects": [
+            {
+              "name": "Yana",
+              "position": "midground",
+              "side": "left",
+              "facing": "right"
+            }
+          ],
+          "movement": {
+            "who": "Yana",
+            "direction": "left to right",
+            "target": "the train carriage door",
+            "targetPosition": {
+              "position": "midground",
+              "side": "right"
+            },
+            "pace": "real-time"
+          },
+          "speaking": null
+        },
+        "continuity": {
+          "from": "start",
+          "screenDirection": "left to right"
+        }
+      },
+      {
+        "id": "s2",
+        "camera": "medium shot",
+        "visual": "Inside the dim, wood-paneled train vestibule, Vasyl stands firmly in the doorway with his arm raised across the frame, looking down with a stern, tired scowl at Yana standing drenched on the platform steps.",
+        "motion": "Slow push-in toward Vasyl as he bars the open doorway.",
+        "emotion": "Exhaustion and defiance",
+        "line": "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for\n  anyone.",
+        "seconds": 8.5,
+        "speaker": "Vasyl",
+        "onScreen": [
+          "Vasyl",
+          "Yana"
+        ],
+        "cuts": [
+          {
+            "camera": "medium shot",
+            "visual": "Inside the dim, wood-paneled train vestibule, Vasyl stands firmly in the doorway with his arm raised across the frame, looking down with a stern, tired scowl at Yana standing drenched on the platform steps.",
+            "onScreen": [
+              "Vasyl",
+              "Yana"
+            ],
+            "blocking": {
+              "subjects": [
+                {
+                  "name": "Vasyl",
+                  "position": "midground",
+                  "side": "center",
+                  "facing": "camera"
+                },
+                {
+                  "name": "Yana",
+                  "position": "foreground",
+                  "side": "right",
+                  "facing": "away"
+                }
+              ],
+              "movement": null,
+              "speaking": "Vasyl"
+            }
+          },
+          {
+            "camera": "medium close-up",
+            "visual": "Tighter on Vasyl's weathered face and bushy grey moustache under his peaked conductor cap, shaking his head wearily as he finishes speaking.",
+            "onScreen": [
+              "Vasyl"
+            ],
+            "blocking": {
+              "subjects": [
+                {
+                  "name": "Vasyl",
+                  "position": "midground",
+                  "side": "center",
+                  "facing": "camera"
+                }
+              ],
+              "movement": null,
+              "speaking": "Vasyl"
+            }
+          }
+        ],
+        "blocking": {
+          "subjects": [
+            {
+              "name": "Vasyl",
+              "position": "midground",
+              "side": "center",
+              "facing": "camera"
+            },
+            {
+              "name": "Yana",
+              "position": "foreground",
+              "side": "right",
+              "facing": "away"
+            }
+          ],
+          "movement": null,
+          "speaking": "Vasyl"
+        },
+        "continuity": {
+          "from": "Yana reached the carriage door at the end of s1; now she faces Vasyl who blocks the entrance.",
+          "screenDirection": "left to right"
+        }
+      },
+      {
+        "id": "s3",
+        "camera": "medium close-up",
+        "visual": "Framed past Vasyl's shoulder in the carriage doorway, Yana raises a creased, water-stained paper ticket with trembling fingers in the rain, looking up at him.",
+        "motion": "Slow push-in on Yana as she holds the ticket outward.",
+        "emotion": "Heartbreak and desperate hope",
+        "line": "I bought this one thirty-eight years ago. You promised you'd wait.",
+        "seconds": 6.5,
+        "speaker": "Yana",
+        "onScreen": [
+          "Yana",
+          "Vasyl"
+        ],
+        "cuts": [
+          {
+            "camera": "medium close-up",
+            "visual": "Framed past Vasyl's shoulder in the carriage doorway, Yana raises a creased, water-stained paper ticket with trembling fingers in the rain, looking up at him.",
+            "onScreen": [
+              "Yana",
+              "Vasyl"
+            ],
+            "blocking": {
+              "subjects": [
+                {
+                  "name": "Yana",
+                  "position": "midground",
+                  "side": "center",
+                  "facing": "camera"
+                },
+                {
+                  "name": "Vasyl",
+                  "position": "foreground",
+                  "side": "left",
+                  "facing": "away"
+                }
+              ],
+              "movement": null,
+              "speaking": "Yana"
+            }
+          },
+          {
+            "camera": "close-up",
+            "visual": "Vasyl's eyes widen in stunned silence, his jaw slackening beneath his grey moustache as he stares down at the ticket.",
+            "onScreen": [
+              "Vasyl"
+            ],
+            "blocking": {
+              "subjects": [
+                {
+                  "name": "Vasyl",
+                  "position": "midground",
+                  "side": "center",
+                  "facing": "camera"
+                }
+              ],
+              "movement": null,
+              "speaking": null
+            }
+          }
+        ],
+        "blocking": {
+          "subjects": [
+            {
+              "name": "Yana",
+              "position": "midground",
+              "side": "center",
+              "facing": "camera"
+            },
+            {
+              "name": "Vasyl",
+              "position": "foreground",
+              "side": "left",
+              "facing": "away"
+            }
+          ],
+          "movement": null,
+          "speaking": "Yana"
+        },
+        "continuity": {
+          "from": "Vasyl finished speaking in s2; Yana remains at the carriage entrance and confronts him directly with her old ticket.",
+          "screenDirection": "left to right"
+        }
+      }
+    ],
+    "quotedLines": [
+      "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for\n  anyone.",
+      "I bought this one thirty-eight years ago. You promised you'd wait."
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/app/runs/20261020-073411-a20fab/clip-s1-9a3e78da2e31f015.mp4",
+      "seconds": 5.088,
+      "hasAudio": false,
+      "audio": "silent",
+      "keyframeScore": 7,
+      "clipScore": 7,
+      "needsReview": false
+    },
+    "s2": {
+      "path": "/app/runs/20261020-073411-a20fab/clip-s2-cb2919479f4965ec.mp4",
+      "seconds": 9.088,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.96,
+      "speechEnd": 9.08,
+      "verbatim": {
+        "expected": "tickets for fifty dollars and this train left kyiv in nineteen eighty seven it doesn't stop for anyone",
+        "heard": "tickets for fifty dollars and this train left kyiv in nineteen eighty seven it doesn't stop for anyone",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 10,
+      "needsReview": false
+    },
+    "s3": {
+      "path": "/app/runs/20261020-073411-a20fab/clip-s3-162180ceb1032a83.mp4",
+      "seconds": 7.104,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 0.46,
+      "speechEnd": 4.26,
+      "verbatim": {
+        "expected": "i bought this one thirty eight years ago you promised you'd wait",
+        "heard": "i bought this one thirty eight years ago you promised you'd wait",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 7,
+      "clipScore": 10,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": false,
+      "reason": "shot s3: \"Vasyl\" is on screen but has no blocking.subjects entry; add { name, position, side, facing }; shot s3: screenDirection \"right to left\" reverses s2's \"left to right\" with no turn in continuity.from; keep \"left to right\" (the 180° rule), or say in continuity.from that the character turned; shot s2: 19 words need 8.1 s to speak (words / 2.6 + 0.8) but the shot has 7.5 s; shorten the line or lengthen the shot",
+      "costUsd": 0.04010625,
+      "ms": 168095
+    },
+    {
+      "stage": "script",
+      "n": 2,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.0259125,
+      "ms": 95900
+    },
+    {
+      "stage": "continuity",
+      "n": 2,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.00423225,
+      "ms": 91164
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 9679
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 11616
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 15382
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 7/10 >= 7; issues: clock face numerals garbled; model gemini-3.5-flash",
+      "costUsd": 0.00380925,
+      "ms": 8396,
+      "score": 7
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 19764
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0011511,
+      "ms": 7537,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 13350
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 7/10 >= 7; model gemini-3.5-flash",
+      "costUsd": 0.00400125,
+      "ms": 22162,
+      "score": 7
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate; reused cached clip",
+      "costUsd": 0,
+      "ms": 1076
+    },
+    {
+      "stage": "listen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "groq-whisper",
+      "ok": true,
+      "reason": "speech heard in a silent shot (\"Thank you for watching.\"); its audio replaced with silence",
+      "costUsd": 0.00030833333333333337,
+      "ms": 1433
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 7/10 >= 5; issues: Character's running motion appears unnatural with a treadmill-like sliding effect where legs move fast with minimal forward movement; reused cached verdict",
+      "costUsd": 0,
+      "ms": 136,
+      "score": 7
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "reason": "reused cached clip",
+      "costUsd": 0.00030833333333333337,
+      "ms": 2739
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0012969,
+      "ms": 8456,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "reason": "reused cached clip",
+      "costUsd": 0.00030833333333333337,
+      "ms": 3162
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; reused cached verdict",
+      "costUsd": 0,
+      "ms": 28,
+      "score": 10
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "3 shot(s): 5.00 s + 9.10 s + 6.50 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 122763
+    },
+    {
+      "stage": "subtitles",
+      "n": 1,
+      "provider": "groq-whisper+resvg+ffmpeg",
+      "ok": true,
+      "reason": "7 cue(s) of the verified line, timed by ASR words",
+      "costUsd": 0.0006354133333333333,
+      "ms": 49208
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.0006354133333333333,
+      "ms": 934
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate",
+      "costUsd": 0.45738,
+      "ms": 104180,
+      "carried": true
+    },
+    {
+      "stage": "listen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "groq-whisper",
+      "ok": true,
+      "reason": "speech heard in a silent shot (\"Thank you for watching.\"); its audio replaced with silence",
+      "costUsd": 0.00030833333333333337,
+      "ms": 480,
+      "carried": true
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 7/10 >= 5; issues: Character's running motion appears unnatural with a treadmill-like sliding effect where legs move fast with minimal forward movement; model gemini-3.5-flash",
+      "costUsd": 0.00615525,
+      "ms": 20251,
+      "score": 7,
+      "carried": true
+    },
+    {
+      "stage": "video",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.6391283333333334,
+      "ms": 187878,
+      "carried": true
+    },
+    {
+      "stage": "judge",
+      "shotId": "s3",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; model gemini-3.5-flash",
+      "costUsd": 0.004623,
+      "ms": 7626,
+      "score": 10,
+      "carried": true
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": false,
+      "reason": "sub \"four\" heard as \"for\", ins \"dollars\" (extra)",
+      "costUsd": 0.8205683333333333,
+      "ms": 198497,
+      "carried": true
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 2,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": false,
+      "reason": "sub \"four\" heard as \"for\", ins \"dollars\" (extra)",
+      "costUsd": 0.8205683333333333,
+      "ms": 194782,
+      "carried": true
+    },
+    {
+      "stage": "voice",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-tts+groq-whisper",
+      "ok": true,
+      "costUsd": 0.00271183334912,
+      "ms": 6217,
+      "carried": true
+    }
+  ],
+  "costUsd": 2.924149,
+  "final": {
+    "path": "/app/runs/20261020-073411-a20fab/final.mp4",
+    "seconds": 20.608,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "tickets for fifty dollars and this train left kyiv in nineteen eighty seven it doesn't stop for anyone i bought this one thirty eight years ago you promised you'd wait",
+    "heard": "tickets for fifty dollars and this train left kyiv in nineteen eighty seven it doesn't stop for anyone i bought this one thirty eight years ago you promised you'd wait",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for anyone. I bought this one thirty-eight years ago. You promised you'd wait.",
+    "heard": "Tickets for $50 and this train left Kiev in 1987. It doesn't stop for anyone. I bought this one 38 years ago. You promised you'd wait."
+  },
+  "subtitles": {
+    "file": "/app/runs/20261020-073411-a20fab/subtitled-afacc081fab0baa9.mp4",
+    "cues": [
+      {
+        "start": 6,
+        "end": 7.06,
+        "text": "Ticket's $4.50,"
+      },
+      {
+        "start": 7.06,
+        "end": 9.1,
+        "text": "and this train left"
+      },
+      {
+        "start": 9.1,
+        "end": 11.43,
+        "text": "Kyiv in 1987 —"
+      },
+      {
+        "start": 12.04,
+        "end": 13.63,
+        "text": "it doesn't stop for anyone."
+      },
+      {
+        "start": 14.56,
+        "end": 15.42,
+        "text": "I bought this one"
+      },
+      {
+        "start": 15.42,
+        "end": 16.1,
+        "text": "thirty-eight years ago."
+      },
+      {
+        "start": 16.1,
+        "end": 18.51,
+        "text": "You promised you'd wait."
+      }
+    ],
+    "timing": "asr"
+  },
+  "ok": true,
+  "status": "done",
+  "startedAt": "2026-10-20T07:56:01.318Z",
+  "endedAt": "2026-10-20T07:59:08.244Z",
+  "redos": [
+    {
+      "at": "2026-10-20T07:56:01.318Z",
+      "from": "shot",
+      "costUsd": 0.003493
+    }
+  ]
+}
