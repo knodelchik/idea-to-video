@@ -8,7 +8,7 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { muxArgs, trimArgs } from "../media/args.ts";
+import { MAX_TEMPO, muxArgs, trimArgs } from "../media/args.ts";
 import { probe, run } from "../media/ffmpeg.ts";
 import {
   PolicyRejectedError,
@@ -221,6 +221,15 @@ interface Clip {
   hasAudio: boolean;
   costUsd: number;
   cached: boolean;
+}
+
+/** Silence kept after a voice-over's last word before the clip ends. */
+const VOICEOVER_TAIL = 0.15;
+
+/** Speed-up a voice-over needs so its words end VOICEOVER_TAIL before the clip does; 1 when it already fits. */
+export function voiceTempo(speechEnd: number, clipSeconds: number): number {
+  const room = clipSeconds - VOICEOVER_TAIL;
+  return speechEnd > room ? speechEnd / room : 1;
 }
 
 /** Silence kept after the last word when a clip is trimmed for lip-sync, so the line doesn't end on a hard cut. */
@@ -530,16 +539,19 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     const clip = best!.clip;
     const t1 = performance.now();
     const step = { stage: "voiceover", n: 1, provider: `ffmpeg+${asr.name}` };
-    if (voice.speechEnd > clip.seconds) {
+    // A voice a little past the clip is sped up (pitch kept) rather than failing the shot: live 2026-10-20 a 10.4 s
+    // voice met a 9.1 s clip after $2.9 of video. The gate below still listens to the sped-up words.
+    const tempo = voiceTempo(voice.speechEnd, clip.seconds);
+    if (tempo > MAX_TEMPO) {
       return fail(
         { ...step, costUsd: 0, ms: ms(t1) },
-        `voice speech ends at ${fmt(voice.speechEnd)} s, after the ${fmt(clip.seconds)} s clip`,
+        `voice speech ends at ${fmt(voice.speechEnd)} s, after the ${fmt(clip.seconds)} s clip (needs ${tempo.toFixed(2)}× speed, max ${MAX_TEMPO}×)`,
         `the verified voice (${fmt(voice.speechEnd)} s of speech) is longer than the ${fmt(clip.seconds)} s clip; lengthen the shot or shorten the line`,
       );
     }
-    const key = await contentKey("voiceover", { file: clip.path }, { file: voice.path });
+    const key = await contentKey("voiceover", { file: clip.path }, { file: voice.path }, ...(tempo > 1 ? [`tempo:${tempo.toFixed(3)}`] : []));
     const laid = await once(join(dir, `voiceover-${shotId}-${key}.mp4`), (tmp) =>
-      run(muxArgs({ video: clip.path, audio: voice.path, out: tmp, seconds: clip.seconds })),
+      run(muxArgs({ video: clip.path, audio: voice.path, out: tmp, seconds: clip.seconds, tempo })),
     );
     // Real ASR hears the muxed audio; the mock follows this link to the voice's transcript.
     await linkSource(laid.path, voice.path);
@@ -551,6 +563,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       return fail({ ...step, costUsd: 0, ms: ms(t1) }, reason, reason, e);
     }
     const why = [
+      ...(tempo > 1 ? [`voice sped up ${tempo.toFixed(2)}× to fit the ${fmt(clip.seconds)} s clip`] : []),
       ...(heard.pass ? (laid.cached ? ["reused cached voice-over"] : []) : [describeOps(heard.ops) || "no speech heard"]),
       ...describeIgnored(heard),
     ];

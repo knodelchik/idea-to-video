@@ -15,11 +15,12 @@ import {
   talkingPrompt,
   talkingShot,
   textToVideoPrompt,
+  voiceTempo,
 } from "../src/nodes/visuals.ts";
 import { VISUALS_PROMPT_VERSION } from "../src/prompts/visuals.ts";
 import { clipRubric, keyframeRubric } from "../src/prompts/judge.ts";
 import { VerbatimError } from "../src/nodes/gate.ts";
-import { muxArgs, trimArgs } from "../src/media/args.ts";
+import { MAX_TEMPO, muxArgs, trimArgs } from "../src/media/args.ts";
 import { probe, run } from "../src/media/ffmpeg.ts";
 import {
   BytePlusSeedance,
@@ -1497,6 +1498,14 @@ describe("wide shots (F12)", () => {
     expect(shot.via).toBe("lipsync");
     expect(shot.attempts.map((a) => a.stage)).not.toContain("voiceover");
   }, 60_000);
+
+  it("a voice-over a little past the clip is sped up, never more than MAX_TEMPO (live 2026-10-20: 10.42 s on 9.09 s)", () => {
+    expect(voiceTempo(6, 9)).toBe(1);
+    const t = voiceTempo(10.42, 9.09);
+    expect(t).toBeGreaterThan(1.14);
+    expect(t).toBeLessThanOrEqual(MAX_TEMPO);
+    expect(voiceTempo(12, 9)).toBeGreaterThan(MAX_TEMPO);
+  });
 
   it("a voice-over the gate mis-hears fails loudly, never passes", async () => {
     const dir = fresh();

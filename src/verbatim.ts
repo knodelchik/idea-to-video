@@ -90,7 +90,9 @@ function moneyReadings(sym: string, whole: string, frac: string | undefined): st
   if (c === 0) return [units];
   const sub = `${cw} ${c === 1 ? subOne : subMany}`;
   if (n === 0) return [sub];
-  return [`${units} ${sub}`, `${units} and ${sub}`, c < 10 ? `${w} oh ${cw}` : `${w} ${cw}`];
+  const short = c < 10 ? `${w} oh ${cw}` : `${w} ${cw}`;
+  // "four dollars fifty", "four fifty dollars": both said in speech (live 2026-10-20: Seedance said the second).
+  return [`${units} ${sub}`, `${units} and ${sub}`, short, `${units} ${cw}`, `${short} ${many}`];
 }
 
 /** "3:15" → three fifteen; "10:05" → ten oh five; "7:00" → seven o'clock | seven. */
@@ -109,7 +111,7 @@ function timeReadings(h: string, mm: string): string[] | undefined {
 function markAlternatives(s: string, alts: string[][]): string {
   const mark = (readings: string[] | undefined, original: string): string => {
     if (!readings) return original;
-    alts.push([...new Set(readings)]);
+    alts.push([...new Set(readings.flatMap((r) => [r, soundAlike(r)]))]);
     return ` ${String.fromCharCode(PUA + alts.length - 1)} `;
   };
   return (
@@ -129,6 +131,13 @@ function markAlternatives(s: string, alts: string[][]): string {
       })
   );
 }
+
+/**
+ * Inside a span written in digits, a number word may come back as its same-sound word: Whisper wrote "for fifty
+ * dollars" for "$4.50" (live 2026-10-20). Only there: in plain words "four" and "for" stay different.
+ */
+const NUMBER_SOUNDS: Record<string, string> = { four: "for", two: "to", eight: "ate" };
+const soundAlike = (r: string): string => r.replace(/\b(four|two|eight)\b/g, (w) => NUMBER_SOUNDS[w]!);
 
 /** First private-use code point used for span placeholders. */
 const PUA = 0xe000;

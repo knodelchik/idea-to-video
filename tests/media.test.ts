@@ -55,6 +55,13 @@ describe("arg builders (acceptance 4)", () => {
     expect(() => muxArgs({ video: "v", audio: "a", out: "o", seconds: 3, offset: -1 })).toThrow(RangeError);
   });
 
+  it("muxArgs: tempo speeds the audio up before the delay, within 1–1.2", () => {
+    const f = after(muxArgs({ video: "v", audio: "a", out: "o", seconds: 9, tempo: 1.15 }), "-filter_complex");
+    expect(f).toBe("[1:a:0]atempo=1.150,adelay=0:all=1,apad,atrim=0:9[a]");
+    expect(() => muxArgs({ video: "v", audio: "a", out: "o", seconds: 9, tempo: 1.3 })).toThrow(RangeError);
+    expect(() => muxArgs({ video: "v", audio: "a", out: "o", seconds: 9, tempo: 0.9 })).toThrow(RangeError);
+  });
+
   it("concatArgs: concat filter over all inputs, with or without audio", () => {
     const a = concatArgs({ inputs: ["a.mp4", "b.mp4"], out: "o.mp4", audio: true });
     expect(a.filter((x, i) => a[i - 1] === "-i")).toEqual(["a.mp4", "b.mp4"]);

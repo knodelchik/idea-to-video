@@ -97,14 +97,21 @@ export interface MuxOpts {
   seconds: number;
   /** Delay before the audio starts, seconds (>= 0). */
   offset?: number;
+  /** Speed the audio up by this factor, 1–1.25 (pitch kept); fits a voice that runs a little past the clip. */
+  tempo?: number;
 }
 
+/** Fastest a verified voice may be sped up to fit its clip; beyond it the line sounds rushed. */
+export const MAX_TEMPO = 1.2;
+
 /** Video stream copied untouched; audio delayed by `offset`, padded/cut to the video length. */
-export function muxArgs({ video, audio, out, seconds, offset = 0 }: MuxOpts): string[] {
+export function muxArgs({ video, audio, out, seconds, offset = 0, tempo = 1 }: MuxOpts): string[] {
   assertSeconds(seconds);
   if (!Number.isFinite(offset) || offset < 0) throw new RangeError(`offset must be >= 0, got ${offset}`);
+  if (!(tempo >= 1 && tempo <= MAX_TEMPO)) throw new RangeError(`tempo must be 1–${MAX_TEMPO}, got ${tempo}`);
   const ms = Math.round(offset * 1000);
-  const af = `[1:a:0]adelay=${ms}:all=1,apad,atrim=0:${sec(seconds)}[a]`;
+  const speed = tempo === 1 ? "" : `atempo=${tempo.toFixed(3)},`;
+  const af = `[1:a:0]${speed}adelay=${ms}:all=1,apad,atrim=0:${sec(seconds)}[a]`;
   return [
     "-i", video, "-i", audio,
     "-filter_complex", af,

@@ -213,6 +213,11 @@ describe("compareLine: the gate's view of a script line (F10 acceptance 1)", () 
     ["$4.50", "four fifty"],
     ["$4.50", "four dollars and fifty cents"],
     ["$4.50", "four dollars fifty cents"],
+    ["$4.50", "four dollars fifty"],
+    ["$4.50", "four fifty dollars"],
+    // Live 2026-10-20: Whisper wrote the digits' "four" as "for".
+    ["$4.50", "for fifty dollars"],
+    ["$2", "to dollars"],
     ["$4.50", "$4.50"],
     ["It's $20", "it's twenty dollars"],
     ["Zoë", "Zoe"],
@@ -250,6 +255,8 @@ describe("compareLine: the gate's view of a script line (F10 acceptance 1)", () 
     ["1987", "nineteen eighty-eight"],
     ["$4.50", "four dollars"],
     ["$4.50", "four"],
+    // Same-sound number words count only inside a digit span; in plain words "four" and "for" differ.
+    ["four apples", "for apples"],
     ["Zoë", "Zoey"],
     ["the FBI", "the CIA"],
     ["The F.B.I. I trust.", "The FBI trust."],
@@ -406,9 +413,13 @@ describe("same-sound spellings (live 2026-10-19: a correct take failed on Kiev a
     expect(compareWords("It's grey in Odesa.", "Its gray in Odessa.").pass).toBe(true);
     expect(compareWords("Okay, Kharkiv.", "OK, Kharkov.").pass).toBe(true);
   });
+  it("a number written in digits may come back as its same-sound word (live 2026-10-20: a $2.9 run failed on it)", () => {
+    expect(compareWords("Ticket's $4.50.", "Tickets for 50 dollars.").pass).toBe(true);
+    expect(compareWords("Ticket's $4.50.", "Tickets for 60 dollars.").pass).toBe(false);
+  });
   it("different words that only sound close still fail", () => {
     expect(compareWords("We'll go.", "Well go.").pass).toBe(false);
-    expect(compareWords("Ticket's $4.50.", "Tickets for 50 dollars.").pass).toBe(false);
+    expect(compareWords("Ticket's four fifty.", "Tickets for fifty.").pass).toBe(false);
     expect(compareWords("Kyiv, 1987.", "Kiev, 1988.").pass).toBe(false);
   });
 });
