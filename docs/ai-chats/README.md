@@ -11,4 +11,4 @@ small script. Thinking is left out and long tool output is cut. The task prompt 
    after 3 attempts. A human note went into the spec. On the re-run the reviewer caught a silent clip that would
    have wasted a paid generation.
 
-The whole build took 26 headless sessions, which would cost about $35 at API prices (summed `total_cost_usd` from the logs).
+By F11 the build had taken 26 headless sessions, about $35 at API prices (summed `total_cost_usd` from the logs). The full list of harness runs is in `harness/runs.md`.

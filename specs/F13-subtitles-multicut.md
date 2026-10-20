@@ -100,7 +100,7 @@ one 5–12 s take per shot with no subtitles, so it feels slow next to theirs. T
   letter you sent me.`. The merge is applied only if every resulting piece has ≥ 2 words and fits. Rejected: letting
   a merged cue grow to 7 words, which breaks the 6-word cap.
 - **Rendering.** The ffmpeg build has no `drawtext`/`libass`, so each cue is a transparent 1080×1920 PNG made with
-  `@resvg/resvg-js` (dependency added in commit 048e87c "deps: @resvg/resvg-js for subtitle cards"; system fonts,
+  `@resvg/resvg-js` (dependency added in commit 9d6017d "deps: @resvg/resvg-js for subtitle cards"; system fonts,
   bold white, ~6 px black stroke, soft shadow, baseline at 72 %). The PNGs are overlaid with
   `overlay=0:0:enable='gte(t,a)*lt(t,b)'`, and the audio is copied untouched, so the final gate hears exactly what was
   verified. Cards and the burned file are content-addressed (`CARD_VERSION`). Rejected: a libass/drawtext build of

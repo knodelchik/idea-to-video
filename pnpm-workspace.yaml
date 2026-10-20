@@ -3,11 +3,3 @@ allowBuilds:
   esbuild: true
   "@google/genai": false
   protobufjs: false
-# F17: the spec pins Langfuse SDK 6.0.1, published 2026-10-19 07:12 UTC (< pnpm's release-age window).
-# Exact name@version only, so the guard stays on for everything else. Delete after 2026-10-20 07:13 UTC.
-# Rationale: specs/F17-langfuse-best-practices.md → Decisions → "Supply-chain guard".
-minimumReleaseAgeExclude:
-  - '@langfuse/client@6.0.1'
-  - '@langfuse/core@6.0.1'
-  - '@langfuse/otel@6.0.1'
-  - '@langfuse/tracing@6.0.1'

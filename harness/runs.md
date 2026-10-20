@@ -7,7 +7,7 @@
 2026-10-16 15:52:46 F01-contracts attempt 2: implementer
 2026-10-16 15:55:43 F01-contracts attempt 2: gate
 2026-10-16 15:55:44 F01-contracts attempt 2: reviewer
-2026-10-16 15:59:27 F01-contracts PASSED on attempt 2 -> 15856fa
+2026-10-16 15:59:27 F01-contracts PASSED on attempt 2 -> 89eda6d
 2026-10-16 15:59:27 all requested features passing
 2026-10-16 16:04:34 ### F02-mocks-media start (specs/F02-mocks-media.md)
 2026-10-16 16:04:34 F02-mocks-media attempt 1: implementer
@@ -98,7 +98,7 @@
 2026-10-19 01:00:55 F10-hard-lines attempt 3: implementer
 2026-10-19 01:06:25 F10-hard-lines attempt 3: gate
 2026-10-19 01:07:40 F10-hard-lines attempt 3: reviewer
-2026-10-19 01:12:46 F10-hard-lines PASSED on attempt 3 -> 8aa77b0
+2026-10-19 01:12:46 F10-hard-lines PASSED on attempt 3 -> 5d39a84
 2026-10-19 01:12:46 ### F11-dialogue-seedance start (specs/F11-dialogue-seedance-playbook.md)
 2026-10-19 01:12:46 F11-dialogue-seedance attempt 1: implementer
 2026-10-19 01:28:58 F11-dialogue-seedance attempt 1: gate
@@ -116,13 +116,13 @@
 2026-10-19 01:45:06 F11-dialogue-seedance attempt 3: implementer
 2026-10-19 01:50:20 F11-dialogue-seedance attempt 3: gate
 2026-10-19 01:51:16 F11-dialogue-seedance attempt 3: reviewer
-2026-10-19 01:55:35 F11-dialogue-seedance PASSED on attempt 3 -> 8bbf8e7
+2026-10-19 01:55:35 F11-dialogue-seedance PASSED on attempt 3 -> 509b60d
 2026-10-19 01:55:35 all requested features passing
 2026-10-19 11:02:24 ### F12-shot-sizes-storyboard start (specs/F12-shot-sizes-storyboard.md)
 2026-10-19 11:02:24 F12-shot-sizes-storyboard attempt 1: implementer
 2026-10-19 11:19:37 F12-shot-sizes-storyboard attempt 1: gate
 2026-10-19 11:21:27 F12-shot-sizes-storyboard attempt 1: reviewer
-2026-10-19 11:24:55 F12-shot-sizes-storyboard PASSED on attempt 1 -> d5aa2cd
+2026-10-19 11:24:55 F12-shot-sizes-storyboard PASSED on attempt 1 -> 33db25e
 2026-10-19 11:24:55 all requested features passing
 2026-10-19 11:54:07 ### F13-subtitles-multicut start (specs/F13-subtitles-multicut.md)
 2026-10-19 11:54:07 F13-subtitles-multicut attempt 1: implementer
@@ -151,25 +151,25 @@
 2026-10-19 12:57:47 F13-subtitles-multicut attempt 2: implementer
 2026-10-19 13:02:34 F13-subtitles-multicut attempt 2: gate
 2026-10-19 13:03:45 F13-subtitles-multicut attempt 2: reviewer
-2026-10-19 13:08:27 F13-subtitles-multicut PASSED on attempt 2 -> 71ab359
+2026-10-19 13:08:27 F13-subtitles-multicut PASSED on attempt 2 -> 1c57d55
 2026-10-19 13:08:27 all requested features passing
 2026-10-19 14:01:34 ### F14-judge-sees-video start (specs/F14-judge-sees-video.md)
 2026-10-19 14:01:34 F14-judge-sees-video attempt 1: implementer
 2026-10-19 14:08:39 F14-judge-sees-video attempt 1: gate
 2026-10-19 14:10:01 F14-judge-sees-video attempt 1: reviewer
-2026-10-19 14:14:05 F14-judge-sees-video PASSED on attempt 1 -> d7e01ad
+2026-10-19 14:14:05 F14-judge-sees-video PASSED on attempt 1 -> 75c70b1
 2026-10-19 14:14:05 all requested features passing
 2026-10-19 14:14:06 ### F16-observability start (specs/F16-observability.md)
 2026-10-19 14:14:06 F16-observability attempt 1: implementer
 2026-10-19 14:38:27 F16-observability attempt 1: gate
 2026-10-19 14:39:23 F16-observability attempt 1: reviewer
-2026-10-19 14:44:11 F16-observability PASSED on attempt 1 -> d40cf4d
+2026-10-19 14:44:11 F16-observability PASSED on attempt 1 -> 3383329
 2026-10-19 14:44:11 all requested features passing
 2026-10-19 14:44:12 ### F15-web-demo start (specs/F15-web-demo.md)
 2026-10-19 14:44:12 F15-web-demo attempt 1: implementer
 2026-10-19 14:58:36 F15-web-demo attempt 1: gate
 2026-10-19 14:59:37 F15-web-demo attempt 1: reviewer
-2026-10-19 15:04:02 F15-web-demo PASSED on attempt 1 -> 3a7611d
+2026-10-19 15:04:02 F15-web-demo PASSED on attempt 1 -> 5fade8b
 2026-10-19 15:04:02 all requested features passing
 2026-10-19 15:04:23 ### F17-langfuse-best-practices start (specs/F17-langfuse-best-practices.md)
 2026-10-19 15:04:23 F17-langfuse-best-practices attempt 1: implementer
@@ -187,7 +187,7 @@
 2026-10-19 15:41:19 F17-langfuse-best-practices attempt 3: implementer
 2026-10-19 15:44:41 F17-langfuse-best-practices attempt 3: gate
 2026-10-19 15:45:31 F17-langfuse-best-practices attempt 3: reviewer
-2026-10-19 15:49:15 F17-langfuse-best-practices PASSED on attempt 3 -> 41c86fb
+2026-10-19 15:49:15 F17-langfuse-best-practices PASSED on attempt 3 -> ada8877
 2026-10-19 15:49:15 all requested features passing
 2026-10-19 16:04:18 ### F18-blocking-continuity start (specs/F18-blocking-continuity.md)
 2026-10-19 16:04:18 F18-blocking-continuity attempt 1: implementer
@@ -204,13 +204,13 @@
 2026-10-19 16:38:26 F18-blocking-continuity attempt 3: implementer
 2026-10-19 16:44:44 F18-blocking-continuity attempt 3: gate
 2026-10-19 16:46:01 F18-blocking-continuity attempt 3: reviewer
-2026-10-19 16:50:35 F18-blocking-continuity PASSED on attempt 3 -> 69dfac2
+2026-10-19 16:50:35 F18-blocking-continuity PASSED on attempt 3 -> f5c29fb
 2026-10-19 16:50:35 all requested features passing
 2026-10-19 16:50:35 ### F19-demo-fixes start (specs/F19-demo-fixes.md)
 2026-10-19 16:50:35 F19-demo-fixes attempt 1: implementer
 2026-10-19 17:02:53 F19-demo-fixes attempt 1: gate
 2026-10-19 17:04:11 F19-demo-fixes attempt 1: reviewer
-2026-10-19 17:10:24 F19-demo-fixes PASSED on attempt 1 -> 6be1743
+2026-10-19 17:10:24 F19-demo-fixes PASSED on attempt 1 -> 31c1838
 2026-10-19 17:10:24 all requested features passing
 2026-10-20 11:09:03 ### F20-failure-you-can-act-on start (specs/F20-failure-you-can-act-on.md)
 2026-10-20 11:09:03 F20-failure-you-can-act-on attempt 1: implementer
@@ -221,5 +221,5 @@
 2026-10-20 11:38:13 F20-failure-you-can-act-on attempt 2: implementer
 2026-10-20 11:42:34 F20-failure-you-can-act-on attempt 2: gate
 2026-10-20 11:43:51 F20-failure-you-can-act-on attempt 2: reviewer
-2026-10-20 11:50:19 F20-failure-you-can-act-on PASSED on attempt 2 -> 5330ceb
+2026-10-20 11:50:19 F20-failure-you-can-act-on PASSED on attempt 2 -> 2bdfc08
 2026-10-20 11:50:19 all requested features passing
