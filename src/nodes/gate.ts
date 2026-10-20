@@ -4,7 +4,7 @@
  */
 import type { AsrProvider } from "../providers/index.ts";
 import type { Attempt, SpeechWindow, Transcript, TranscriptWord, VerbatimOp, VerbatimResult } from "../schemas.ts";
-import { compareWords, hasLaughTag, splitDelivery } from "../verbatim.ts";
+import { compareWords, GATE_VERSION, hasLaughTag, splitDelivery } from "../verbatim.ts";
 
 export type ListenResult = VerbatimResult &
   SpeechWindow & {
@@ -61,6 +61,15 @@ export function describeOps(ops: VerbatimOp[]): string {
 /** Only the VerbatimResult fields (drops transcript/window/cost), so it parses against the contract. */
 export function verbatimOf(r: VerbatimResult): VerbatimResult {
   return { expected: r.expected, heard: r.heard, wer: r.wer, ops: r.ops, pass: r.pass, ...(r.ignored ? { ignored: r.ignored } : {}) };
+}
+
+/**
+ * What a gate attempt records about the check itself (F20): the rules' version, and on a miss what ASR heard. The
+ * failure page diffs that text against the line, and a continue can tell a take the current rules already refused
+ * (make new takes) from one an older version refused (re-gate it for $0).
+ */
+export function gated(heard: { pass: boolean; transcript: { text: string } }): Pick<Attempt, "gateVersion" | "heard"> {
+  return { gateVersion: GATE_VERSION, ...(heard.pass ? {} : { heard: heard.transcript.text.slice(0, 500) }) };
 }
 
 /** ["ignored non-speech: (laughs), ha"] for an attempt reason, or []. Leniency is never silent (hard rule 6). */

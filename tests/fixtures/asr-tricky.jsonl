@@ -1,0 +1,60 @@
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's $4.50 a cup.", "heard": "It's four fifty a cup.", "verdict": "pass", "why": "money: \"$4.50\" is said \"four fifty\""}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's $4.50 a cup.", "heard": "It's four dollars and fifty cents a cup.", "verdict": "pass", "why": "money: the long spoken form of $4.50"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "That's €20, please.", "heard": "That's 20 euros, please.", "verdict": "pass", "why": "money: euros written as digits plus the word"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Only £3.99 today.", "heard": "Only three pounds ninety-nine today.", "verdict": "pass", "why": "money: pounds and pence said without \"pence\""}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It costs five dollars.", "heard": "It costs $5.", "verdict": "pass", "why": "money: words in the line, symbol in the transcript"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "She left in 1987.", "heard": "She left in nineteen eighty-seven.", "verdict": "pass", "why": "years: a year said in two halves"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Born in 2005, raised right here.", "heard": "Born in two thousand five, raised right here.", "verdict": "pass", "why": "years: 2005 said \"two thousand five\""}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Born in 2005, raised right here.", "heard": "Born in twenty oh five, raised right here.", "verdict": "pass", "why": "years: 2005 said \"twenty oh five\""}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The train left at 3:15 a.m.", "heard": "The train left at 3.15am.", "verdict": "pass", "why": "times: Whisper writes a dot and glues am to the digits"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Meet me at 3:15 a.m. sharp.", "heard": "Meet me at 3:15 AM sharp.", "verdict": "pass", "why": "times: a.m. vs AM"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Wake me at 7:00.", "heard": "Wake me at seven o'clock.", "verdict": "pass", "why": "times: a full hour said with o'clock"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "We're 50% sure.", "heard": "We're fifty percent sure.", "verdict": "pass", "why": "percentages: the sign is the word percent"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Sales are down 12% this year.", "heard": "Sales are down 12 percent this year.", "verdict": "pass", "why": "percentages: digits plus the word"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's her 21st birthday.", "heard": "It's her twenty-first birthday.", "verdict": "pass", "why": "ordinals: 21st said as a word"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "First place on the 2nd try.", "heard": "1st place on the second try.", "verdict": "pass", "why": "ordinals: digits and words swapped both ways"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "We're open 24/7.", "heard": "We're open twenty-four seven.", "verdict": "pass", "why": "24/7 is said twenty-four seven"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The train left Kyiv at dawn.", "heard": "The train left Kiev at dawn.", "verdict": "pass", "why": "city transliterations: Kyiv/Kiev sound the same"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Take me back to Odesa.", "heard": "Take me back to Odessa.", "verdict": "pass", "why": "city transliterations: Odesa/Odessa"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "From Kharkiv, with love.", "heard": "From Kharkov with love.", "verdict": "pass", "why": "city transliterations: Kharkiv/Kharkov"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The grey colour of the sea.", "heard": "The gray color of the sea.", "verdict": "pass", "why": "US/UK spelling: grey/gray, colour/color"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "My favourite theatre is gone.", "heard": "My favorite theater is gone.", "verdict": "pass", "why": "US/UK spelling: favourite, theatre"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Ticket's in my pocket.", "heard": "Tickets in my pocket.", "verdict": "pass", "why": "'s vs s: an apostrophe can't be heard"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The dog's bowl is empty.", "heard": "The dogs bowl is empty.", "verdict": "pass", "why": "'s vs s: possessive heard as plural"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I bought it thirty-eight years ago.", "heard": "I bought it 38 years ago.", "verdict": "pass", "why": "number words vs digits: thirty-eight/38"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Forty-one days at sea.", "heard": "41 days at sea.", "verdict": "pass", "why": "number words vs digits at the start of a line"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Ticket's $4.50, and that's that.", "heard": "Tickets for $50 and that's that.", "verdict": "pass", "why": "same-sound number words inside a digit span: four heard as for"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Ticket's $4.50, and that's that.", "heard": "Tickets for fifty, and that's that.", "verdict": "pass", "why": "same-sound number words inside a digit span, short form"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "He's a well-known face here.", "heard": "He's a well known face here.", "verdict": "pass", "why": "hyphenation: a hyphen is not a word"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "My mother-in-law called.", "heard": "My mother in law called.", "verdict": "pass", "why": "hyphenation in a compound noun"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Okay, let's go.", "heard": "OK, let's go.", "verdict": "pass", "why": "okay/OK"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's okay now.", "heard": "It's O.K. now.", "verdict": "pass", "why": "okay/O.K. with dots"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's alright now.", "heard": "It's all right now.", "verdict": "pass", "why": "alright/all right"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Mr. Hale is late again.", "heard": "Mister Hale is late again.", "verdict": "pass", "why": "Mr./Mister"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Dr. Lee will see you now.", "heard": "Doctor Lee will see you now.", "verdict": "pass", "why": "Dr./Doctor"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I came back — for you.", "heard": "I came back for you.", "verdict": "pass", "why": "em-dash punctuation is not spoken"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Wait… don't go.", "heard": "Wait... Don't go.", "verdict": "pass", "why": "ellipsis character vs three dots, capital after it"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I said — no — never.", "heard": "I said, no, never.", "verdict": "pass", "why": "em-dashes heard as commas"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Mom, are you sick?", "heard": "mom are you sick", "verdict": "pass", "why": "case and punctuation never count"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "We'll be fine.", "heard": "Well be fine.", "verdict": "fail", "why": "contractions: we'll and well are different words"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I can't stay here.", "heard": "I can stay here.", "verdict": "fail", "why": "contractions: can't vs can flips the meaning"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I won't go back.", "heard": "I want go back.", "verdict": "fail", "why": "contractions: won't misheard as want"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I kept the watch.", "heard": "I kept watch.", "verdict": "fail", "why": "a dropped real word"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Open it after I leave.", "heard": "Open it right after I leave.", "verdict": "fail", "why": "an added real word"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Meet me where it started.", "heard": "Meet me where it all started.", "verdict": "fail", "why": "an added real word in the middle"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I waited four hours.", "heard": "I waited for hours.", "verdict": "fail", "why": "same-sound number words only inside digit spans: in words, four is not for"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Give me two.", "heard": "Give me too.", "verdict": "fail", "why": "same-sound outside digit spans: two is not too"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I ate already.", "heard": "I eight already.", "verdict": "fail", "why": "same-sound outside digit spans: ate is not eight"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's $4.50 a cup.", "heard": "It's $4.15 a cup.", "verdict": "fail", "why": "money: a different price"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "That's €20, please.", "heard": "That's 20 dollars, please.", "verdict": "fail", "why": "money: a different currency"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "She left in 1987.", "heard": "She left in 1978.", "verdict": "fail", "why": "years: digits swapped"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The train left at 3:15 a.m.", "heard": "The train left at 3:50 a.m.", "verdict": "fail", "why": "times: fifteen vs fifty"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "We're 50% sure.", "heard": "We're 15% sure.", "verdict": "fail", "why": "percentages: fifty vs fifteen"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "It's her 21st birthday.", "heard": "It's her 20th birthday.", "verdict": "fail", "why": "ordinals: a different number"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "We're open 24/7.", "heard": "We're open 24 hours.", "verdict": "fail", "why": "24/7 is not \"24 hours\""}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I bought it thirty-eight years ago.", "heard": "I bought it 28 years ago.", "verdict": "fail", "why": "number words vs digits: a different number"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "Mr. Hale is late again.", "heard": "Mrs. Hale is late again.", "verdict": "fail", "why": "Mr. vs Mrs. are different words"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The train left Kyiv at dawn.", "heard": "The train left Kherson at dawn.", "verdict": "fail", "why": "city: a different city is never a transliteration"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "The colour faded.", "heard": "The collar faded.", "verdict": "fail", "why": "US/UK spelling only: colour is not collar"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "He's a well-known face here.", "heard": "He's a well-known face there.", "verdict": "fail", "why": "hyphenation does not hide a changed word next to it"}
+{"source": "hand-written (F20)", "kind": "line", "expected": "I came back — for you.", "heard": "I came back for you all.", "verdict": "fail", "why": "em-dash punctuation does not hide an added word"}

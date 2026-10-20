@@ -414,3 +414,27 @@ Append-only log, one entry per feature, written by the implementer agent and com
   carried attempt says what the artifact cost.
 - Tests: `tests/graph.test.ts` "F19-*" (status lifecycle, SIGTERM on a real CLI child, $1.20 redo with `PaidVideo`);
   `tests/web.test.ts` "F19: …" (labels, call events with a half-written line, elapsed time with an injected `now`).
+
+## F20 — A failure you can act on, and gate regressions caught for $0
+- `src/web/explain.ts` `explainFailure(manifest)` turns a failed run into `{ kind, title, what, why, next, step,
+  shotId, expected, heard, diff, freshTakes, estimateUsd, bestTake, finished }`. Kinds: verbatim, voiceTooLong,
+  refused, budget, provider, judge, interrupted, unknown. It is pure and reads only the attempts and `error`.
+  `GET /api/runs/:id` adds it as `failure` (with playable `bestTakeUrl` / `finished[].url`) for failed and
+  interrupted runs.
+- The page shows a failure panel instead of the bare red error: the plain words, the expected/heard diff, the
+  not-shipped take, the finished shots, and a **Continue** button with its estimate. The button calls
+  `POST /api/runs/:id/continue`, which uses the same lock as a new run. It spawns
+  `cli.ts --resume <id> --redo <step> [--fresh-takes] --json` (plain `--resume` when interrupted) and streams like a run.
+- Gate attempts now record `gateVersion` (`GATE_VERSION` in `src/verbatim.ts`: **bump it when matching rules
+  change**) and, on a miss, `heard`; video attempts record `path`. A miss judged by the current version gets
+  `--fresh-takes`: the failing shots make new native takes numbered after the old ones, and passed shots are reused
+  for $0. An older miss is re-gated on the saved takes (~$0.01).
+- `tests/asr-corpus.test.ts` checks the gate against `tests/fixtures/asr-live.jsonl` (real Whisper output plus mined
+  rows) and `asr-tricky.jsonl` (38 must-pass, 22 must-fail, each with a `why`). A mismatch prints the row's source and
+  ops. `pnpm asr:harvest [--from <runsDir>]` appends new real-ASR pairs from run traces as `unlabelled`; label them
+  by hand.
+- The example chips come from `/api/config` `examples`: the train, castle dialogue, mother/son and watchmaker
+  ideas, read from their example manifests at start, kept only if live and ok, each with "✓ verified live" linking
+  to its video.
+- An interrupted or crashed run is explained as interrupted even when its last attempt was a refused take: Continue
+  resumes the checkpoint (no `--redo`, no fresh takes).

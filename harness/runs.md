@@ -212,3 +212,12 @@
 2026-10-19 17:04:11 F19-demo-fixes attempt 1: reviewer
 2026-10-19 17:10:24 F19-demo-fixes PASSED on attempt 1 -> 6be1743
 2026-10-19 17:10:24 all requested features passing
+2026-10-20 11:09:03 ### F20-failure-you-can-act-on start (specs/F20-failure-you-can-act-on.md)
+2026-10-20 11:09:03 F20-failure-you-can-act-on attempt 1: implementer
+2026-10-20 11:32:27 F20-failure-you-can-act-on attempt 1: gate
+2026-10-20 11:33:44 F20-failure-you-can-act-on attempt 1: reviewer
+2026-10-20 11:38:13 F20-failure-you-can-act-on attempt 1: REVIEW FAIL
+    - src/web/explain.ts:94-95 kindOf calls an interrupted run (error "interrupted by …"/"process ended", including the one failureView supplies in src/web/server.ts) a verbatim refusal whenever its last failed attempt has gate ops. Reproduced on the a20fab fixture: one failed s2 take with gateVersion 1 plus error "interrupted by SIGTERM" gives kind=verbatim, step=shot, freshTakes=true and the text "refused to ship it". The page then misstates what happened, and Continue passes --fresh-takes and buys new takes (~$0.8) instead of resuming. Fix: check the interrupted error before the ops-based verbatim inference, and add a test in tests/explain.test.ts for an interrupted run after a failed take.
+2026-10-20 11:38:13 F20-failure-you-can-act-on attempt 2: implementer
+2026-10-20 11:42:34 F20-failure-you-can-act-on attempt 2: gate
+2026-10-20 11:43:51 F20-failure-you-can-act-on attempt 2: reviewer

@@ -111,6 +111,22 @@ describe("cli args", () => {
   });
 });
 
+describe("F20: --fresh-takes", () => {
+  it("parses only with --redo shot", () => {
+    expect(parseArgs(["--resume", "r1", "--redo", "shot", "--fresh-takes"])).toMatchObject({ resume: "r1", redo: "shot", freshTakes: true });
+    expect(() => parseArgs(["--resume", "r1", "--redo", "assemble", "--fresh-takes"])).toThrow(/--fresh-takes needs/);
+    expect(() => parseArgs(["an idea", "--fresh-takes"])).toThrow(/--fresh-takes needs/);
+  });
+
+  it("freshShots: only shots with no verified result, each after the highest video attempt it used", async () => {
+    const { freshShots } = await import("../src/graph.ts");
+    const script = { shots: [{ id: "s1" }, { id: "s2" }, { id: "s3" }] } as unknown as Script;
+    const a = (shotId: string, n: number, stage = "video"): Attempt => ({ stage, shotId: shotId as Attempt["shotId"], n, provider: "p", ok: false, costUsd: 0, ms: 0 });
+    const got = freshShots(script, { s1: {} }, [a("s1", 1), a("s2", 1), a("s2", 2), a("s2", 4, "judge"), a("s3", 1, "voice")]);
+    expect([...got]).toEqual([["s2", 2], ["s3", 0]]);
+  });
+});
+
 describe("isTransient", () => {
   it("429/5xx/network/timeouts are transient, also when wrapped as a cause", () => {
     expect(isTransient(new HttpError("x", 429, ""))).toBe(true);

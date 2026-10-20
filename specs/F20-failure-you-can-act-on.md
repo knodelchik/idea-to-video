@@ -119,3 +119,68 @@ Two parts:
 4. A mock run made to fail on verbatim (MockVideo fault on every take) shows the explanation via the API. A continue
    with the fault removed finishes `done`, with `redos.length === 1`.
 5. `pnpm verify` green; F01–F19 tests still pass.
+
+## Decisions
+- **Contracts** (`src/schemas.ts`), all optional so older manifests still parse. `Attempt.gateVersion`: the
+  `GATE_VERSION` (`src/verbatim.ts`, now 1) of the rules that judged a gate attempt (video, voice, voiceover, lipsync,
+  final), via `gated()` in `src/nodes/gate.ts`. `Attempt.heard`: the raw transcript, on failed gate attempts only
+  (≤ 500 chars). `Attempt.path`: the clip a video attempt made. `heard` and `path` are beyond the spec. Without them
+  the diff could only be rebuilt from ops, and "the best take as a `<video>`" had no path to show: the spec says "the
+  path is in the manifest attempts", but it wasn't there.
+- **Diff without a new ASR call.** A new attempt carries `heard`, so `wordDiff(line, heard)` uses the gate's own
+  alignment and readings. Older attempts only have the ops text (`sub "four" heard as "for", ins "dollars" (extra)`),
+  so `parseOps` reads it back and `diffFromOps` rebuilds a heard text. The rebuilt text must give *exactly* those ops
+  back through the gate's alignment. When several fit ("four dollars fifty cents" vs "four fifty"), the shortest
+  reading wins, and an inserted word repeating its neighbour counts against it. Raw (pre-`compareForm`) readings are
+  tried too, because the 6f4903 ops name "ticket's"/"kyiv", which today's comparison forms merge. Such diffs are
+  flagged `approx`, and the page says "rebuilt from the gate's record".
+- **Kinds.** `verbatim`, `voiceTooLong`, `refused`, `budget`, `provider`, `judge`, `unknown` as specified, plus
+  `interrupted` (SIGTERM / crash / process gone). That one gets `step: null`, and Continue then runs a plain
+  `--resume <id>` (no `--redo`), the honest action for a cut-off run. Order matters: the error-text kinds (budget,
+  content policy, voice too long, "not verbatim", interrupted) are read *before* any kind guessed from the last failed
+  attempt (gate ops → verbatim, "speech ends at" → voiceTooLong). A run cut off right after a refused take is
+  interrupted, not refused; the earlier order called it verbatim and Continue bought fresh takes (review, attempt 2).
+  The failing attempt is the last failed,
+  non-carried attempt of the shot the error names (or of the final gate). Failures that were recovered from later
+  are ignored. `step` maps stages to `REDO_STEPS` (`judge` goes by "keyframe…" vs "clip…", `retry` by its
+  "transient error in <node>").
+- **`REDO_STEPS` moved to `src/steps.ts`** (re-exported from `graph.ts`), so `explain.ts` and the web server can name
+  steps without loading LangGraph and SQLite.
+- **`--fresh-takes`** (`--redo shot` only). The failing shots are those with no output in the run's *latest*
+  checkpoint (`freshShots`). Each gets `freshAfter` = its highest video attempt number so far. `talkingShot` numbers
+  its takes after that, so variants and files are new, and it skips the cached-lower-rung jump. Shots that passed
+  re-run from cache for $0. Rejected: deleting the old clips (destroys paid evidence) and a random salt in the content
+  key (breaks idempotent resume).
+- **When the button passes `--fresh-takes`:** kind `verbatim` at step `shot`, the shot has native takes the gate
+  refused, and *all* of them carry the current `GATE_VERSION`. Takes judged before F20 (no version) are re-gated on
+  the saved files instead. That is the "after a code fix" path: ~$0.01, no new video.
+- **Estimate.** Video $/s is learned from what the run itself paid: paid video attempts ÷ their shots' whole seconds
+  (a20fab: $2.738 / 30 s ≈ $0.091/s). With no paid take it falls back to fal Seedance fast's $0.2419/s list price, and
+  mock runs are $0. New video is counted for fresh takes, for a shot that never got a clip (provider/budget errors),
+  and for a redo before the shots. Then +$0.01 for ASR/TTS/judge (live).
+- **Web.** `POST /api/runs/:id/continue` order: 409 (lock), 400/404 bad or unknown id, 400 for an example, 400 unless
+  the run is `failed`/`interrupted`, 403 for a live run when `WEB_LIVE` is off (beyond the spec: Continue may spend),
+  400 without a checkpoint (`hasCheckpoint` opens `checkpoints.sqlite` read-only via the existing
+  `@langchain/langgraph-checkpoint-sqlite`, only when the file exists), then 202. `continueSpec` reuses `runSpec`'s
+  env (server `MAX_COST_USD`, no server secrets). The redo's budget already ignores carried spend (F19). `GET
+  /api/runs/:id` adds `failure` (with `bestTakeUrl` and `finished[].url`) for failed/interrupted runs. `/media/<id>/…`
+  now also serves shot takes, by exact name pattern (`RUN_MEDIA_RE`).
+- **SSE fix found by the tests.** A continued run starts from a `failed` manifest, so the event stream used to end
+  at once. While *our* child is alive, a finished manifest is no longer treated as the end; the stream follows until
+  the child exits.
+- **Example chips** come from `/api/config` → `examples`. `provenExamples` reads the four example manifests at server
+  start and keeps only `mode: live` + `ok`. Labels and order are ours (train first); ideas come from the manifests.
+  `01-barista` and `05-castle-storyboard-wide` passed live too but are not in the spec's list.
+- **Corpora.** `asr-live.jsonl` gained 6 mined rows (examples 02–06; each `source` names the manifest field and the
+  `docs/ai-log.md` entry that records the human check). I left out the "I'm sorry, I'm sorry" silent-shot row: the log
+  only says it was "most likely ASR", which is not a verified truth. `asr-tricky.jsonl`: 38 must-pass, 22 must-fail,
+  each with a `why`. Must-fail rows use `verdict: "fail"`. `it's`/`its` is deliberately absent: the gate treats them
+  as one spoken word (F10 rule on `'s`). The silent-row check uses `speechHeard`, now exported from
+  `src/nodes/visuals.ts`, the exact predicate the mute path uses.
+- **`pnpm asr:harvest`** (`scripts/asr-corpus.ts`, `tsx` without `--env-file`). It reads manifests and traces only.
+  Kept: asr spans that are ok and not cached, from non-`mock*` providers. Expected text: the shot's line (empty →
+  `silent`), or the whole speech for `burnSubtitles`/`finalGate`. Pairs already in either corpus are dropped, and
+  only a count is printed.
+- **No new dependencies.** `package.json` gains only the `asr:harvest` script entry.
+- Docs checked: the installed `@langchain/langgraph-checkpoint-sqlite` `.d.ts` (`getTuple` → `CheckpointTuple |
+  undefined`). No web docs needed.

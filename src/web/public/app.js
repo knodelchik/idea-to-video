@@ -2,20 +2,7 @@
 // page with textContent (never innerHTML), so a manifest can't inject markup.
 "use strict";
 
-const EXAMPLES = [
-  {
-    label: "Castle storyboard",
-    idea: '1 кадр: маленька дівчина в червоному плащі відчиняє величезні двері старого замку. 2 кадр: вона заходить у величезну бальну залу, зала видна вся, дівчина маленька на її фоні, і каже: "Hello? Is anyone still here?"',
-  },
-  {
-    label: "Mother and son",
-    idea: 'At the kitchen table, a mother slides an envelope to her son. She says: "Open it after I leave." He looks up and asks: "Mom, are you sick?"',
-  },
-  {
-    label: "Watchmaker numbers",
-    idea: 'An old watchmaker holds up a stopped pocket watch in his dim workshop. He says quietly: "It stopped in 1987, at 3:15 a.m., and so did I."',
-  },
-];
+// F20: the example chips come from /api/config (`examples`): ideas read from example manifests that passed live.
 
 // ---------- tiny DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -82,6 +69,7 @@ async function boot() {
   if (location.pathname === "/login") history.replaceState(null, "", "/");
   $("mode-live").disabled = !config.live;
   $("live-off").hidden = config.live;
+  renderExamples(config.examples || []);
   route();
   if (config.active) follow(config.active);
 }
@@ -105,8 +93,18 @@ $("logout").addEventListener("click", async () => {
 });
 
 // ---------- make ----------
-for (const ex of EXAMPLES) {
-  $("examples").append(h("button", { type: "button", class: "chip", onclick: () => ($("idea").value = ex.idea) }, ex.label));
+/** One chip per idea that has passed live, with its mark and a link to the video it made. */
+function renderExamples(examples) {
+  $("examples").replaceChildren(
+    ...examples.map((ex) =>
+      h(
+        "span",
+        { class: "chip-row" },
+        h("button", { type: "button", class: "chip", title: ex.idea, onclick: () => ($("idea").value = ex.idea) }, ex.label),
+        h("a", { class: "verified", href: ex.videoUrl, target: "_blank", rel: "noopener" }, "✓ verified live"),
+      ),
+    ),
+  );
 }
 
 $("run-form").addEventListener("submit", async (e) => {
@@ -184,10 +182,14 @@ function follow(runId) {
     $("progress-title").textContent = TITLES[statusOf(d)] || statusOf(d);
     $("progress-cost").textContent = usd(d.costUsd);
     const out = $("progress-result");
-    if (!d.ok) out.append(h("p", { class: "bad" }, d.error || "the run failed"));
     try {
-      out.append(overview(await api(`/api/runs/${encodeURIComponent(runId)}`), d.videoUrl));
+      const m = await api(`/api/runs/${encodeURIComponent(runId)}`);
+      // F20: a failure is explained in plain words with a Continue button, not shown as a bare red error.
+      if (m.failure) out.append(failurePanel(m));
+      else if (!d.ok) out.append(h("p", { class: "bad" }, d.error || "the run failed"));
+      out.append(overview(m, d.videoUrl, { failurePanel: false }));
     } catch (err) {
+      if (!d.ok) out.append(h("p", { class: "bad" }, d.error || "the run failed"));
       out.append(h("p", { class: "bad" }, err.message));
     }
   });
@@ -357,7 +359,76 @@ function totals(m) {
   ];
 }
 
-function overview(m, videoUrl) {
+// ---------- failure (F20) ----------
+const WORD_CHECK = "The agent never ships a video whose words differ from the line; this is that check working.";
+
+/** Expected and heard words, the mismatched ones highlighted (the gate's own alignment). */
+function diffView(diff) {
+  const words = (ws) => ws.map((w, i) => [i ? " " : "", h("span", { class: w.mark === "ins" ? "ins" : w.mark ? "miss" : "" }, w.word)]);
+  return h(
+    "dl",
+    { class: "kv" },
+    h("dt", {}, "the line"),
+    h("dd", { class: "diff" }, words(diff.expected)),
+    h("dt", {}, "heard"),
+    h("dd", { class: "diff" }, words(diff.heard)),
+    diff.approx ? [h("dt", {}, ""), h("dd", { class: "small muted" }, "rebuilt from the gate's record of what differed")] : null,
+  );
+}
+
+function failurePanel(m) {
+  const f = m.failure;
+  const msg = h("p", { class: "error", role: "alert" });
+  const cost = `~$${Number(f.estimateUsd).toFixed(2)}`;
+  const button = h(
+    "button",
+    {
+      type: "button",
+      id: "continue-button",
+      onclick: async () => {
+        msg.textContent = "";
+        if (m.mode === "live" && !confirm(`Continue calls paid models: ${cost}. Go?`)) return;
+        button.disabled = true;
+        try {
+          await api(`/api/runs/${encodeURIComponent(m.runId)}/continue`, { method: "POST", body: "{}" });
+          if (dialog.open) dialog.close();
+          location.hash = "#/";
+          follow(m.runId);
+        } catch (err) {
+          button.disabled = false;
+          msg.textContent = err.message;
+        }
+      },
+    },
+    `Continue from ${f.step || "where it stopped"} (${cost})`,
+  );
+  const words = f.kind === "verbatim" || f.kind === "voiceTooLong";
+  return h(
+    "div",
+    { class: "panel failure" },
+    h("h2", {}, f.title),
+    h("p", {}, f.what),
+    h("p", { class: "muted" }, f.why),
+    f.diff ? diffView(f.diff) : null,
+    f.bestTakeUrl || f.finished.length
+      ? h(
+          "div",
+          { class: "takes" },
+          f.bestTakeUrl
+            ? h("figure", {}, h("video", { src: f.bestTakeUrl, controls: true, playsInline: true, preload: "metadata" }), h("figcaption", {}, `${f.shotId || ""} not shipped${f.kind === "verbatim" ? ": failed the word-for-word check" : ""}`))
+            : null,
+          f.finished.map((s) => h("figure", {}, h("video", { src: s.url, controls: true, playsInline: true, preload: "metadata" }), h("figcaption", {}, `${s.shotId}: finished, reused for $0`))),
+        )
+      : null,
+    h("p", {}, f.next),
+    button,
+    msg,
+    words ? h("p", { class: "small muted" }, WORD_CHECK) : null,
+    f.error ? h("details", {}, h("summary", { class: "small muted" }, "raw error"), h("pre", {}, f.error)) : null,
+  );
+}
+
+function overview(m, videoUrl, opts = {}) {
   const s = m.script;
   return h(
     "div",
@@ -369,7 +440,7 @@ function overview(m, videoUrl) {
       h("h2", {}, s?.title ?? m.runId),
       h("div", { class: "row" }, statusBadge(m), h("span", { class: "badge" }, m.mode), h("span", { class: "muted small mono" }, m.runId)),
       m.redos?.length ? h("p", { class: "small muted" }, `Redone ${m.redos.length}×: ${m.redos.map((r) => `from ${r.from} (${usd(r.costUsd)} new)`).join(", ")}. The total includes what earlier passes paid for.`) : null,
-      m.error ? h("p", { class: "bad" }, m.error) : null,
+      m.failure && opts.failurePanel !== false ? failurePanel(m) : m.error && !m.failure ? h("p", { class: "bad" }, m.error) : null,
       h("h3", {}, "Idea"),
       h("p", {}, m.idea),
       s ? [h("h3", {}, "Characters"), s.characters.map((c) => h("p", { class: "small" }, h("strong", {}, c.name), ` — ${c.look} `, h("span", { class: "muted" }, `(${c.voiceDescription})`)))] : null,

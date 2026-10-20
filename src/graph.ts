@@ -51,6 +51,7 @@ import {
   type Subtitles,
   type VerbatimResult,
 } from "./schemas.ts";
+import type { RedoStep } from "./steps.ts";
 import { extractQuotedLines } from "./verbatim.ts";
 
 export type Mode = "mock" | "live";
@@ -189,6 +190,8 @@ interface Ctx {
   sink?: JsonlSink;
   /** On a redo (F19): the price a reused artifact was bought for, from the carried attempts. */
   originalCost?: (kind: string, provider: string, shotId?: string) => number | undefined;
+  /** F20 `--fresh-takes`: failing shots → the highest video attempt number they used. Their takes start after it. */
+  fresh?: Map<ShotId, number>;
 }
 
 function buildGraph(deps: PipelineDeps, ctx: Ctx) {
@@ -342,6 +345,7 @@ function buildGraph(deps: PipelineDeps, ctx: Ctx) {
             dir: runDir(t.runId),
             min: quality.clipMin,
             ...(ctx.budget ? { budget: ctx.budget } : {}),
+            ...(ctx.fresh?.has(t.shot.id) ? { freshAfter: ctx.fresh.get(t.shot.id)! } : {}),
           });
           return { shots: { [t.shot.id]: shotOutput(r, t.keyframeQuality) }, attempts: r.attempts };
         },
@@ -596,16 +600,29 @@ async function previousFailures(path: string, checkpointed: number): Promise<Att
   }
 }
 
-/** Graph steps a finished run can be redone from (`--redo`), in order. */
-export const REDO_STEPS = ["writeScript", "cast", "drawKeyframes", "shot", "assemble", "burnSubtitles", "finalGate"] as const;
-export type RedoStep = (typeof REDO_STEPS)[number];
+export { REDO_STEPS, type RedoStep } from "./steps.ts";
 
 /**
  * `redo`: replay a stored run from the checkpoint just before that step, as a new branch of the same thread. Every
  * artifact is content-addressed, so steps whose inputs did not change reuse their files for $0 (a paid clip is never
  * bought twice); only what changed, e.g. a fixed prompt or a new rule, runs again.
  */
-export type RunRequest = { idea: string; mode: Mode; runId?: string } | { resume: string; redo?: RedoStep };
+export type RunRequest = { idea: string; mode: Mode; runId?: string } | { resume: string; redo?: RedoStep; freshTakes?: boolean };
+
+/**
+ * F20: the shots a `--redo shot --fresh-takes` makes new takes of: those with no verified result in the run's latest
+ * checkpoint (the ones that failed). Each maps to the highest video attempt number it used in the stored run, so the
+ * new takes get new numbers, variants and files. Shots that passed are absent: they are reused from cache for $0.
+ */
+export function freshShots(script: Script | undefined, done: Partial<Record<ShotId, unknown>>, attempts: Attempt[]): Map<ShotId, number> {
+  const out = new Map<ShotId, number>();
+  for (const shot of script?.shots ?? []) {
+    if (done[shot.id] !== undefined) continue;
+    const ns = attempts.filter((a) => a.stage === "video" && a.shotId === shot.id).map((a) => a.n);
+    out.set(shot.id, Math.max(0, ...ns));
+  }
+  return out;
+}
 
 export interface RunOutcome {
   manifest: RunManifest;
@@ -642,6 +659,13 @@ export async function runPipeline(req: RunRequest, deps: PipelineDeps): Promise<
         }
       }
       if (!fork) throw new Error(`run ${runId} never reached step ${req.redo}; nothing to redo from`);
+      if (req.freshTakes) {
+        if (req.redo !== "shot") throw new Error("--fresh-takes only applies to --redo shot");
+        // The latest checkpoint holds the shots that passed (tasks that finished beside the failed one).
+        const latest = (await app.getState(config)).values as RunStateValues;
+        ctx.fresh = freshShots(latest.script, latest.shots ?? {}, prev?.attempts ?? latest.attempts ?? []);
+        deps.log?.(`fresh takes for ${[...ctx.fresh.keys()].join(", ") || "no shot (all passed)"}`);
+      }
       state = fork.values as RunStateValues;
       input = null;
       streamConfig = fork.config as typeof streamConfig;

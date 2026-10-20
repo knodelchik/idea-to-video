@@ -9,7 +9,7 @@ import { probe as ffprobe, silentSpans, type ProbeResult, type Span } from "../m
 import type { AsrProvider } from "../providers/index.ts";
 import { SCRIPT_SECONDS, type Attempt, type FinalVideo, type Script, type SpokenText, type VerbatimResult } from "../schemas.ts";
 import { compareWords, splitDelivery } from "../verbatim.ts";
-import { describeIgnored, describeOps, listen, verbatimOf } from "./gate.ts";
+import { describeIgnored, describeOps, gated, listen, verbatimOf } from "./gate.ts";
 
 export interface FinalGateResult {
   ok: boolean;
@@ -77,6 +77,7 @@ export async function finalGate(
         ...(problems.length || notes.length ? { reason: [...problems, ...notes].join("; ") } : {}),
         costUsd: heard.costUsd,
         ms: Math.round(performance.now() - t0),
+        ...gated(heard),
       },
     ],
   };

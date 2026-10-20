@@ -158,6 +158,62 @@ export async function readNewLines(path: string, offset: number): Promise<{ line
   }
 }
 
+/** Files of a run the page may play (F20): shot takes and their voice-over / lip-sync / trim versions, and final.mp4. */
+export const RUN_MEDIA_RE = /^(?:(?:clip|voiceover|lipsync|trim)-s[1-4]-[0-9a-f]{6,64}\.mp4|final\.mp4)$/;
+
+/** `/media/<id>/<file>` for a file recorded in a manifest (an absolute path from the machine that ran it), or null. */
+export function runMediaUrl(id: string, path: string | undefined): string | null {
+  const name = path?.split(/[\\/]/).at(-1) ?? "";
+  return ID_RE.test(id) && RUN_MEDIA_RE.test(name) ? `/media/${id}/${name}` : null;
+}
+
+/**
+ * Does the checkpoint DB hold this run? Continue (F20) replays from it; without one there is nothing to continue.
+ * The DB is only opened when it exists (opening creates it), and only between runs (the caller holds the lock).
+ */
+export async function hasCheckpoint(runsDir: string, id: string): Promise<boolean> {
+  const db = join(runsDir, "checkpoints.sqlite");
+  if ((await mtimeOf(db)) === undefined) return false;
+  const { SqliteSaver } = await import("@langchain/langgraph-checkpoint-sqlite");
+  const saver = SqliteSaver.fromConnString(db);
+  try {
+    return (await saver.getTuple({ configurable: { thread_id: id } })) !== undefined;
+  } finally {
+    saver.db.close();
+  }
+}
+
+/** Example ideas that have passed live (F20), first to last; labels are ours, ideas come from the manifests. */
+export const PROVEN_EXAMPLES = [
+  { id: "07-train-blocking", label: "Train storyboard" },
+  { id: "06-castle-dialogue-final", label: "Castle dialogue" },
+  { id: "02-dialogue-mother-son", label: "Mother and son" },
+  { id: "03-watchmaker-numbers", label: "Watchmaker numbers" },
+] as const;
+
+export interface ProvenExample {
+  id: string;
+  label: string;
+  idea: string;
+  videoUrl: string;
+}
+
+/** The chips: each proven example whose manifest is there, live, and passed (so a chip can't outlive its proof). */
+export async function provenExamples(examplesDir: string, log: (l: string) => void = () => {}): Promise<ProvenExample[]> {
+  const out: ProvenExample[] = [];
+  for (const { id, label } of PROVEN_EXAMPLES) {
+    const path = inside(examplesDir, id, ".manifest.json");
+    try {
+      const m = path ? await readManifest(path) : undefined;
+      if (m?.mode === "live" && m.ok) out.push({ id, label, idea: m.idea, videoUrl: `/media/examples/${id}.mp4` });
+      else log(`example chip ${id} left out: ${m ? "not a passed live run" : "no manifest"}`);
+    } catch (e) {
+      log(`example chip ${id} left out: ${(e as Error).message}`);
+    }
+  }
+  return out;
+}
+
 const short = (s: string, n = 160): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** What the progress list needs from one provider span (F19 `call` event): who, what, how it went, never the payload. */

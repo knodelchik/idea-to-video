@@ -55,6 +55,22 @@ export function runSpec(cfg: WebConfig, idea: string, mode: Mode, runId: string,
   };
 }
 
+/**
+ * F20 Continue: `cli.ts --resume <id> [--redo <step>] [--fresh-takes] --json`, same env as a new run (so the server's
+ * MAX_COST_USD caps the new spend; a redo does not count what earlier passes paid). No step = plain resume.
+ */
+export function continueSpec(
+  cfg: WebConfig,
+  run: { runId: string; idea: string; mode: Mode },
+  step: string | null,
+  freshTakes: boolean,
+  baseEnv: Record<string, string | undefined> = process.env,
+): RunSpec {
+  const spec = runSpec(cfg, run.idea, run.mode, run.runId, baseEnv);
+  const redo = step ? ["--redo", step, ...(freshTakes ? ["--fresh-takes"] : [])] : [];
+  return { ...spec, args: ["--import", "tsx", "src/cli.ts", "--resume", run.runId, ...redo, "--json"] };
+}
+
 const TAIL = 8 * 1024;
 
 export const spawnRunner: StartRun = (spec) => {

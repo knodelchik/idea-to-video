@@ -88,6 +88,17 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.8); }
 .ladder .step.used { border-color: var(--accent); color: var(--accent); }
 .diff .miss { color: var(--bad); text-decoration: underline; }
 
+/* F20: the failure panel and the proven example chips. */
+.failure { border-color: var(--accent); }
+.failure h2 { margin-top: 0; }
+.failure .takes { display: flex; flex-wrap: wrap; gap: 10px; }
+.failure figure { margin: 0; width: 140px; }
+.failure figure video { width: 100%; aspect-ratio: 9 / 16; background: #111; border-radius: 8px; }
+.failure figcaption { font-size: 0.75rem; color: var(--muted); }
+.failure .ins { color: var(--bad); text-decoration: underline dotted; }
+.chip-row { display: inline-flex; gap: 0.35rem; align-items: center; }
+.verified { font-size: 0.7rem; color: var(--muted); }
+
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .tile .big { font-size: 1.5rem; font-weight: 700; }

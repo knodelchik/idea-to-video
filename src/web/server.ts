@@ -12,20 +12,25 @@ import { clearedCookie, codeMatches, cookieValue, LoginLimiter, sessionCookie, v
 import { configFromEnv, type WebConfig } from "./config.ts";
 import { sendFile } from "./media.ts";
 import { parseTrace } from "../obs/metrics-cli.ts";
-import { pidAlive, runSpec, spawnRunner, type Mode, type RunResult, type StartRun } from "./runner.ts";
+import { explainFailure } from "./explain.ts";
+import { continueSpec, pidAlive, runSpec, spawnRunner, type Mode, type RunResult, type RunSpec, type StartRun } from "./runner.ts";
 import {
   BadManifest,
   callEvent,
   findRun,
   gallery,
+  hasCheckpoint as checkpointOnDisk,
   inside,
   isFinished,
   loadAll,
   mtimeOf,
+  provenExamples,
   readManifest,
   readNewLines,
   readRunTrace,
   records,
+  RUN_MEDIA_RE,
+  runMediaUrl,
   runView,
   sourcesOf,
   type Liveness,
@@ -41,6 +46,26 @@ export interface WebDeps {
   pollMs?: number;
   now?: () => number;
   log?: (line: string) => void;
+  /** Is there a checkpoint to continue this run from (F20)? Default: look in `<runsDir>/checkpoints.sqlite`. */
+  hasCheckpoint?: (runId: string) => Promise<boolean>;
+}
+
+/**
+ * The failure panel's data (F20): the plain-words explanation plus playable URLs for the take that was not shipped and
+ * the shots that passed. An interrupted run with no error of its own is explained as interrupted.
+ */
+export function failureView(id: string, m: RunManifest) {
+  const x = explainFailure(m.error ? m : { ...m, error: "interrupted: the run's process ended before it finished" });
+  const { bestTake, finished, ...rest } = x;
+  const bestTakeUrl = runMediaUrl(id, bestTake);
+  return {
+    ...rest,
+    ...(bestTakeUrl ? { bestTakeUrl } : {}),
+    finished: finished.flatMap((f) => {
+      const url = runMediaUrl(id, f.path);
+      return url ? [{ shotId: f.shotId, url }] : [];
+    }),
+  };
 }
 
 /** Same shape as the CLI's ids (20261019-142233-a1b2c3), so web runs sort with the others. */
@@ -128,6 +153,9 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
   const log = deps.log ?? ((l: string) => process.stderr.write(`${l}\n`));
   const limiter = new LoginLimiter(5, 15 * 60 * 1000);
   const publicDir = join(cfg.root, "src", "web", "public");
+  const hasCheckpoint = deps.hasCheckpoint ?? ((id: string) => checkpointOnDisk(cfg.runsDir, id));
+  // F20: read once at start, from the example manifests themselves, so the chips can't drift from what passed live.
+  const examples = provenExamples(cfg.examplesDir, log);
 
   /** The one run in progress. Later runs get 409 until it ends. */
   let active: { runId: string; pid?: number } | null = null;
@@ -165,9 +193,15 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
     if (active) throw new HttpError(409, BUSY);
 
     const runId = newWebRunId(new Date(now()));
-    const spec = runSpec(cfg, idea, mode as Mode, runId);
+    launch(runSpec(cfg, idea, mode as Mode, runId), `started (${mode})`);
+    json(res, 202, { runId });
+  }
+
+  /** Take the one-run lock and start the child; the lock is released when it exits. */
+  function launch(spec: RunSpec, what: string): void {
+    const { runId } = spec;
     active = { runId };
-    log(`run ${runId} started (${mode})`);
+    log(`run ${runId} ${what}`);
     let handle;
     try {
       handle = startRun(spec);
@@ -183,7 +217,25 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
         log(`run ${runId} exited with code ${r.code}${r.code === 0 ? "" : `: ${r.output.trim().split("\n").slice(-3).join(" | ")}`}`);
         if (active?.runId === runId) active = null;
       });
-    json(res, 202, { runId });
+  }
+
+  /** F20: continue a failed or interrupted run from the step its failure points at (same lock as a new run). */
+  async function postContinue(res: ServerResponse, id: string) {
+    if (active) throw new HttpError(409, BUSY);
+    const found = await findRun(cfg.runsDir, cfg.examplesDir, id);
+    if (found === null) throw new HttpError(400, "bad run id");
+    if (found === undefined) throw new HttpError(404, "no such run");
+    if (found.source.kind !== "run") throw new HttpError(400, "examples can't be continued");
+    const m = found.manifest;
+    const { status } = runView(m, liveness(id, await mtimeOf(found.source.manifest)));
+    if (status !== "failed" && status !== "interrupted") throw new HttpError(400, `only a failed or interrupted run can be continued; this one is ${status}`);
+    if (m.mode === "live" && !cfg.live) throw new HttpError(403, "live runs are off on this server (WEB_LIVE is not 1)");
+    if (!(await hasCheckpoint(id))) throw new HttpError(400, "this run has no checkpoint to continue from");
+    // The lock is checked again: the awaits above let another request in.
+    if (active) throw new HttpError(409, BUSY);
+    const f = failureView(id, m);
+    launch(continueSpec(cfg, m, f.step, f.freshTakes), `continued from ${f.step ?? "its checkpoint"}${f.freshTakes ? " with fresh takes" : ""}`);
+    json(res, 202, { runId: id, step: f.step, freshTakes: f.freshTakes, estimateUsd: f.estimateUsd });
   }
 
   async function events(req: IncomingMessage, res: ServerResponse, id: string) {
@@ -227,7 +279,9 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
       if (m && view) send("progress", { costUsd: m.costUsd, attempts: m.attempts.length, ...view });
       // Keep following while it runs: our child, or (F19) a run with a status that someone else started.
       const following = ours || (m?.status !== undefined && view?.status === "running");
-      if ((m && isFinished(m)) || !following) {
+      // While our child runs, a finished manifest is the one it is about to replace (F20 Continue starts from a
+      // `failed` one): follow until the child exits, then report what it left.
+      if ((m && isFinished(m) && !ours) || !following) {
         send("done", doneEvent(id, m, results.get(id), view?.status === "running" ? "interrupted" : view?.status));
         break;
       }
@@ -257,7 +311,9 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
     }
 
     if (get && path === "/") return sendFile(req, res, join(publicDir, "index.html"), "text/html; charset=utf-8", "no-cache");
-    if (get && path === "/api/config") return json(res, 200, { live: cfg.live, maxCostUsd: cfg.maxCostUsd, ideaMax: IDEA_MAX, active: active?.runId ?? null });
+    if (get && path === "/api/config") {
+      return json(res, 200, { live: cfg.live, maxCostUsd: cfg.maxCostUsd, ideaMax: IDEA_MAX, active: active?.runId ?? null, examples: await examples });
+    }
     if (path === "/api/runs") {
       if (method === "POST") return postRun(req, res);
       if (get) return json(res, 200, gallery(await loadAll(cfg.runsDir, cfg.examplesDir, log), (x) => runView(x.manifest, liveness(x.id, x.mtimeMs))));
@@ -268,8 +324,9 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
       return json(res, 200, metrics(await records(all)));
     }
 
-    const run = /^\/api\/runs\/([^/]+)(?:\/(events|trace))?$/.exec(path);
-    if (get && run) {
+    const run = /^\/api\/runs\/([^/]+)(?:\/(events|trace|continue))?$/.exec(path);
+    if (method === "POST" && run?.[2] === "continue") return postContinue(res, decode(run[1]!));
+    if (get && run && run[2] !== "continue") {
       const id = decode(run[1]!);
       if (run[2] === "events") return events(req, res, id);
       const found = await findRun(cfg.runsDir, cfg.examplesDir, id);
@@ -277,15 +334,19 @@ export function createWebServer(cfg: WebConfig, deps: WebDeps = {}): Server {
       if (found === undefined) throw new HttpError(404, "no such run");
       if (run[2] === "trace") return json(res, 200, found.source.kind === "run" ? await readRunTrace(found.source.dir) : []);
       // The manifest plus how it looks now (F19): `status` may read "interrupted", which no manifest says of itself.
-      return json(res, 200, { ...found.manifest, ...runView(found.manifest, liveness(id, await mtimeOf(found.source.manifest))) });
+      // F20: a failed or interrupted run also carries `failure`, the explanation the page shows instead of a raw error.
+      const view = runView(found.manifest, liveness(id, await mtimeOf(found.source.manifest)));
+      const failed = view.status === "failed" || view.status === "interrupted";
+      return json(res, 200, { ...found.manifest, ...view, ...(failed ? { failure: failureView(id, found.manifest) } : {}) });
     }
 
     const media = /^\/media\/([^/]+)\/([^/]+)$/.exec(path);
     if (get && media) {
       const [a, b] = [decode(media[1]!), decode(media[2]!)];
-      const file = a === "examples" ? (b.endsWith(".mp4") ? inside(cfg.examplesDir, b.slice(0, -4), ".mp4") : null) : b === "final.mp4" ? inside(cfg.runsDir, a) : null;
+      // A run's files: final.mp4 and (F20) its shot takes, by exact name pattern; never anything else in the folder.
+      const file = a === "examples" ? (b.endsWith(".mp4") ? inside(cfg.examplesDir, b.slice(0, -4), ".mp4") : null) : RUN_MEDIA_RE.test(b) ? inside(cfg.runsDir, a) : null;
       if (!file) throw new HttpError(404, "not found");
-      return sendFile(req, res, a === "examples" ? file : join(file, "final.mp4"), "video/mp4");
+      return sendFile(req, res, a === "examples" ? file : join(file, b), "video/mp4");
     }
 
     throw new HttpError(404, "not found");

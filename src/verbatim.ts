@@ -525,6 +525,110 @@ export function alignPieces(pieces: string[], heardWords: string[]): (WordSpan |
   return spans;
 }
 
+/**
+ * Version of the matching rules above. Bump it whenever a change can turn a fail into a pass or back (a new reading,
+ * spelling or sound-alike). F20: a failed take recorded with the current version would fail again on the same file,
+ * so "continue" makes new takes; a take judged by an older version is re-gated first, for $0.
+ * 1 = the rules as of F20 (F10 readings, Kyiv/US-UK spellings, 's, number sound-alikes inside digit spans).
+ */
+export const GATE_VERSION = 1;
+
+/** One word of a diff, marked when it is where the texts differ. */
+export interface DiffWord {
+  word: string;
+  mark?: "sub" | "del" | "ins";
+}
+/** Expected and heard words side by side (normalised), mismatches marked. `approx`: rebuilt from ops alone. */
+export interface WordDiff {
+  expected: DiffWord[];
+  heard: DiffWord[];
+  approx?: boolean;
+}
+
+/** Comparison readings of a script line, exactly as compareLine sees them. */
+const lineReadings = (line: string): string[][] => readings(segments(splitDelivery(line).spoken)).map(compareForm);
+
+function marked(e: string[], h: string[]): WordDiff {
+  const { pair } = alignPath(e, h);
+  const used = new Map<number, number>();
+  pair.forEach((j, i) => j !== undefined && used.set(j, i));
+  return {
+    expected: e.map((word, i) => {
+      const j = pair[i];
+      return j === undefined ? { word, mark: "del" } : h[j] === word ? { word } : { word, mark: "sub" };
+    }),
+    heard: h.map((word, j) => {
+      const i = used.get(j);
+      return i === undefined ? { word, mark: "ins" } : e[i] === word ? { word } : { word, mark: "sub" };
+    }),
+  };
+}
+
+/** The gate's own alignment of a line and a transcript, for people to read (F20). Pure: no ASR call. */
+export function wordDiff(line: string, heard: string): WordDiff {
+  const hs = readings(segments(heard.replace(NON_SPEECH, " "))).map(compareForm);
+  let best: { e: string[]; h: string[]; n: number } | undefined;
+  for (const e of lineReadings(line)) {
+    for (const h of hs) {
+      const n = align(e, h).length;
+      if (!best || n < best.n) best = { e, h, n };
+    }
+  }
+  return marked(best!.e, best!.h);
+}
+
+const sameOps = (a: VerbatimOp[], b: VerbatimOp[]): boolean =>
+  a.length === b.length && a.every((o, i) => o.type === b[i]!.type && o.expected === b[i]!.expected && o.heard === b[i]!.heard);
+
+/**
+ * A diff rebuilt from a recorded gate result that kept only its ops (attempts before F20 have no transcript). For each
+ * reading of the line, every heard text the ops could have come from is tried, and kept only if the gate's alignment
+ * gives exactly those ops back. Several can fit ("for $50" against "four dollars fifty cents" or "four fifty"): the
+ * shortest reading wins, and an inserted word repeating its neighbour is taken as less likely. Always `approx`.
+ */
+export function diffFromOps(line: string, ops: VerbatimOp[]): WordDiff {
+  const found: { e: string[]; h: string[]; score: number }[] = [];
+  // Raw readings too: ops from an older gate name words today's comparison forms have merged ("ticket's", "kyiv").
+  const raw = readings(segments(splitDelivery(line).spoken));
+  for (const e of [...raw, ...lineReadings(line)]) {
+    let budget = 5_000; // walks per reading: a few ops over a 30-word line need far fewer
+    const walk = (i: number, k: number, h: string[]): void => {
+      if (--budget < 0) return;
+      if (i === e.length && k === ops.length) {
+        if (sameOps(align(e, h), ops)) found.push({ e, h, score: e.length + 10 * h.filter((w, j) => j > 0 && w === h[j - 1]).length });
+        return;
+      }
+      const op = ops[k];
+      if (op?.type === "ins") walk(i, k + 1, [...h, op.heard!]);
+      if (op && op.type !== "ins" && e[i] === op.expected) walk(i + 1, k + 1, op.type === "sub" ? [...h, op.heard!] : h);
+      if (i < e.length) walk(i + 1, k, [...h, e[i]!]);
+    };
+    walk(0, 0, []);
+  }
+  found.sort((a, b) => a.score - b.score);
+  const best = found[0];
+  if (best) return { ...marked(best.e, best.h), approx: true };
+  // Ops that fit no reading (a gate version with other readings): mark what can be found, hear nothing new.
+  const e = lineReadings(line)[0]!;
+  const missed = new Set(ops.filter((o) => o.type !== "ins").map((o) => o.expected));
+  return {
+    expected: e.map((word) => (missed.has(word) ? { word, mark: "sub" as const } : { word })),
+    heard: ops.filter((o) => o.heard !== undefined).map((o) => ({ word: o.heard!, mark: o.type === "ins" ? ("ins" as const) : ("sub" as const) })),
+    approx: true,
+  };
+}
+
+/** Ops back from a reason written by `describeOps` (`sub "four" heard as "for", ins "dollars" (extra)`). */
+export function parseOps(reason: string): VerbatimOp[] {
+  const out: VerbatimOp[] = [];
+  for (const m of reason.matchAll(/\bsub "([^"]*)" heard as "([^"]*)"|\bdel "([^"]*)" \(missing\)|\bins "([^"]*)" \(extra\)/g)) {
+    if (m[1] !== undefined) out.push({ type: "sub", expected: m[1], heard: m[2]! });
+    else if (m[3] !== undefined) out.push({ type: "del", expected: m[3] });
+    else out.push({ type: "ins", heard: m[4]! });
+  }
+  return out;
+}
+
 /** Letters outside the Latin script ("Мамо" → М, а, м, о), deduplicated. Accented Latin letters are Latin. */
 export function nonLatinLetters(text: string): string[] {
   return [...new Set([...text.matchAll(/\p{L}/gu)].map((m) => m[0]))].filter((c) => !/\p{Script=Latin}/u.test(c));

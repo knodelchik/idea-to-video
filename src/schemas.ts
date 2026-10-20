@@ -467,6 +467,15 @@ export const Attempt = z.object({
    * true total. A redo that reuses the artifact records its own $0 attempt beside it.
    */
   carried: z.boolean().optional(),
+  /**
+   * F20: `GATE_VERSION` of the verbatim rules that judged this attempt (attempts that ran the gate only). A failed take
+   * judged by the current rules would fail again, so a continue makes new takes; an older one is re-gated for $0.
+   */
+  gateVersion: z.number().int().min(1).optional(),
+  /** F20: what ASR heard, raw, on a failed gate attempt: the failure page diffs it against the line (no new ASR call). */
+  heard: z.string().optional(),
+  /** F20: the file this attempt made (a video take), so the failure page can show the take that was not shipped. */
+  path: z.string().optional(),
 });
 export type Attempt = z.infer<typeof Attempt>;
 

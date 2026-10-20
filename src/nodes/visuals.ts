@@ -31,7 +31,7 @@ import { castOf, isWide, openingCastOf, speakerOf, type Attempt, type Character,
 import { contentKey, once } from "../util/cache.ts";
 import { linkSource } from "../util/sidecar.ts";
 import { splitDelivery } from "../verbatim.ts";
-import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
+import { describeIgnored, describeOps, gated, listen, VerbatimError, verbatimOf, type ListenResult } from "./gate.ts";
 import { verifiedVoice } from "./voice.ts";
 
 export { keyframePrompt, portraitPrompt, talkingPrompt, textToVideoPrompt } from "../prompts/visuals.ts";
@@ -188,6 +188,12 @@ export interface TalkingShotOpts {
   /** Judge issues from the previous take, appended to the video prompt. */
   issues?: string[];
   /**
+   * F20 `--fresh-takes`: the highest video attempt number this shot already used. Takes are numbered after it, so
+   * their variants (and files) are new, and no lower rung's cached clip is jumped to: the old takes failed the
+   * current gate and would fail it again.
+   */
+  freshAfter?: number;
+  /**
    * The character portraits (a single path for a one-character script). Used only when the provider refuses the
    * keyframe as a first frame (real-face filter): the shot is then generated from references (the speaker's portrait
    * first, then other on-screen portraits, for identity; the keyframe last, for the scene), which the filter was seen
@@ -234,6 +240,9 @@ export function voiceTempo(speechEnd: number, clipSeconds: number): number {
 
 /** Silence kept after the last word when a clip is trimmed for lip-sync, so the line doesn't end on a hard cut. */
 export const LIPSYNC_TRIM_TAIL = 0.4;
+
+/** Did ASR hear words in a shot that must be silent? Any timed word, or any letter in the text: then it is muted. */
+export const speechHeard = (t: { text: string; words: readonly unknown[] }): boolean => t.words.length > 0 || /\p{L}/u.test(t.text);
 
 const exists = (path: string): Promise<boolean> => access(path).then(() => true, () => false);
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -325,6 +334,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     // straight to it. Otherwise the refused rungs would be asked again, and the budget guard, which can't know they
     // will be refused for free, may stop the run before it reaches the clip it already paid for (live 2026-10-19).
     for (const m of (ladder as readonly (typeof mode)[]).slice((ladder as readonly (typeof mode)[]).indexOf(mode))) {
+      if (opts.freshAfter !== undefined) break;
       if (m !== mode && (await exists(await clipPath(m, line, variant)))) {
         mode = m;
         break;
@@ -398,6 +408,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       reason: `silent shot: no verbatim gate${clip.cached ? "; reused cached clip" : ""}`,
       costUsd: clip.costUsd,
       ms: ms(t0),
+      path: clip.path,
     });
     if (!clip.hasAudio) return { shotId, path: clip.path, seconds: clip.seconds, hasAudio: false, via: "silent", attempts };
     // A silent shot must stay silent: live 2026-10-19 Seedance put "I'm sorry, I'm sorry" into one, and only the final
@@ -410,7 +421,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     try {
       const t = await asr.transcribe({ path: clip.path });
       costUsd = t.costUsd;
-      heard = t.words.length || /\p{L}/u.test(t.text) ? t.text.trim() : undefined;
+      heard = speechHeard(t) ? t.text.trim() : undefined;
       why = heard ? `speech heard in a silent shot ("${heard.slice(0, 80)}"); its audio replaced with silence` : "silent shot: no speech heard; ambient audio kept";
     } catch (e) {
       heard = "";
@@ -442,8 +453,9 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
   let best: { clip: Clip; wer: number } | undefined;
   const native = video.capabilities.nativeSpeech;
   const tries = native ? maxNative : 1;
-  // Take k numbers its video calls after take k−1's, so variants (and attempt numbers) never collide.
-  const first = (take - 1) * tries + 1;
+  // Take k numbers its video calls after take k−1's, so variants (and attempt numbers) never collide; fresh takes
+  // (F20) start after every number this shot used before.
+  const first = (take - 1) * tries + 1 + (opts.freshAfter ?? 0);
   for (let n = first; n < first + tries; n++) {
     const t0 = performance.now();
     const clip = await animate(n, native ? shot.line : undefined);
@@ -456,6 +468,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
         reason: `${video.name} has no native speech: base clip for TTS + lip-sync`,
         costUsd: clip.costUsd,
         ms: ms(t0),
+        path: clip.path,
       });
       best = { clip, wer: Infinity };
       break;
@@ -465,7 +478,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       // Groq extracts `-map 0:a:0` and throws), so don't call it. Keep the clip as a lip-sync base in case no take
       // speaks; any take with audio beats it (wer < Infinity).
       const reason = `no audio track${clip.cached ? "; reused cached clip" : ""}`;
-      record({ stage: "video", n, provider: video.name, ok: false, reason, costUsd: clip.costUsd, ms: ms(t0) });
+      record({ stage: "video", n, provider: video.name, ok: false, reason, costUsd: clip.costUsd, ms: ms(t0), path: clip.path });
       best ??= { clip, wer: Infinity };
       continue;
     }
@@ -490,6 +503,8 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       ...(reason.length ? { reason: reason.join("; ") } : {}),
       costUsd: clip.costUsd + heard.costUsd,
       ms: ms(t0),
+      ...gated(heard),
+      path: clip.path,
     });
     if (heard.pass) return result(clip.path, clip, "native", heard);
     if (!best || heard.wer < best.wer) best = { clip, wer: heard.wer };
@@ -567,7 +582,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
       ...(heard.pass ? (laid.cached ? ["reused cached voice-over"] : []) : [describeOps(heard.ops) || "no speech heard"]),
       ...describeIgnored(heard),
     ];
-    record({ ...step, ok: heard.pass, ...(why.length ? { reason: why.join("; ") } : {}), costUsd: heard.costUsd, ms: ms(t1) });
+    record({ ...step, ok: heard.pass, ...(why.length ? { reason: why.join("; ") } : {}), costUsd: heard.costUsd, ms: ms(t1), ...gated(heard) });
     if (!heard.pass) throw new VerbatimError(verbatimOf(heard), attempts, `voiceover ${shotId}`);
     return result(laid.path, await measure(laid.path), "voiceover", heard);
   }
@@ -607,6 +622,7 @@ async function produceTalkingShot(shot: Shot, keyframe: string, opts: TalkingSho
     ...(syncReason.length ? { reason: syncReason.join("; ") } : {}),
     costUsd: syncCost + heard.costUsd,
     ms: ms(t2),
+    ...gated(heard),
   });
   if (!heard.pass) throw new VerbatimError(verbatimOf(heard), attempts, `lipsync ${shotId}`);
   // Lip-sync models may trim or pad the clip (Kling caps input at 10 s), so measure the synced file itself.

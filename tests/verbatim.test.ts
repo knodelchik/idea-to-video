@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   compareLine,
   compareWords,
+  diffFromOps,
   extractQuotedLines,
+  parseOps,
+  wordDiff,
   MAX_READINGS,
   nonLatinLetters,
   normalize,
@@ -421,5 +424,38 @@ describe("same-sound spellings (live 2026-10-19: a correct take failed on Kiev a
     expect(compareWords("We'll go.", "Well go.").pass).toBe(false);
     expect(compareWords("Ticket's four fifty.", "Tickets for fifty.").pass).toBe(false);
     expect(compareWords("Kyiv, 1987.", "Kiev, 1988.").pass).toBe(false);
+  });
+});
+
+describe("F20: diffs for people (wordDiff, diffFromOps, parseOps)", () => {
+  const LINE = "Ticket's $4.50, and this train left Kyiv in 1987 — it doesn't stop for anyone.";
+  const marks = (ws: { word: string; mark?: string }[]) => ws.filter((w) => w.mark).map((w) => `${w.mark}:${w.word}`);
+
+  it("parseOps reads back what describeOps wrote", async () => {
+    const { describeOps } = await import("../src/nodes/gate.ts");
+    const ops = [
+      { type: "sub" as const, expected: "four", heard: "for" },
+      { type: "del" as const, expected: "anyone" },
+      { type: "ins" as const, heard: "dollars" },
+    ];
+    expect(parseOps(describeOps(ops))).toEqual(ops);
+    expect(parseOps("reused cached clip; no speech heard")).toEqual([]);
+  });
+
+  it("wordDiff uses the gate's own alignment: a changed word is marked, same-sound spans are not", () => {
+    const d = wordDiff(LINE, "Tickets for $50 and this train left Kiev in 1987 it doesn't stop for everyone");
+    expect(marks(d.expected)).toEqual(["sub:anyone"]);
+    expect(marks(d.heard)).toEqual(["sub:everyone"]);
+    expect(d.approx).toBeUndefined();
+  });
+
+  it("diffFromOps rebuilds a heard text whose alignment gives exactly the recorded ops", () => {
+    const d = diffFromOps(LINE, [{ type: "sub", expected: "four", heard: "for" }, { type: "ins", heard: "dollars" }]);
+    expect(d.approx).toBe(true);
+    expect(marks(d.heard)).toEqual(["sub:for", "ins:dollars"]);
+    expect(d.heard.map((w) => w.word).join(" ")).toMatch(/for fifty dollars and/);
+    // Ops no reading can produce still give a marked, non-empty diff.
+    const odd = diffFromOps("Hello there.", [{ type: "sub", expected: "zebra", heard: "x" }]);
+    expect(odd.heard).toEqual([{ word: "x", mark: "sub" }]);
   });
 });

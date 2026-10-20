@@ -9,7 +9,7 @@ import type { AsrProvider, TtsProvider } from "../providers/index.ts";
 import { VoiceTrack, type Attempt, type Character, type ShotId, type VerbatimResult } from "../schemas.ts";
 import { contentKey, once } from "../util/cache.ts";
 import { splitDelivery } from "../verbatim.ts";
-import { describeIgnored, describeOps, listen, VerbatimError, verbatimOf } from "./gate.ts";
+import { describeIgnored, describeOps, gated, listen, VerbatimError, verbatimOf } from "./gate.ts";
 
 /** Provider-neutral voice key; each TTS adapter maps it to its own voice (and lets env override the table). */
 export const voiceKey = (c: Character): string => `${c.voice.gender}-${c.voice.age}`;
@@ -68,6 +68,7 @@ export async function verifiedVoice(line: string, character: Character, opts: Ve
       ...(reason ? { reason } : {}),
       costUsd: (made.result?.costUsd ?? 0) + heard.costUsd,
       ms: Math.round(performance.now() - t0),
+      ...gated(heard),
     });
 
     if (heard.pass) {

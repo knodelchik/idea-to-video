@@ -8,14 +8,16 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { parseArgs } from "../src/cli.ts";
+import { main as cliMain, parseArgs } from "../src/cli.ts";
+import { MockTts, MockVideo } from "../src/providers/mock.ts";
+import type { TtsRequest } from "../src/providers/types.ts";
 import { probe } from "../src/media/ffmpeg.ts";
 import type { Attempt, RunManifest } from "../src/schemas.ts";
 import { codeMatches, LoginLimiter, signSession, verifySession } from "../src/web/auth.ts";
 import { configFromEnv, type WebConfig } from "../src/web/config.ts";
 import { parseRange } from "../src/web/media.ts";
 import { runSpec, spawnRunner, type RunSpec, type StartRun } from "../src/web/runner.ts";
-import { createWebServer, main as webMain } from "../src/web/server.ts";
+import { BUSY, createWebServer, main as webMain } from "../src/web/server.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const SECRET = "test-session-secret-0123456789";
@@ -737,5 +739,210 @@ describe("deploy (8): static checks (no Docker on this machine)", () => {
   it("pnpm web is wired", async () => {
     const pkg = JSON.parse(await read("package.json")) as { scripts: Record<string, string> };
     expect(pkg.scripts.web).toMatch(/src\/web\/server\.ts/);
+  });
+});
+
+describe("F20: a failure you can act on", () => {
+  const VERBATIM_ERR = 'shot s2: video s2: not verbatim after 2 attempts (wer 0.25): sub "four" heard as "for"';
+  /** A run that failed on the gate at shot s2; `gate` = the GATE_VERSION its takes were judged with (none = before F20). */
+  const failedRun = (runId: string, gate?: number, over: Partial<RunManifest> = {}) =>
+    manifest({
+      runId,
+      ok: false,
+      final: undefined,
+      verbatim: undefined,
+      status: "failed",
+      startedAt: "2026-10-20T10:00:00.000Z",
+      endedAt: "2026-10-20T10:04:00.000Z",
+      error: VERBATIM_ERR,
+      shots: { s1: { path: `/app/runs/${runId}/clip-s1-1e101c19c47c094b.mp4`, seconds: 5, hasAudio: false, audio: "silent" } },
+      attempts: [
+        attempt("script"),
+        attempt("video", true, { shotId: "s1", path: `/app/runs/${runId}/clip-s1-1e101c19c47c094b.mp4` }),
+        ...[1, 2].map((n) =>
+          attempt("video", false, { shotId: "s2", n, reason: 'sub "four" heard as "for"', path: `/app/runs/${runId}/clip-s2-a91baa3d3983${n}e78.mp4`, ...(gate ? { gateVersion: gate, heard: "Tickets for fifty" } : {}) }),
+        ),
+      ],
+      ...over,
+    });
+  /** Records each spec; the "run" rewrites the manifest as done after `ms`. */
+  const recorder = (calls: RunSpec[], ms = 30): StartRun => (spec) => {
+    calls.push(spec);
+    return {
+      done: (async () => {
+        await sleep(ms);
+        await writeRun(spec.env.RUNS_DIR!, manifest({ runId: spec.runId, status: "done", redos: [{ at: new Date().toISOString(), from: "shot", costUsd: 0 }] }));
+        return { code: 0, output: "" };
+      })(),
+    };
+  };
+  const post = (base: string, cookie: string, id: string) => fetch(`${base}/api/runs/${id}/continue`, { method: "POST", headers: { cookie }, body: "{}" });
+
+  it("POST /api/runs/:id/continue spawns --resume <id> --redo shot; --fresh-takes only when the gate version is current", async () => {
+    const d = await dirs();
+    const { GATE_VERSION } = await import("../src/verbatim.ts");
+    await writeRun(d.runsDir, failedRun("20261020-100000-oldgat"));
+    await writeRun(d.runsDir, failedRun("20261020-100000-curgat", GATE_VERSION));
+    const calls: RunSpec[] = [];
+    const { base } = await start(config({ ...d, maxCostUsd: 2.5 }), { startRun: recorder(calls), hasCheckpoint: async () => true });
+    const cookie = await cookieOf(base);
+
+    const old = await post(base, cookie, "20261020-100000-oldgat");
+    expect(old.status).toBe(202);
+    expect(await old.json()).toMatchObject({ runId: "20261020-100000-oldgat", step: "shot", freshTakes: false });
+    await readSse(await fetch(`${base}/api/runs/20261020-100000-oldgat/events`, { headers: { cookie } }));
+    await sleep(20);
+    const cur = await post(base, cookie, "20261020-100000-curgat");
+    expect(cur.status).toBe(202);
+    expect(await cur.json()).toMatchObject({ step: "shot", freshTakes: true });
+
+    const cli = (s: RunSpec) => s.args.slice(s.args.indexOf("src/cli.ts") + 1);
+    expect(cli(calls[0]!)).toEqual(["--resume", "20261020-100000-oldgat", "--redo", "shot", "--json"]);
+    expect(cli(calls[1]!)).toEqual(["--resume", "20261020-100000-curgat", "--redo", "shot", "--fresh-takes", "--json"]);
+    // The CLI accepts exactly these arguments, and the server's cap applies to the new spend.
+    expect(parseArgs(cli(calls[1]!))).toMatchObject({ resume: "20261020-100000-curgat", redo: "shot", freshTakes: true, json: true });
+    expect(() => parseArgs(["--resume", "x", "--fresh-takes"])).toThrow(/--fresh-takes needs/);
+    expect(calls[1]!.env.MAX_COST_USD).toBe("2.5");
+    expect(calls[1]!.env.ACCESS_CODE).toBeUndefined();
+  });
+
+  it("409 while a run is active (new or continued), 400 for a done run, an example or a run with no checkpoint", async () => {
+    const d = await dirs();
+    await writeRun(d.runsDir, failedRun("20261020-110000-fail01"));
+    await writeRun(d.runsDir, failedRun("20261020-110000-fail02"));
+    await writeRun(d.runsDir, manifest({ runId: "20261020-110000-done01", status: "done" }));
+    await copyFile(join(ROOT, "examples", "03-watchmaker-numbers.manifest.json"), join(d.examplesDir, "03-watchmaker-numbers.manifest.json"));
+    const calls: RunSpec[] = [];
+    let checkpoint = true;
+    const { base } = await start(config(d), { startRun: recorder(calls, 300), hasCheckpoint: async (id) => checkpoint && id !== "20261020-110000-fail02" });
+    const cookie = await cookieOf(base);
+
+    const err = async (r: Response) => ((await r.json()) as { error: string }).error;
+    const done = await post(base, cookie, "20261020-110000-done01");
+    expect(done.status).toBe(400);
+    expect(await err(done)).toMatch(/only a failed or interrupted run can be continued; this one is done/);
+    expect((await post(base, cookie, "03-watchmaker-numbers")).status).toBe(400);
+    const none = await post(base, cookie, "20261020-110000-fail02");
+    expect(none.status).toBe(400);
+    expect(await err(none)).toMatch(/no checkpoint/);
+    expect((await post(base, cookie, "nope-123")).status).toBe(404);
+
+    expect((await post(base, cookie, "20261020-110000-fail01")).status).toBe(202);
+    const busy = await post(base, cookie, "20261020-110000-fail01");
+    expect(busy.status).toBe(409);
+    expect(await err(busy)).toBe(BUSY);
+    // The same lock as a new run.
+    expect((await fetch(`${base}/api/runs`, { method: "POST", headers: { cookie }, body: JSON.stringify({ idea: "an idea", mode: "mock" }) })).status).toBe(409);
+    expect(calls).toHaveLength(1);
+    checkpoint = false;
+  });
+
+  it("a live run is not continued on a server with live off", async () => {
+    const d = await dirs();
+    await writeRun(d.runsDir, failedRun("20261020-120000-live01", undefined, { mode: "live" }));
+    const { base } = await start(config(d), { startRun: recorder([]), hasCheckpoint: async () => true });
+    expect((await post(base, await cookieOf(base), "20261020-120000-live01")).status).toBe(403);
+  });
+
+  it("the run detail API returns `failure` for failed runs (not for done ones), with playable take URLs", async () => {
+    const d = await dirs();
+    const id = "20261020-130000-fail03";
+    await writeRun(d.runsDir, failedRun(id));
+    await writeRun(d.runsDir, manifest({ runId: "20261020-130000-done02", status: "done" }));
+    await writeFile(join(d.runsDir, id, "clip-s2-a91baa3d39831e78.mp4"), Buffer.alloc(500, 1));
+    await writeFile(join(d.runsDir, id, "secret.txt"), "no");
+    const { base } = await start(config(d));
+    const cookie = await cookieOf(base);
+    const got = (await (await fetch(`${base}/api/runs/${id}`, { headers: { cookie } })).json()) as { failure: Record<string, unknown> & { diff: { heard: { word: string; mark?: string }[] } } };
+    expect(got.failure).toMatchObject({
+      kind: "verbatim",
+      step: "shot",
+      shotId: "s2",
+      what: "Shot s2: the spoken line was not word-for-word, so the agent refused to ship it.",
+      bestTakeUrl: `/media/${id}/clip-s2-a91baa3d39831e78.mp4`,
+      finished: [{ shotId: "s1", url: `/media/${id}/clip-s1-1e101c19c47c094b.mp4` }],
+      error: VERBATIM_ERR,
+      freshTakes: false,
+    });
+    const done = (await (await fetch(`${base}/api/runs/20261020-130000-done02`, { headers: { cookie } })).json()) as Record<string, unknown>;
+    expect(done.failure).toBeUndefined();
+    // The take is served; nothing else in the folder is.
+    expect((await fetch(`${base}${got.failure.bestTakeUrl as string}`, { headers: { cookie } })).status).toBe(200);
+    expect((await fetch(`${base}/media/${id}/secret.txt`, { headers: { cookie } })).status).toBe(404);
+    expect((await fetch(`${base}/media/${id}/clip-s2-a91baa3d39831e78.mp4`)).status).toBe(401);
+  });
+
+  it("example chips: only ideas that passed live, train first, read from the example manifests", async () => {
+    const d = await dirs();
+    for (const f of ["01-barista", "02-dialogue-mother-son", "03-watchmaker-numbers", "06-castle-dialogue-final", "07-train-blocking"]) {
+      await copyFile(join(ROOT, "examples", `${f}.manifest.json`), join(d.examplesDir, `${f}.manifest.json`));
+    }
+    // A proven example whose manifest no longer says it passed loses its chip.
+    const castle = JSON.parse(await readFile(join(d.examplesDir, "06-castle-dialogue-final.manifest.json"), "utf8")) as RunManifest;
+    await writeFile(join(d.examplesDir, "06-castle-dialogue-final.manifest.json"), JSON.stringify({ ...castle, ok: false, error: "x" }));
+    const { base } = await start(config(d));
+    const cookie = await cookieOf(base);
+    const cfg = (await (await fetch(`${base}/api/config`, { headers: { cookie } })).json()) as { examples: { id: string; label: string; idea: string; videoUrl: string }[] };
+    expect(cfg.examples.map((e) => e.label)).toEqual(["Train storyboard", "Mother and son", "Watchmaker numbers"]);
+    const train = JSON.parse(await readFile(join(ROOT, "examples", "07-train-blocking.manifest.json"), "utf8")) as RunManifest;
+    expect(cfg.examples[0]).toEqual({ id: "07-train-blocking", label: "Train storyboard", idea: train.idea, videoUrl: "/media/examples/07-train-blocking.mp4" });
+
+    // With the real examples folder, all four are there in order.
+    const real = await start(config({ ...d, examplesDir: join(ROOT, "examples") }));
+    const all = (await (await fetch(`${real.base}/api/config`, { headers: { cookie: await cookieOf(real.base) } })).json()) as { examples: { label: string }[] };
+    expect(all.examples.map((e) => e.label)).toEqual(["Train storyboard", "Castle dialogue", "Mother and son", "Watchmaker numbers"]);
+    const js = await readFile(join(ROOT, "src/web/public/app.js"), "utf8");
+    expect(js).not.toMatch(/const EXAMPLES = \[/);
+    expect(js).toMatch(/verified live/);
+    expect(js).toMatch(/\/continue`/);
+    expect(js).toContain("The agent never ships a video whose words differ from the line; this is that check working.");
+    expect(js).toContain("not shipped");
+  });
+
+  it("slow: a mock run failing on verbatim is explained by the API; Continue without the fault finishes done with one redo", { timeout: SLOW }, async () => {
+    const d = await dirs();
+    // Every native take says the wrong words, and the fallback voice adds one: the shot can't pass the gate.
+    const video = new MockVideo({ faults: Array.from({ length: 40 }, (_, call) => ({ call, say: "Meet me where it all ended." })) });
+    class MumblingTts extends MockTts {
+      override speak(req: TtsRequest) {
+        return super.speak({ ...req, text: `${req.text} truly` });
+      }
+    }
+    const runId = "20261020-140000-mockvb";
+    const idea = `A tired barista finds a note in the tip jar. She reads it aloud: "Meet me where it started."`;
+    const quiet = { stdout: () => {}, stderr: () => {} };
+    const code = await cliMain(["--mock", "--json", "--run-id", runId, "--", idea], { runsDir: d.runsDir, env: { MAX_COST_USD: "3" }, overrides: { video, tts: new MumblingTts() }, ...quiet });
+    expect(code).toBe(1);
+
+    // Continue runs the real CLI in-process, with the default (fault-free) mock providers.
+    const specs: RunSpec[] = [];
+    const runner: StartRun = (spec) => {
+      specs.push(spec);
+      const args = spec.args.slice(spec.args.indexOf("src/cli.ts") + 1);
+      return { done: cliMain(args, { runsDir: spec.env.RUNS_DIR!, env: { MAX_COST_USD: spec.env.MAX_COST_USD }, ...quiet }).then((c) => ({ code: c, output: "" })) };
+    };
+    const { base } = await start(config(d), { startRun: runner, pollMs: 100 });
+    const cookie = await cookieOf(base);
+    const before = (await (await fetch(`${base}/api/runs/${runId}`, { headers: { cookie } })).json()) as RunManifest & { status: string; failure: { kind: string; step: string; shotId: string; freshTakes: boolean; diff: { heard: { word: string; mark?: string }[] }; what: string } };
+    expect(before.status).toBe("failed");
+    expect(before.failure).toMatchObject({ kind: "verbatim", step: "shot", freshTakes: true });
+    expect(before.failure.what).toMatch(/^Shot s\d: the spoken line was not word-for-word/);
+    expect(before.failure.diff.heard.filter((w) => w.mark)).toEqual([{ word: "truly", mark: "ins" }]);
+
+    const res = await post(base, cookie, runId);
+    expect(res.status).toBe(202);
+    expect(specs[0]!.args).toEqual(expect.arrayContaining(["--resume", runId, "--redo", "shot", "--fresh-takes"]));
+    const events = await readSse(await fetch(`${base}/api/runs/${runId}/events`, { headers: { cookie } }));
+    expect(events.at(-1)).toMatchObject({ event: "done", data: { ok: true, status: "done" } });
+    const after = (await (await fetch(`${base}/api/runs/${runId}`, { headers: { cookie } })).json()) as RunManifest & { failure?: unknown };
+    expect(after).toMatchObject({ ok: true, status: "done" });
+    expect(after.redos).toHaveLength(1);
+    expect(after.failure).toBeUndefined();
+    // The fresh takes are numbered after the refused ones (new variants, new files).
+    const shot = before.failure.shotId;
+    const oldN = Math.max(...before.attempts.filter((a) => a.stage === "video" && a.shotId === shot).map((a) => a.n));
+    const passed = after.attempts.filter((a) => a.stage === "video" && a.shotId === shot && a.ok && !a.carried);
+    expect(passed.length).toBe(1);
+    expect(passed[0]!.n).toBeGreaterThan(oldN);
   });
 });

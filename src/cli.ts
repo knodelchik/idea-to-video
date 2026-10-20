@@ -9,7 +9,7 @@ import { qualityFromEnv, type QualitySettings } from "./nodes/quality.ts";
 import { createProviders, maxCostFromEnv, type Env, type Providers } from "./providers/index.ts";
 import { langfuseFromEnv, type LangfuseTestHooks } from "./obs/langfuse.ts";
 
-export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step>]] [--json] [--no-subtitles] [--run-id <id>] [-- "<idea>"]`;
+export const USAGE = `usage: pnpm make "<idea>" [--mock|--live] [--resume <runId> [--redo <step> [--fresh-takes]]] [--json] [--no-subtitles] [--run-id <id>] [-- "<idea>"]`;
 
 /** Run ids name folders under the runs dir: word characters and dashes only (no path tricks). */
 export const RUN_ID_RE = /^[\w-]+$/;
@@ -20,6 +20,8 @@ export interface CliArgs {
   resume?: string;
   /** With --resume: redo the run from this step (content-addressed artifacts are reused). */
   redo?: RedoStep;
+  /** F20, with --redo shot: the failing shots make new native takes instead of re-gating the saved ones. */
+  freshTakes?: true;
   json: boolean;
   /** Present (false) only with --no-subtitles (F13); default is on. */
   subtitles?: false;
@@ -45,6 +47,7 @@ export function parseArgs(argv: string[]): CliArgs {
     }
     if (a === "--json") out.json = true;
     else if (a === "--no-subtitles") out.subtitles = false;
+    else if (a === "--fresh-takes") out.freshTakes = true;
     else if (a === "--mock" || a === "--live") {
       const mode = a.slice(2) as Mode;
       if (out.mode && out.mode !== mode) throw new Error("--mock and --live are mutually exclusive");
@@ -70,6 +73,7 @@ export function parseArgs(argv: string[]): CliArgs {
   if (out.resume && out.idea) throw new Error("--resume continues a stored run; don't pass an idea with it");
   if (out.resume && out.mode) throw new Error("--resume uses the run's own mode; drop --mock/--live");
   if (out.redo && !out.resume) throw new Error("--redo needs --resume <runId>");
+  if (out.freshTakes && out.redo !== "shot") throw new Error("--fresh-takes needs --resume <runId> --redo shot");
   if (out.runId && out.resume) throw new Error("--run-id names a new run; --resume already has one");
   return out;
 }
@@ -151,7 +155,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
   if (deps.signals) for (const s of ["SIGINT", "SIGTERM"] as const) process.once(s, onSignal);
   let outcome: RunOutcome;
   try {
-    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock", runId }, {
+    outcome = await runPipeline(args.resume ? { resume: args.resume, ...(args.redo ? { redo: args.redo } : {}), ...(args.freshTakes ? { freshTakes: true } : {}) } : { idea: args.idea!, mode: args.mode ?? "mock", runId }, {
       providers: makeProviders,
       runsDir,
       maxCostUsd,
