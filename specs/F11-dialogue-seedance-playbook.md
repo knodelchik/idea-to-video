@@ -3,7 +3,7 @@
 ## Goal
 1. **Dialogue.** "Make them talk to each other" is the most natural hard idea. Today the contract has one
    `Character`, so Gemini gives both lines to one person, who then says "…, Mom." to herself; every check passes
-   (silent semantic failure, `docs/hard-ideas-report.md` #4). Support 1–2 characters, one speaker per shot.
+   (silent semantic failure, `docs/research/hard-ideas-report.md` #4). Support 1–2 characters, one speaker per shot.
 2. **Prompts per the official Seedance 2.0 guide** (`docs/research/seedance-playbook.md`, sources S1–S9). Our
    current wording repeats and annotates the line ("Exactly these words, once, …"), which the guide says can
    trigger burned-in subtitles, and uses an undocumented reference syntax.

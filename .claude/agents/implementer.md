@@ -15,7 +15,7 @@ Process:
 5. If AI-generated code or your own assumption was wrong in a way that cost time (wrong API shape, a test that
    passed for the wrong reason, a flaky approach), append a short entry to `docs/ai-log.md`:
    `- [F0x] what went wrong → how it was caught → fix`.
-6. Append to `PROGRESS.md`: `## F0x — <title>` + 3–6 bullets of what exists now and how to use it.
+6. Append to `harness/PROGRESS.md`: `## F0x — <title>` + 3–6 bullets of what exists now and how to use it.
 
 Never: call paid APIs, run `--live`, read `.env`, skip/weaken tests, mark the feature passing yourself, commit.
 If an acceptance item truly can't be met, write it under **Blocked** in the spec with the reason and stop.

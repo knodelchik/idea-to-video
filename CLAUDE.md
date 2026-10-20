@@ -21,7 +21,7 @@ Read this file, then the spec you were given. Everything else is linked from her
 | `specs/` | Feature specs. `specs/features.json` is the backlog with status; one spec per feature. |
 | `docs/research/` | Model / tooling research with sources. Read only the part your spec points to. |
 | `docs/ai-log.md` | Where AI (you) got something wrong and how it was caught. Append, never rewrite. |
-| `PROGRESS.md` | One entry per finished feature. Append-only. |
+| `harness/PROGRESS.md` | One entry per finished feature. Append-only. |
 
 ## Commands
 

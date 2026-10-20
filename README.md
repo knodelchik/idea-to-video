@@ -9,6 +9,19 @@ pnpm make 'A tired barista finds a note in the tip jar: "Meet me where it starte
 # → runs/<runId>/final.mp4  +  runs/<runId>/manifest.json (every attempt, every cent)
 ```
 
+## How to read this repo (10 minutes)
+
+1. **This README:** what the pipeline does and how to run it.
+2. **One spec, e.g. [`specs/F18-blocking-continuity.md`](specs/F18-blocking-continuity.md):** what an agent was
+   given: the goal, the scope, and acceptance commands that a script can check. All 20 are in `specs/`.
+3. **[`harness/runs.md`](harness/runs.md):** what the agents did with the specs: attempts, the gate, reviewer
+   verdicts, BLOCKED features and the commit each one became.
+4. **[`docs/ai-log.md`](docs/ai-log.md):** where AI got it wrong and how each mistake was caught.
+5. **[`docs/ai-chats/`](docs/ai-chats/):** two full agent sessions, including a reviewer rejecting green code.
+
+The rest is reference: `docs/research/` (model research with sources), `evals/`, `deploy/`, and
+`harness/PROGRESS.md` (the agents' own per-feature notes).
+
 ## Quick start (free, no keys)
 
 Requires Node ≥ 22, pnpm, and ffmpeg/ffprobe on `PATH`.
@@ -155,7 +168,7 @@ specs/features.json ─► implementer agent (claude -p) ─► gate: scripts/ve
   editing the gate, or pushing. A Stop hook won't let an agent finish while `verify` is red.
 - Result so far: 20 features, ~40 implementer runs, ~18 returns by the gate or the reviewer (nearly all real bugs),
   2 features BLOCKED and unblocked by a human note in the spec. F10/F11 came from a $0 stress test of 19 hard ideas
-  (`docs/hard-ideas-report.md`); F12–F20 came from watching live videos (wrong framing, faces swapped, a run away
+  (`docs/research/hard-ideas-report.md`); F12–F20 came from watching live videos (wrong framing, faces swapped, a run away
   from the goal, a failure a reviewer couldn't act on).
 
 ## Repo map

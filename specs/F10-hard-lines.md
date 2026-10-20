@@ -3,7 +3,7 @@
 ## Goal
 A skeptical reviewer will type hard ideas: numbers, money, times, accented names, emoji, abbreviations, Ukrainian, nested
 quotes, three lines. Today about half of them pass mock mode and then fail **every** paid run (evidence:
-`docs/hard-ideas-report.md`, `evals/hard.jsonl`, `evals/results/2026-10-18-hard-stress.json`). Two rules:
+`docs/research/hard-ideas-report.md`, `evals/hard.jsonl`, `evals/results/2026-10-18-hard-stress.json`). Two rules:
 1. **Same spoken words must pass.** If a human hears exactly the written words, the gate passes, whichever way ASR
    spells them ("1987" / "nineteen eighty-seven", "Zoë" / "Zoe", "FBI" / "F.B.I.", "3:15 a.m." / "3.15 AM").
 2. **Impossible lines fail before the first paid call**, with a message a user can act on.

@@ -1,5 +1,5 @@
 /**
- * Hard-idea stress test, $0. Scratch tool for docs/hard-ideas-report.md, not part of `pnpm verify`.
+ * Hard-idea stress test, $0. Scratch tool for docs/research/hard-ideas-report.md, not part of `pnpm verify`.
  *
  *   npx tsx --env-file=.env evals/stress-script.ts [--ids a,b] [--fresh] [--no-live]
  *
