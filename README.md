@@ -51,6 +51,7 @@ Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to
 
 | File | Idea | Length | Cost |
 | --- | --- | --- | --- |
+| `examples/07-train-blocking.mp4` | 3-shot storyboard with blocking (F18): she runs left→right to the door, conductor speaks, she answers; the script checks caught 3 staging errors before any video was paid. Rescued with `--redo` for $0.004 after two gate fixes ("for fifty dollars", voice-over speed-up) | 20.6 s | $2.92 |
 | `examples/06-castle-dialogue-final.mp4` | 3-shot storyboard: wide castle → king speaks → daughter answers; cuts inside shots, subtitles. Rescued with `--redo` for $0 after the gate caught an ASR hallucination | 18.2 s | $1.76 |
 | `examples/05-castle-storyboard-wide.mp4` | storyboard in Ukrainian ("1 кадр … 2 кадр …"), wide shots, burned-in subtitles: "Hello? Is anyone still here?" | 9 s | $1.37 |
 | `examples/04-lighthouse-keeper-22s.mp4` | two long lines, 48 words; same face in both shots (portraits-only references) | 22 s | $2.08 |
