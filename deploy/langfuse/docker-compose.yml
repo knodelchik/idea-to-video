@@ -1,0 +1,156 @@
+# Self-hosted Langfuse v4 for idea-to-video, on the author's Oracle ARM VPS behind Coolify's Traefik.
+# Adapted from https://github.com/langfuse/langfuse/blob/main/docker-compose.yml (fetched 2026-10-19):
+# - no host ports: only langfuse-web is reachable, through Traefik on HTTPS; everything else stays on a private network
+# - every secret comes from .env, generated on the server (see setup.sh); no CHANGEME defaults
+# - memory caps, so the box keeps serving the other apps (2 vCPU, 11 GiB)
+# - backing services get unique names (lf-*): langfuse-web also sits on Coolify's shared network, where another
+#   app's "postgres" would otherwise answer first (P1000 auth failure on 2026-10-19)
+# - signup is closed after the first account (AUTH_DISABLE_SIGNUP in .env)
+x-env: &env
+  NEXTAUTH_URL: https://${LANGFUSE_DOMAIN}
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@lf-postgres:5432/postgres
+  SALT: ${SALT}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://lf-clickhouse:9000
+  CLICKHOUSE_URL: http://lf-clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://lf-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://lf-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  REDIS_HOST: lf-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${REDIS_AUTH}
+
+services:
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    restart: unless-stopped
+    depends_on: &deps
+      lf-postgres: { condition: service_healthy }
+      lf-minio: { condition: service_healthy }
+      lf-redis: { condition: service_healthy }
+      lf-clickhouse: { condition: service_healthy }
+    environment:
+      <<: *env
+      NODE_OPTIONS: --max-old-space-size=1024
+    mem_limit: 1536m
+    networks: [internal]
+
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4
+    restart: unless-stopped
+    depends_on: *deps
+    environment:
+      <<: *env
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_DISABLE_SIGNUP: ${AUTH_DISABLE_SIGNUP:-false}
+      LANGFUSE_TRUSTED_PROXY_COUNT: "1"
+      HOSTNAME: 0.0.0.0 # Next.js binds to $HOSTNAME; with two networks it must listen on all of them for Traefik
+      NODE_OPTIONS: --max-old-space-size=1536 # at 1 GB the Node heap ran out on start (2026-10-19)
+    mem_limit: 2g
+    networks: [internal, coolify]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.routers.langfuse.rule: Host(`${LANGFUSE_DOMAIN}`)
+      traefik.http.routers.langfuse.entrypoints: https
+      traefik.http.routers.langfuse.tls: "true"
+      traefik.http.routers.langfuse.tls.certresolver: letsencrypt
+      traefik.http.services.langfuse.loadbalancer.server.port: "3000"
+
+  lf-clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:25.12
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./clickhouse-low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+    mem_limit: 2500m
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+
+  lf-minio:
+    image: cgr.dev/chainguard/minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  lf-redis:
+    image: docker.io/redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_AUTH}", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH}", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+    networks: [internal]
+
+  lf-postgres:
+    image: docker.io/postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+
+networks:
+  internal: {}
+  coolify:
+    external: true
+
+volumes:
+  postgres_data: {}
+  clickhouse_data: {}
+  clickhouse_logs: {}
+  minio_data: {}
+  redis_data: {}

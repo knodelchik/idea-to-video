@@ -16,7 +16,7 @@ Requires Node ≥ 22, pnpm, and ffmpeg/ffprobe on `PATH`.
 ```sh
 pnpm install
 pnpm make 'A tired barista finds a note in the tip jar: "Meet me where it started."'   # mock mode, $0
-pnpm verify                                                                             # typecheck + ~400 tests + mock e2e
+pnpm verify                                                                             # typecheck + 570+ tests + mock e2e
 ```
 
 Mock mode runs the whole graph with local ffmpeg stand-ins for every model. Mock audio and video carry transcript
@@ -45,6 +45,20 @@ pnpm make "<idea>" --live --json          # last stdout line: { ok, runId, final
 All settings are listed with comments in [.env.example](.env.example). `MAX_COST_USD` (default 3) is checked
 **before every paid call**, retries included, so a retry loop can't run past it.
 
+## Web demo and traces
+
+- **Demo:** `https://itv.158-180-45-68.sslip.io`: one access code (sent with the submission), mock or live mode,
+  `MAX_COST_USD=3` per live run, one run at a time. The page shows every model call live (Seedance, refusals, TTS,
+  ASR, judge) with its cost, and keeps the timer across reloads. The example chips are ideas that already passed live.
+- **If a run fails:** this usually means the agent *refused to ship*, not that it crashed. The failure page says why
+  in plain words (e.g. "shot s2: heard *for fifty dollars*, the line says *$4.50*"), shows the shots already made and
+  the take that failed, and offers **Continue** with a cost estimate. Continue resumes from the failed step; finished
+  shots are reused for $0.
+- **Traces:** every call is written to `runs/<id>/trace.jsonl` and, when `LANGFUSE_*` keys are set, to Langfuse
+  (official SDK, verb-first span names, generation/agent/tool observation types, scores `verbatim_pass`,
+  `verbatim_wer`, `needs_review`, `cost_usd`). The demo's Langfuse is self-hosted on the same VPS.
+- Deploy: `deploy/` (Docker Compose behind Traefik).
+
 ## Examples
 
 Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to each file has every attempt and cost.
@@ -62,11 +76,11 @@ Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to
 ## How it works
 
 ```
-idea ─► writeScript ─► cast ─► drawKeyframes ─► shot (one per shot, parallel) ─► assemble ─► finalGate ─► final.mp4
-        LLM, Zod-      portrait  keyframes      Seedance 2.0 i2v, line spoken     ffmpeg:      probe + ASR
-        validated,     (image)   + VLM judge    natively → ASR gate → retry →     1080×1920,   of the final
-        lines checked            (redraw on     fallback: verified TTS + lip-sync  loudnorm     file, WER = 0
-        by code                  low score)     → VLM judge on the clip                         or the run fails
+idea ─► writeScript ─► checkContinuity ─► cast ─► drawKeyframes ─► shot ×N ─► assemble ─► burnSubtitles ─► finalGate
+        LLM + Zod,     LLM critic reads   portraits keyframes      Seedance 2.0   ffmpeg:     cues timed by      probe + ASR of
+        blocking per   the whole script   (image)   + VLM judge    + ASR gate     1080×1920,  ASR words, text    the final file,
+        shot, checked  like an editor                              + VLM judge    loudnorm    = the verified     WER = 0
+        by code                                                    on the video               line
 ```
 
 - **Graph:** LangGraph.js `StateGraph`. Shots fan out with `Send`. The state is checkpointed to SQLite after every
@@ -81,15 +95,30 @@ idea ─► writeScript ─► cast ─► drawKeyframes ─► shot (one per sh
 - **Native speech first, fallback second:** Seedance 2.0 speaks the line from the prompt. If ASR hears a different
   line, it retries (`maxNative`). If that also fails, the line is synthesized by TTS, checked by ASR before use, and
   put on the clip by a lip-sync model. In that branch the audio is the source of truth.
-- **Quality judge:** a VLM (Gemini) scores keyframes and clips against a rubric. A keyframe below 7 is redrawn with the
+- **Quality judge:** a VLM (Gemini) scores keyframes and clips against a rubric; for clips it watches the video
+  itself (frames only as a fallback) and checks the blocking: direction, pace, whose lips move. A keyframe below 7 is redrawn with the
   judge's issues added to the prompt (max 2 extra). A clip below 5 is regenerated once, only if the budget allows.
   Otherwise the best take is kept and flagged `needsReview`.
+- **Storyboards and shot sizes:** an idea may be written as shots ("Shot 1: … Shot 2: …" or "1 кадр … 2 кадр …"),
+  up to 4 shots, wide or close, with cuts inside a shot. On a wide shot the line can be a voice-over.
+- **Blocking and continuity:** the script states, for every shot and cut, where each person stands (foreground/
+  background, left/right, facing), who moves where toward which *visible* target, at what pace, and who speaks. Code
+  rejects a script that breaks the 180° rule, plays a line over another character's face, asks for slow motion the
+  idea didn't ask for, or names a target with no place in frame. An LLM critic then reads the whole script for
+  contradictions ("runs away from the castle, next shot is inside it"). The same staging sentences go into the video
+  prompt and the judge's rubric.
 - **One or two characters:** each has a portrait and a written voice; each spoken shot has one `speaker`, so a
   dialogue becomes shot / reverse shot. Seedance prompts follow its official guide (`Name says in English: {line}`,
   `@Image 1 (Name)` references, audio policy first, constraints last; see `docs/research/seedance-playbook.md`).
 - **Real-face filter:** Seedance refuses photoreal images that "may contain a real person", including our own
   generated keyframes. Refusals cost $0, so a shot steps down: keyframe as first frame → portrait + keyframe as
   references → portraits only → text only. Portraits-only was checked live and keeps the face.
+- **ASR hallucinations:** Whisper "hears" *Thank you for watching* in silence. A shot meant to be silent is listened
+  to and muted if speech is heard, and the final gate ignores words heard inside digital silence.
+- **Same-sound readings:** spellings of one spoken word pass (Kyiv/Kiev, ticket's/tickets, grey/gray), and inside a
+  number written in digits a number word may come back as its homophone ("$4.50" heard as "for fifty dollars").
+  Different words still fail ("we'll" ≠ "well", "four apples" ≠ "for apples"). Real Whisper transcripts from live
+  runs are kept as a regression set in `pnpm verify`.
 - **Nothing silent:** every retry, fallback, judge score and cost goes into `manifest.attempts[]`.
 - **Idempotent:** every generated file is content-addressed (`once()`), so a re-run with the same inputs costs $0.
 
@@ -124,8 +153,10 @@ specs/features.json ─► implementer agent (claude -p) ─► gate: scripts/ve
   end-to-end run, and a separate reviewer agent must pass the change.
 - Claude Code hooks (`.claude/hooks/`) stop agents from spending money (`--live`, paid API hosts), reading `.env`,
   editing the gate, or pushing. A Stop hook won't let an agent finish while `verify` is red.
-- Result: 11 features, 21 implementer runs, 10 reviewer rejections (all real bugs), 1 feature BLOCKED and fixed by a
-  human note in the spec. F10/F11 came from a $0 stress test of 19 hard ideas (`docs/hard-ideas-report.md`).
+- Result so far: 20 features, ~40 implementer runs, ~18 returns by the gate or the reviewer (nearly all real bugs),
+  2 features BLOCKED and unblocked by a human note in the spec. F10/F11 came from a $0 stress test of 19 hard ideas
+  (`docs/hard-ideas-report.md`); F12–F20 came from watching live videos (wrong framing, faces swapped, a run away
+  from the goal, a failure a reviewer couldn't act on).
 
 ## Repo map
 
@@ -135,6 +166,9 @@ specs/features.json ─► implementer agent (claude -p) ─► gate: scripts/ve
 | `src/nodes/` | stages: script, visuals (keyframes, talking shot), voice, gate, quality, assemble, final gate |
 | `src/providers/` | one interface per capability; live adapters + mocks; `index.ts` is the only import door |
 | `src/schemas.ts`, `src/verbatim.ts` | contracts and the verbatim gate |
+| `src/prompts/` | versioned prompts (script, continuity, staging, visuals, judge); the version is part of the cache key |
+| `src/web/`, `deploy/` | the web demo and its Docker deploy |
+| `src/obs/` | trace spans, metrics, Langfuse export |
 | `specs/` | the feature specs the agents built from, each with its Decisions section |
 | `docs/research/` | model and tooling research with sources (VERIFIED / UNCERTAIN) |
 | `docs/ai-log.md` | where AI got it wrong and how it was caught |
@@ -147,4 +181,7 @@ specs/features.json ─► implementer agent (claude -p) ─► gate: scripts/ve
 - The pipeline was developed against mocks; only a handful of live runs were paid for (`examples/`, each with its
   manifest). When every image rung is refused, a shot falls back to text-to-video and the face can drift between
   shots.
+- Seedance follows the staging only most of the time: a run can still look like running on a treadmill. The judge
+  flags it; there is no guarantee.
+- The judge is not calibrated against human ratings, so its score is a filter, not a measure.
 - Lip-sync fallback via fal Kling caps a lipsynced clip at `LIPSYNC_MAX_SECONDS` (10 s).
