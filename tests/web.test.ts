@@ -872,7 +872,7 @@ describe("F20: a failure you can act on", () => {
     expect((await fetch(`${base}/media/${id}/clip-s2-a91baa3d39831e78.mp4`)).status).toBe(401);
   });
 
-  it("example chips: only ideas that passed live, train first, read from the example manifests", async () => {
+  it("example chips: only ideas that passed live, in the proven order, read from the example manifests", async () => {
     const d = await dirs();
     for (const f of ["01-barista", "02-dialogue-mother-son", "03-watchmaker-numbers", "06-castle-dialogue-final", "07-train-blocking"]) {
       await copyFile(join(ROOT, "examples", `${f}.manifest.json`), join(d.examplesDir, `${f}.manifest.json`));
@@ -887,10 +887,10 @@ describe("F20: a failure you can act on", () => {
     const train = JSON.parse(await readFile(join(ROOT, "examples", "07-train-blocking.manifest.json"), "utf8")) as RunManifest;
     expect(cfg.examples[0]).toEqual({ id: "07-train-blocking", label: "Train storyboard", idea: train.idea, videoUrl: "/media/examples/07-train-blocking.mp4" });
 
-    // With the real examples folder, all four are there in order.
+    // With the real examples folder, all five are there in order.
     const real = await start(config({ ...d, examplesDir: join(ROOT, "examples") }));
     const all = (await (await fetch(`${real.base}/api/config`, { headers: { cookie: await cookieOf(real.base) } })).json()) as { examples: { label: string }[] };
-    expect(all.examples.map((e) => e.label)).toEqual(["Train storyboard", "Castle dialogue", "Mother and son", "Watchmaker numbers"]);
+    expect(all.examples.map((e) => e.label)).toEqual(["Astronaut (plain idea)", "Train storyboard", "Castle dialogue", "Mother and son", "Watchmaker numbers"]);
     const js = await readFile(join(ROOT, "src/web/public/app.js"), "utf8");
     expect(js).not.toMatch(/const EXAMPLES = \[/);
     expect(js).toMatch(/verified live/);

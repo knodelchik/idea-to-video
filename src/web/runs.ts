@@ -185,6 +185,7 @@ export async function hasCheckpoint(runsDir: string, id: string): Promise<boolea
 
 /** Example ideas that have passed live (F20), first to last; labels are ours, ideas come from the manifests. */
 export const PROVEN_EXAMPLES = [
+  { id: "08-astronaut-plain-idea", label: "Astronaut (plain idea)" },
   { id: "07-train-blocking", label: "Train storyboard" },
   { id: "06-castle-dialogue-final", label: "Castle dialogue" },
   { id: "02-dialogue-mother-son", label: "Mother and son" },

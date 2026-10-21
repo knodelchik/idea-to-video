@@ -78,6 +78,7 @@ Made with the live pipeline (OpenRouter Seedance 2.0 fast); the manifest next to
 
 | File | Idea | Length | Cost |
 | --- | --- | --- | --- |
+| `examples/08-astronaut-plain-idea.mp4` | A plain one-sentence idea, no shot list: the script split it into a wide shot and a close-up with the line. Seedance refused the close-up twice as a possible real person; the ladder passed it on the portrait alone ($0). Subtitles re-burned with `--redo burnSubtitles` for $0 after a font fix | 11.1 s | $1.08 |
 | `examples/07-train-blocking.mp4` | 3-shot storyboard with blocking (F18): she runs left→right to the door, conductor speaks, she answers; the script checks caught 3 staging errors before any video was paid. Rescued with `--redo` for $0.004 after two gate fixes ("for fifty dollars", voice-over speed-up) | 20.6 s | $2.92 |
 | `examples/06-castle-dialogue-final.mp4` | 3-shot storyboard: wide castle → king speaks → daughter answers; cuts inside shots, subtitles. Rescued with `--redo` for $0 after the gate caught an ASR hallucination | 18.2 s | $1.76 |
 | `examples/05-castle-storyboard-wide.mp4` | storyboard in Ukrainian ("1 кадр … 2 кадр …"), wide shots, burned-in subtitles: "Hello? Is anyone still here?" | 9 s | $1.37 |

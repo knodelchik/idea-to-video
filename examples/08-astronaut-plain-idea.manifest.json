@@ -1,0 +1,348 @@
+{
+  "runId": "20261021-071836-1ad5f9",
+  "idea": "An astronaut floats calmly by the window of a quiet space station, the blue Earth turning below. She turns to us and says: \"From up here, every border just disappears.\"",
+  "mode": "live",
+  "createdAt": "2026-10-21T07:18:40.507Z",
+  "script": {
+    "promptVersion": "script-v8",
+    "title": "The Pale Blue View",
+    "logline": "Floating weightlessly above the atmosphere, an astronaut looks out at the boundless planet and reflects on the absence of human divides.",
+    "setting": "The cupola observation module of an orbital space station, bathed in vivid azure earthlight against the deep starry void.",
+    "characters": [
+      {
+        "name": "Elena Chen",
+        "look": "Mid-thirties female astronaut with sharp features, jet-black hair drifting in zero gravity, dressed in a sleek white flight suit featuring bright orange shoulder patches and brushed-metal harness buckles.",
+        "voice": {
+          "gender": "female",
+          "age": "adult",
+          "tone": "calm, wonderstruck"
+        },
+        "voiceDescription": "serene low female voice, mid-30s, neutral North American accent, gentle and contemplative"
+      }
+    ],
+    "shots": [
+      {
+        "id": "s1",
+        "camera": "full shot",
+        "visual": "Framed vertically, the massive curved cupola bay window displays the swirling blue oceans and white clouds of Earth turning below, while Elena floats suspended in zero-g in the lower center, her back to camera as she gazes out.",
+        "motion": "slow pull-back drifting downward along the metallic interior ribs of the station",
+        "emotion": "peaceful awe",
+        "line": "",
+        "seconds": 5,
+        "onScreen": [
+          "Elena Chen"
+        ],
+        "blocking": {
+          "subjects": [
+            {
+              "name": "Elena Chen",
+              "position": "midground",
+              "side": "center",
+              "facing": "away"
+            }
+          ],
+          "movement": null,
+          "speaking": null
+        },
+        "continuity": {
+          "from": "start",
+          "screenDirection": "neutral"
+        }
+      },
+      {
+        "id": "s2",
+        "camera": "medium close-up",
+        "visual": "Bathed in luminous cyan reflections from the window, Elena turns gently to look into the lens, her expression softening into quiet clarity as stray strands of dark hair drift weightlessly around her face.",
+        "motion": "slow push-in toward Elena's face",
+        "emotion": "gentle conviction",
+        "line": "From up here, every border just disappears.",
+        "seconds": 5.5,
+        "speaker": "Elena Chen",
+        "onScreen": [
+          "Elena Chen"
+        ],
+        "blocking": {
+          "subjects": [
+            {
+              "name": "Elena Chen",
+              "position": "foreground",
+              "side": "center",
+              "facing": "camera"
+            }
+          ],
+          "movement": null,
+          "speaking": "Elena Chen"
+        },
+        "continuity": {
+          "from": "Elena floated facing the window at the end of s1; now she gently pivots her torso and turns her face toward the camera.",
+          "screenDirection": "neutral"
+        }
+      }
+    ],
+    "quotedLines": [
+      "From up here, every border just disappears."
+    ]
+  },
+  "shots": {
+    "s1": {
+      "path": "/app/runs/20261021-071836-1ad5f9/clip-s1-9851645a91dc3eed.mp4",
+      "seconds": 5.088,
+      "hasAudio": false,
+      "audio": "silent",
+      "keyframeScore": 10,
+      "clipScore": 10,
+      "needsReview": false
+    },
+    "s2": {
+      "path": "/app/runs/20261021-071836-1ad5f9/clip-s2-b1945db9e0002bbb.mp4",
+      "seconds": 6.08,
+      "hasAudio": true,
+      "audio": "native",
+      "speechStart": 1.86,
+      "speechEnd": 6.08,
+      "verbatim": {
+        "expected": "from up here every border just disappears",
+        "heard": "from up here every border just disappears",
+        "wer": 0,
+        "ops": [],
+        "pass": true
+      },
+      "keyframeScore": 10,
+      "clipScore": 10,
+      "needsReview": false
+    }
+  },
+  "attempts": [
+    {
+      "stage": "script",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.01069725,
+      "ms": 123641
+    },
+    {
+      "stage": "continuity",
+      "n": 1,
+      "provider": "gemini:gemini-3.8-flash",
+      "ok": true,
+      "costUsd": 0.00177075,
+      "ms": 217866
+    },
+    {
+      "stage": "portrait",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 10501
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 9678
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash",
+      "costUsd": 0.00309075,
+      "ms": 3950,
+      "score": 10
+    },
+    {
+      "stage": "keyframe",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-image",
+      "ok": true,
+      "costUsd": 0.018,
+      "ms": 10438
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "keyframe score 10/10 >= 7; model gemini-3.5-flash-lite; model gemini-3.5-flash unavailable (503), trying next",
+      "costUsd": 0.0008058,
+      "ms": 8358,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": true,
+      "reason": "silent shot: no verbatim gate",
+      "costUsd": 0.45738,
+      "ms": 111406,
+      "path": "/app/runs/20261021-071836-1ad5f9/clip-s1-9851645a91dc3eed.mp4"
+    },
+    {
+      "stage": "listen",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "groq-whisper",
+      "ok": true,
+      "reason": "speech heard in a silent shot (\"Thank you for watching!\"); its audio replaced with silence",
+      "costUsd": 0.00030833333333333337,
+      "ms": 577
+    },
+    {
+      "stage": "judge",
+      "shotId": "s1",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; model gemini-3.5-flash",
+      "costUsd": 0.003714,
+      "ms": 6163,
+      "score": 10
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "keyframe refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video",
+      "costUsd": 0,
+      "ms": 4185
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast",
+      "ok": false,
+      "reason": "reference images refused as a possible real person ({\"error\":{\"message\":\"HTTP 400: {\\\"error\\\":{\\\"code\\\":\\\"InputImageSensitiveContentDetected.PrivacyInformation\\\",\\\"message\\\":\\\"The request failed because the input); retrying as reference-to-video with the portraits only",
+      "costUsd": 0,
+      "ms": 5821
+    },
+    {
+      "stage": "video",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "openrouter-seedance-2.0-fast+groq-whisper",
+      "ok": true,
+      "costUsd": 0.5484083333333334,
+      "ms": 182815,
+      "gateVersion": 1,
+      "path": "/app/runs/20261021-071836-1ad5f9/clip-s2-b1945db9e0002bbb.mp4"
+    },
+    {
+      "stage": "judge",
+      "shotId": "s2",
+      "n": 1,
+      "provider": "gemini-judge",
+      "ok": true,
+      "reason": "clip score 10/10 >= 5; model gemini-3.5-flash",
+      "costUsd": 0.003951,
+      "ms": 6624,
+      "score": 10
+    },
+    {
+      "stage": "assemble",
+      "n": 1,
+      "provider": "ffmpeg",
+      "ok": true,
+      "reason": "2 shot(s): 5.00 s + 6.07 s, 0.05 s edge fades + 0.2 s end fade-out, loudnorm −16 LUFS",
+      "costUsd": 0,
+      "ms": 35391
+    },
+    {
+      "stage": "subtitles",
+      "n": 1,
+      "provider": "groq-whisper+resvg+ffmpeg",
+      "ok": true,
+      "reason": "2 cue(s) of the verified line, timed by ASR words",
+      "costUsd": 0.00034138666666666664,
+      "ms": 20177
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.00034138666666666664,
+      "ms": 875,
+      "gateVersion": 1
+    },
+    {
+      "stage": "subtitles",
+      "n": 1,
+      "provider": "groq-whisper+resvg+ffmpeg",
+      "ok": true,
+      "reason": "2 cue(s) of the verified line, timed by ASR words",
+      "costUsd": 0.00034138666666666664,
+      "ms": 20630,
+      "carried": true
+    },
+    {
+      "stage": "final",
+      "n": 1,
+      "provider": "ffprobe+groq-whisper",
+      "ok": true,
+      "costUsd": 0.00034138666666666664,
+      "ms": 936,
+      "carried": true,
+      "gateVersion": 1
+    }
+  ],
+  "costUsd": 1.085492,
+  "final": {
+    "path": "/app/runs/20261021-071836-1ad5f9/final.mp4",
+    "seconds": 11.072,
+    "width": 1080,
+    "height": 1920,
+    "hasAudio": true
+  },
+  "verbatim": {
+    "expected": "from up here every border just disappears",
+    "heard": "from up here every border just disappears",
+    "wer": 0,
+    "ops": [],
+    "pass": true
+  },
+  "spoken": {
+    "expected": "From up here, every border just disappears.",
+    "heard": "From up here, every border just disappears."
+  },
+  "subtitles": {
+    "file": "/app/runs/20261021-071836-1ad5f9/subtitled-9923f56bafce17dd.mp4",
+    "cues": [
+      {
+        "start": 6.9,
+        "end": 9.26,
+        "text": "From up here,"
+      },
+      {
+        "start": 9.26,
+        "end": 11.072,
+        "text": "every border just disappears."
+      }
+    ],
+    "timing": "asr"
+  },
+  "ok": true,
+  "status": "done",
+  "startedAt": "2026-10-21T07:37:16.998Z",
+  "endedAt": "2026-10-21T07:37:38.242Z",
+  "redos": [
+    {
+      "at": "2026-10-21T07:37:16.998Z",
+      "from": "burnSubtitles",
+      "costUsd": 0.000683
+    }
+  ]
+}
