@@ -5,7 +5,7 @@ FROM node:22-bookworm-slim
 # ffmpeg/ffprobe for the pipeline; DejaVu for burned-in subtitles and subtitle cards. python3/make/g++ only so that
 # better-sqlite3 (LangGraph checkpoints) can compile if no prebuilt binary matches the platform.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core ca-certificates python3 make g++ \
+ && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fonts-liberation ca-certificates python3 make g++ \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HEIGHT, overlayCuesArgs, WIDTH } from "../src/media/args.ts";
-import { cardSvg, CARD, renderCard, wrapLines } from "../src/media/subtitle-card.ts";
+import { cardSvg, CARD, fitFontSize, measureCard, renderCard, wrapLines } from "../src/media/subtitle-card.ts";
 import { probe } from "../src/media/ffmpeg.ts";
 import { assertCuesMatch, chunkLine, CUE_GAP_CLOSE, CUE_MIN, CUE_TAIL, timeCues } from "../src/nodes/subtitles.ts";
 import type { TranscriptWord } from "../src/schemas.ts";
@@ -148,11 +148,22 @@ describe("cue cards (F13 acceptance 3)", () => {
 
   it("svg: bold white, black stroke, centred, the family list, text escaped", () => {
     const svg = cardSvg("Tom & Jerry <3");
-    expect(svg).toContain('font-family="Arial, Helvetica, DejaVu Sans, sans-serif"');
+    expect(svg).toContain('font-family="Arial, Liberation Sans, Helvetica, DejaVu Sans, sans-serif"');
     expect(svg).toContain('font-weight="700"');
     expect(svg).toContain('text-anchor="middle"');
     expect(svg).toMatch(/fill="#fff" stroke="#000" stroke-width="12"/);
     expect(svg).toContain("Tom &amp; Jerry &lt;3");
+  });
+
+  it("a line too wide for this machine's font is shrunk to fit the frame; a short one keeps the full size", () => {
+    // 32 wide glyphs: at the default size it overflows with any font (live 2026-10-21: DejaVu cut a 29-char line).
+    const wide = "W".repeat(CARD.maxChars);
+    expect(measureCard(wide)).toBeGreaterThan(WIDTH * CARD.maxWidth);
+    const size = fitFontSize(wide);
+    expect(size).toBeLessThan(CARD.fontSize);
+    expect(measureCard(wide, size)).toBeLessThanOrEqual(WIDTH * CARD.maxWidth);
+    expect(cardSvg(wide, size)).toContain(`font-size="${size}"`);
+    expect(fitFontSize("Open it.")).toBe(CARD.fontSize);
   });
 
   it("a rendered card is 1080 px wide, transparent, with ink only in the lower third", async () => {

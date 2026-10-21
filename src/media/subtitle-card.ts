@@ -8,7 +8,7 @@ import { Resvg } from "@resvg/resvg-js";
 import { HEIGHT, WIDTH } from "./args.ts";
 
 /** Part of every card's content key: bump on any change to the look. */
-export const CARD_VERSION = "card-v2";
+export const CARD_VERSION = "card-v3";
 
 export const CARD = {
   fontSize: 68,
@@ -19,7 +19,10 @@ export const CARD = {
   stroke: 6,
   maxChars: 32,
   maxLines: 2,
-  family: "Arial, Helvetica, DejaVu Sans, sans-serif",
+  /** Liberation Sans has Arial's metrics: the Docker image installs it, so a line is as wide there as on a Mac. */
+  family: "Arial, Liberation Sans, Helvetica, DejaVu Sans, sans-serif",
+  /** Widest a line may be, as a share of the frame: maxChars is a guess at width, this is the measured limit. */
+  maxWidth: 0.92,
 } as const;
 
 /**
@@ -54,9 +57,9 @@ const xml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
 /** The card as SVG: white bold text, black outline, soft shadow, centred, last baseline at 84% of the height. */
-export function cardSvg(text: string): string {
+export function cardSvg(text: string, fontSize: number = CARD.fontSize): string {
   const lines = wrapLines(text);
-  const step = CARD.fontSize * CARD.lineHeight;
+  const step = fontSize * CARD.lineHeight;
   const last = Math.round(HEIGHT * CARD.baseline);
   const ys = lines.map((_, i) => Math.round(last - (lines.length - 1 - i) * step));
   const cx = WIDTH / 2;
@@ -68,21 +71,44 @@ export function cardSvg(text: string): string {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">`,
     `<defs><filter id="soft" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="7"/></filter></defs>`,
-    `<g font-family="${CARD.family}" font-weight="700" font-size="${CARD.fontSize}" text-anchor="middle">`,
+    `<g font-family="${CARD.family}" font-weight="700" font-size="${fontSize}" text-anchor="middle">`,
     ...shadow,
     ...face,
     "</g></svg>",
   ].join("");
 }
 
-/** Renders the card to a transparent PNG at `out` (1080 px wide). */
-export async function renderCard(text: string, out: string): Promise<void> {
-  const png = new Resvg(cardSvg(text), {
+const resvg = (svg: string): Resvg =>
+  new Resvg(svg, {
     background: "rgba(0,0,0,0)",
     fitTo: { mode: "width", value: WIDTH },
     font: { loadSystemFonts: true, defaultFontFamily: "Arial" },
-  })
-    .render()
-    .asPng();
+  });
+
+/** Width in px of the widest line as this machine's fonts draw it, plus the outline (resvg's bbox leaves strokes out). */
+export function measureCard(text: string, fontSize: number = CARD.fontSize): number {
+  const box = resvg(cardSvg(text, fontSize)).getBBox();
+  return box ? box.width + CARD.stroke * 2 : 0;
+}
+
+/**
+ * The font size that keeps every line inside `CARD.maxWidth` of the frame. Fonts differ between machines (a server
+ * without Arial falls back to the wider DejaVu Sans and cut "every border just disappears." at both edges, live
+ * 2026-10-21), so the line is measured, not guessed from its length. Never larger than `CARD.fontSize`.
+ */
+export function fitFontSize(text: string): number {
+  const limit = WIDTH * CARD.maxWidth;
+  let size: number = CARD.fontSize;
+  for (let i = 0; i < 3; i++) {
+    const w = measureCard(text, size);
+    if (w <= limit) return size;
+    size = Math.floor((size * limit) / w);
+  }
+  return size;
+}
+
+/** Renders the card to a transparent PNG at `out` (1080 px wide), shrinking the font if a line would not fit. */
+export async function renderCard(text: string, out: string): Promise<void> {
+  const png = resvg(cardSvg(text, fitFontSize(text))).render().asPng();
   await writeFile(out, png);
 }
